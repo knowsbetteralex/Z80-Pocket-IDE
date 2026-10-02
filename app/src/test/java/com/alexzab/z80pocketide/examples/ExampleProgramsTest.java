@@ -22,7 +22,7 @@ public class ExampleProgramsTest {
 
     @Test
     public void examplesHaveDetailsAndStableIds() {
-        assertFalse(ExamplePrograms.ALL.length < 8);
+        assertFalse(ExamplePrograms.ALL.length < 12);
         for (ExamplePrograms.Example example : ExamplePrograms.ALL) {
             assertNotNull(example.id);
             assertFalse(example.title(AppLanguage.EN).isEmpty());
