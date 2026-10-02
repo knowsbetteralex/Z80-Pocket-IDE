@@ -7,6 +7,14 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme">
         <activity
+            android:name=".ExampleDetailActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ExampleCatalogActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".ReferenceActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />

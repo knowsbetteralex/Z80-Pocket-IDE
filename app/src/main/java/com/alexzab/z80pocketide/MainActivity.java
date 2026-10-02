@@ -40,6 +40,7 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
+    private static final int REQUEST_EXAMPLE = 1002;
     private static final String STATE_SOURCE = "source";
     private static final String STATE_CURSOR = "cursor";
 
@@ -92,7 +93,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.5", "для ZX Spectrum · v0.5"));
+        subtitle.setText(t("for ZX Spectrum · v0.6", "для ZX Spectrum · v0.6"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -250,6 +251,10 @@ public class MainActivity extends Activity {
         startActivity(intent);
     }
 
+    private void showExamples() {
+        startActivityForResult(new Intent(this, ExampleCatalogActivity.class), REQUEST_EXAMPLE);
+    }
+
     private String wordAtCursor() {
         int cursor = Math.max(0, editor.getSelectionStart());
         String text = editor.getText().toString();
@@ -360,6 +365,23 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_EXAMPLE) {
+            if (resultCode == RESULT_OK && data != null) {
+                String source = data.getStringExtra(ExampleCatalogActivity.EXTRA_SOURCE);
+                String title = data.getStringExtra(ExampleCatalogActivity.EXTRA_TITLE);
+                if (source != null) {
+                    editor.setText(source);
+                    editor.setSelection(0);
+                    String displayTitle = title == null ? t("Example", "Пример") : title;
+                    invalidateBuild(language == AppLanguage.RU
+                            ? "Загружен пример «" + displayTitle + "» · Соберите и запустите"
+                            : displayTitle + " loaded · Build, then Run");
+                }
+            }
+            return;
+        }
+
         if (requestCode != REQUEST_SAVE_TAP || resultCode != RESULT_OK
                 || data == null || lastTap == null) {
             return;
@@ -381,29 +403,6 @@ public class MainActivity extends Activity {
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         }
-    }
-
-    private void showExamples() {
-        String[] labels = new String[ExamplePrograms.ALL.length];
-        for (int i = 0; i < labels.length; i++) {
-            String title = Texts.exampleTitle(language, ExamplePrograms.ALL[i].title);
-            String description = Texts.exampleDescription(language, ExamplePrograms.ALL[i].description);
-            labels[i] = title + " — " + description;
-        }
-
-        new AlertDialog.Builder(this)
-                .setTitle(t("Built-in ZX examples", "Встроенные примеры ZX"))
-                .setItems(labels, (dialog, which) -> {
-                    ExamplePrograms.Example example = ExamplePrograms.ALL[which];
-                    editor.setText(example.source);
-                    editor.setSelection(0);
-                    String localizedTitle = Texts.exampleTitle(language, example.title);
-                    invalidateBuild(language == AppLanguage.RU
-                            ? "Загружен пример «" + localizedTitle + "» · Соберите и запустите"
-                            : localizedTitle + " loaded · Build, then Run");
-                })
-                .setNegativeButton(t("Cancel", "Отмена"), null)
-                .show();
     }
 
     private void invalidateBuild(String message) {
