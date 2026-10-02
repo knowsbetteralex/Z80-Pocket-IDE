@@ -27,6 +27,9 @@ import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
+import com.alexzab.z80pocketide.i18n.AppLanguage;
+import com.alexzab.z80pocketide.i18n.LanguageSettings;
+import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.zx.TapWriter;
 
@@ -37,11 +40,14 @@ import java.util.Locale;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
+    private static final String STATE_SOURCE = "source";
+    private static final String STATE_CURSOR = "cursor";
 
     private EditText editor;
     private TextView status;
     private Button runTap;
     private Button saveTap;
+    private AppLanguage language;
 
     private byte[] lastTap;
     private String lastBuiltSource;
@@ -49,6 +55,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        language = LanguageSettings.get(this);
 
         getWindow().setStatusBarColor(Color.rgb(250, 250, 250));
         getWindow().setNavigationBarColor(Color.rgb(250, 250, 250));
@@ -85,7 +92,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("for ZX Spectrum · v0.4");
+        subtitle.setText(t("for ZX Spectrum · v0.5", "для ZX Spectrum · v0.5"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -94,8 +101,10 @@ public class MainActivity extends Activity {
         topBar.addView(titleBlock, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button reference = compactButton("Ref");
-        Button examples = compactButton("Examples");
+        Button languageButton = compactButton(language == AppLanguage.RU ? "RU" : "EN");
+        Button reference = compactButton(t("Ref", "Справка"));
+        Button examples = compactButton(t("Examples", "Примеры"));
+        topBar.addView(languageButton);
         topBar.addView(reference);
         topBar.addView(examples);
         root.addView(topBar);
@@ -115,8 +124,13 @@ public class MainActivity extends Activity {
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editor.setHorizontallyScrolling(true);
-        editor.setText(ExamplePrograms.ALL[0].source);
-        editor.setSelection(0);
+
+        String source = savedInstanceState == null
+                ? ExamplePrograms.ALL[0].source
+                : savedInstanceState.getString(STATE_SOURCE, ExamplePrograms.ALL[0].source);
+        int cursor = savedInstanceState == null ? 0 : savedInstanceState.getInt(STATE_CURSOR, 0);
+        editor.setText(source);
+        editor.setSelection(Math.min(Math.max(cursor, 0), editor.length()));
         root.addView(editor, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -129,7 +143,8 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) bottomPanel.setElevation(dp(4));
 
         status = new TextView(this);
-        status.setText("Syntax highlighting on · Build to assemble");
+        status.setText(t("Syntax highlighting on · Build to assemble",
+                "Подсветка синтаксиса включена · Соберите программу"));
         status.setTextSize(13);
         status.setTextColor(Color.rgb(90, 90, 90));
         status.setPadding(dp(4), dp(3), dp(4), dp(5));
@@ -139,9 +154,9 @@ public class MainActivity extends Activity {
         actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.CENTER);
 
-        Button build = actionButton("Build");
-        runTap = actionButton("Run");
-        saveTap = actionButton("Save .tap");
+        Button build = actionButton(t("Build", "Собрать"));
+        runTap = actionButton(t("Run", "Запуск"));
+        saveTap = actionButton(t("Save .tap", "Сохранить .tap"));
 
         runTap.setEnabled(false);
         saveTap.setEnabled(false);
@@ -157,18 +172,33 @@ public class MainActivity extends Activity {
         saveTap.setOnClickListener(v -> saveTapFile());
         examples.setOnClickListener(v -> showExamples());
         reference.setOnClickListener(v -> openReference());
+        languageButton.setOnClickListener(v -> showLanguageDialog());
 
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
             @Override public void afterTextChanged(Editable s) {
                 if (lastBuiltSource != null && !s.toString().equals(lastBuiltSource)) {
-                    invalidateBuild("Modified · Build required");
+                    invalidateBuild(t("Modified · Build required",
+                            "Изменено · требуется новая сборка"));
                 }
             }
         });
 
         setContentView(root);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (editor != null) {
+            outState.putString(STATE_SOURCE, editor.getText().toString());
+            outState.putInt(STATE_CURSOR, editor.getSelectionStart());
+        }
+    }
+
+    private String t(String en, String ru) {
+        return Texts.pick(language, en, ru);
     }
 
     private Button compactButton(String text) {
@@ -177,7 +207,7 @@ public class MainActivity extends Activity {
         button.setAllCaps(false);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
-        button.setPadding(dp(10), 0, dp(10), 0);
+        button.setPadding(dp(9), 0, dp(9), 0);
         return button;
     }
 
@@ -194,6 +224,23 @@ public class MainActivity extends Activity {
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         p.setMargins(dp(2), 0, dp(2), 0);
         return p;
+    }
+
+    private void showLanguageDialog() {
+        String[] labels = {"English", "Русский"};
+        int selected = language == AppLanguage.RU ? 1 : 0;
+        new AlertDialog.Builder(this)
+                .setTitle(t("Language", "Язык"))
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    AppLanguage newLanguage = which == 1 ? AppLanguage.RU : AppLanguage.EN;
+                    dialog.dismiss();
+                    if (newLanguage != language) {
+                        LanguageSettings.set(this, newLanguage);
+                        recreate();
+                    }
+                })
+                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .show();
     }
 
     private void openReference() {
@@ -221,7 +268,7 @@ public class MainActivity extends Activity {
 
     private boolean buildSource() {
         hideKeyboard();
-        setStatus("Building…", Color.DKGRAY);
+        setStatus(t("Building…", "Сборка…"), Color.DKGRAY);
         runTap.setEnabled(false);
         saveTap.setEnabled(false);
         lastTap = null;
@@ -236,18 +283,23 @@ public class MainActivity extends Activity {
             runTap.setEnabled(true);
             saveTap.setEnabled(true);
 
-            String message = String.format(Locale.US,
+            String message = language == AppLanguage.RU
+                    ? String.format(Locale.US,
+                    "Сборка успешна · %d байт · ORG $%04X · autorun TAP готов",
+                    result.getBytes().length, result.getOrigin() & 0xFFFF)
+                    : String.format(Locale.US,
                     "Build OK · %d bytes · ORG $%04X · autorun TAP ready",
-                    result.getBytes().length,
-                    result.getOrigin() & 0xFFFF);
+                    result.getBytes().length, result.getOrigin() & 0xFFFF);
             setStatus(message, Color.rgb(0, 110, 45));
-            Toast.makeText(this, "Build OK", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, t("Build OK", "Сборка успешна"), Toast.LENGTH_SHORT).show();
             return true;
         } catch (RuntimeException ex) {
-            String message = "Build error · " + ex.getMessage();
+            String raw = ex.getMessage();
+            String detail = Texts.localizeAssemblerError(language, raw);
+            String message = t("Build error · ", "Ошибка сборки · ") + detail;
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-            jumpToErrorLine(ex.getMessage());
+            jumpToErrorLine(raw);
             return false;
         }
     }
@@ -261,7 +313,8 @@ public class MainActivity extends Activity {
         try {
             File dir = new File(getCacheDir(), "shared");
             if (!dir.exists() && !dir.mkdirs()) {
-                throw new IllegalStateException("cannot create cache directory");
+                throw new IllegalStateException(t("cannot create cache directory",
+                        "не удалось создать временную папку"));
             }
 
             File file = new File(dir, "program.tap");
@@ -275,15 +328,17 @@ public class MainActivity extends Activity {
             view.setClipData(ClipData.newRawUri("ZX Spectrum TAP", uri));
             view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-            setStatus("Opening TAP · choose your ZX Spectrum emulator",
-                    Color.rgb(45, 80, 150));
-            startActivity(Intent.createChooser(view, "Open TAP with"));
+            setStatus(t("Opening TAP · choose your ZX Spectrum emulator",
+                    "Открытие TAP · выберите эмулятор ZX Spectrum"), Color.rgb(45, 80, 150));
+            startActivity(Intent.createChooser(view, t("Open TAP with", "Открыть TAP в")));
         } catch (ActivityNotFoundException ex) {
-            setStatus("No app found for .tap files · install/configure a ZX Spectrum emulator",
+            setStatus(t("No app found for .tap files · install/configure a ZX Spectrum emulator",
+                    "Не найдено приложение для .tap · установите или настройте эмулятор ZX Spectrum"),
                     Color.rgb(180, 30, 30));
-            Toast.makeText(this, "No app can open TAP files", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, t("No app can open TAP files",
+                    "Нет приложения, которое может открыть TAP"), Toast.LENGTH_LONG).show();
         } catch (Exception ex) {
-            String message = "Run error · " + ex.getMessage();
+            String message = t("Run error · ", "Ошибка запуска · ") + ex.getMessage();
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         }
@@ -314,14 +369,15 @@ public class MainActivity extends Activity {
         if (uri == null) return;
 
         try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
-            if (stream == null) throw new IllegalStateException("cannot open output file");
+            if (stream == null) throw new IllegalStateException(t("cannot open output file",
+                    "не удалось открыть выходной файл"));
             stream.write(lastTap);
             stream.flush();
-            setStatus("TAP saved · " + uri.getLastPathSegment(),
+            setStatus(t("TAP saved · ", "TAP сохранён · ") + uri.getLastPathSegment(),
                     Color.rgb(0, 110, 45));
-            Toast.makeText(this, "TAP saved", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, t("TAP saved", "TAP сохранён"), Toast.LENGTH_SHORT).show();
         } catch (Exception ex) {
-            String message = "Save error · " + ex.getMessage();
+            String message = t("Save error · ", "Ошибка сохранения · ") + ex.getMessage();
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         }
@@ -330,19 +386,23 @@ public class MainActivity extends Activity {
     private void showExamples() {
         String[] labels = new String[ExamplePrograms.ALL.length];
         for (int i = 0; i < labels.length; i++) {
-            labels[i] = ExamplePrograms.ALL[i].title + " — "
-                    + ExamplePrograms.ALL[i].description;
+            String title = Texts.exampleTitle(language, ExamplePrograms.ALL[i].title);
+            String description = Texts.exampleDescription(language, ExamplePrograms.ALL[i].description);
+            labels[i] = title + " — " + description;
         }
 
         new AlertDialog.Builder(this)
-                .setTitle("Built-in ZX examples")
+                .setTitle(t("Built-in ZX examples", "Встроенные примеры ZX"))
                 .setItems(labels, (dialog, which) -> {
                     ExamplePrograms.Example example = ExamplePrograms.ALL[which];
                     editor.setText(example.source);
                     editor.setSelection(0);
-                    invalidateBuild(example.title + " loaded · Build, then Run");
+                    String localizedTitle = Texts.exampleTitle(language, example.title);
+                    invalidateBuild(language == AppLanguage.RU
+                            ? "Загружен пример «" + localizedTitle + "» · Соберите и запустите"
+                            : localizedTitle + " loaded · Build, then Run");
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(t("Cancel", "Отмена"), null)
                 .show();
     }
 
