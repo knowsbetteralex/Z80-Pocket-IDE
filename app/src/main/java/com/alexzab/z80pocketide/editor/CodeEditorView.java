@@ -97,7 +97,7 @@ public class CodeEditorView extends EditText {
             case MotionEvent.ACTION_DOWN:
                 panning = false;
                 scaling = false;
-                nativeSelectionGesture = hasSelection();
+                nativeSelectionGesture = hasActiveSelection();
                 downX = event.getX();
                 downY = event.getY();
                 downScrollX = getScrollX();
@@ -127,7 +127,7 @@ public class CodeEditorView extends EditText {
                 // While text is selected, keep Android's native selection-handle
                 // gestures intact. This is the one case where a drag is not
                 // converted to canvas panning.
-                if (nativeSelectionGesture || hasSelection()) {
+                if (nativeSelectionGesture || hasActiveSelection()) {
                     return super.onTouchEvent(event);
                 }
 
@@ -183,7 +183,7 @@ public class CodeEditorView extends EditText {
         return scaling || panning || super.onTouchEvent(event);
     }
 
-    private boolean hasSelection() {
+    private boolean hasActiveSelection() {
         int start = getSelectionStart();
         int end = getSelectionEnd();
         return start >= 0 && end >= 0 && start != end;
