@@ -8,6 +8,7 @@ import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.ViewConfiguration;
+import android.widget.EditText;
 
 /**
  * EditText tuned for source code on a touch screen.
@@ -18,7 +19,7 @@ import android.view.ViewConfiguration;
  * Android's selection handles can still be dragged. A two-finger pinch changes
  * the editor font size.
  */
-public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText {
+public class CodeEditorView extends EditText {
     private static final String PREFS = "code_editor";
     private static final String PREF_FONT_SP = "font_sp";
     private static final float DEFAULT_FONT_SP = 16f;
@@ -103,8 +104,6 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
                 downScrollY = getScrollY();
                 downSelectionStart = getSelectionStart();
                 downSelectionEnd = getSelectionEnd();
-                // Selection handles and long-press selection must keep Android's
-                // native behaviour.
                 return super.onTouchEvent(event);
 
             case MotionEvent.ACTION_POINTER_DOWN:
@@ -113,7 +112,7 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
                     panning = false;
                     cancelNativeTouch();
                     restoreSelection();
-                    getParent().requestDisallowInterceptTouchEvent(true);
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
                     return true;
                 }
                 break;
@@ -125,7 +124,7 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
                     return true;
                 }
 
-                // While text is selected, keep the platform selection-handle
+                // While text is selected, keep Android's native selection-handle
                 // gestures intact. This is the one case where a drag is not
                 // converted to canvas panning.
                 if (nativeSelectionGesture || hasSelection()) {
@@ -138,7 +137,7 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
                     panning = true;
                     cancelNativeTouch();
                     restoreSelection();
-                    getParent().requestDisallowInterceptTouchEvent(true);
+                    if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
                 }
 
                 if (panning) {
@@ -156,7 +155,7 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
                 break;
 
             case MotionEvent.ACTION_UP:
-                getParent().requestDisallowInterceptTouchEvent(false);
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
                 if (panning || scaling) {
                     restoreSelection();
                     panning = false;
@@ -165,12 +164,12 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
                     return true;
                 }
                 nativeSelectionGesture = false;
-                // A real tap reaches the normal EditText implementation, so it
-                // positions the cursor exactly where the user tapped.
+                // A genuine tap reaches normal EditText handling and positions
+                // the cursor at the tapped character.
                 return super.onTouchEvent(event);
 
             case MotionEvent.ACTION_CANCEL:
-                getParent().requestDisallowInterceptTouchEvent(false);
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
                 if (panning || scaling) restoreSelection();
                 panning = false;
                 scaling = false;
@@ -198,8 +197,7 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
         try {
             setSelection(start, end);
         } catch (IndexOutOfBoundsException ignored) {
-            // Text may have changed between gesture events; keeping the editor
-            // responsive is more important than restoring a stale position.
+            // Text may have changed between gesture events.
         }
     }
 
@@ -232,12 +230,14 @@ public class CodeEditorView extends androidx.appcompat.widget.AppCompatEditText 
         for (int i = 0; i < layout.getLineCount(); i++) {
             widest = Math.max(widest, layout.getLineWidth(i));
         }
-        int content = (int) Math.ceil(widest) + getCompoundPaddingLeft() + getCompoundPaddingRight();
+        int content = (int) Math.ceil(widest)
+                + getCompoundPaddingLeft() + getCompoundPaddingRight();
         return Math.max(0, content - getWidth());
     }
 
     private int maxScrollY(Layout layout) {
-        int content = layout.getHeight() + getCompoundPaddingTop() + getCompoundPaddingBottom();
+        int content = layout.getHeight()
+                + getCompoundPaddingTop() + getCompoundPaddingBottom();
         return Math.max(0, content - getHeight());
     }
 
