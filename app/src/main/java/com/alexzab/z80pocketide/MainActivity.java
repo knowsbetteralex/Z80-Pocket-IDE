@@ -6,6 +6,8 @@ import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -26,6 +28,7 @@ import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
 import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
+import com.alexzab.z80pocketide.emulator.EmulatorSettings;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
 import com.alexzab.z80pocketide.i18n.AppLanguage;
 import com.alexzab.z80pocketide.i18n.LanguageSettings;
@@ -36,7 +39,12 @@ import com.alexzab.z80pocketide.zx.TapWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
@@ -48,6 +56,7 @@ public class MainActivity extends Activity {
     private TextView status;
     private Button runTap;
     private Button saveTap;
+    private Button emulatorButton;
     private AppLanguage language;
 
     private byte[] lastTap;
@@ -93,7 +102,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.7", "для ZX Spectrum · v0.7"));
+        subtitle.setText(t("for ZX Spectrum · v0.8", "для ZX Spectrum · v0.8"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -142,13 +151,24 @@ public class MainActivity extends Activity {
         bottomPanel.setBackgroundColor(Color.rgb(245, 245, 245));
         if (Build.VERSION.SDK_INT >= 21) bottomPanel.setElevation(dp(4));
 
+        LinearLayout infoRow = new LinearLayout(this);
+        infoRow.setOrientation(LinearLayout.HORIZONTAL);
+        infoRow.setGravity(Gravity.CENTER_VERTICAL);
+
         status = new TextView(this);
         status.setText(t("Tap: cursor · drag: scroll · pinch: font size",
                 "Тап: курсор · перетаскивание: прокрутка · щипок: размер шрифта"));
         status.setTextSize(13);
         status.setTextColor(Color.rgb(90, 90, 90));
         status.setPadding(dp(4), dp(3), dp(4), dp(5));
-        bottomPanel.addView(status);
+        infoRow.addView(status, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        emulatorButton = compactButton("");
+        updateEmulatorButton();
+        emulatorButton.setOnClickListener(v -> showEmulatorDialog());
+        infoRow.addView(emulatorButton);
+        bottomPanel.addView(infoRow);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -243,6 +263,73 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private void showEmulatorDialog() {
+        PackageManager pm = getPackageManager();
+        Intent probe = createTapViewIntent(tapUri());
+        List<ResolveInfo> found = pm.queryIntentActivities(probe, PackageManager.MATCH_DEFAULT_ONLY);
+
+        Map<String, ResolveInfo> unique = new LinkedHashMap<>();
+        for (ResolveInfo info : found) {
+            if (info.activityInfo != null && info.activityInfo.packageName != null) {
+                unique.put(info.activityInfo.packageName, info);
+            }
+        }
+
+        List<ResolveInfo> apps = new ArrayList<>(unique.values());
+        Collections.sort(apps, (a, b) -> appLabel(pm, a).compareToIgnoreCase(appLabel(pm, b)));
+
+        String[] labels = new String[apps.size() + 1];
+        labels[0] = t("Ask every time", "Спрашивать каждый раз");
+        int checked = 0;
+        String selectedPackage = EmulatorSettings.getPackage(this);
+        for (int i = 0; i < apps.size(); i++) {
+            ResolveInfo info = apps.get(i);
+            labels[i + 1] = appLabel(pm, info);
+            if (selectedPackage != null
+                    && selectedPackage.equals(info.activityInfo.packageName)) {
+                checked = i + 1;
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(t("Open TAP automatically in", "Автоматически открывать TAP в"))
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    if (which == 0) {
+                        EmulatorSettings.clear(this);
+                        setStatus(t("Run will ask which app to use",
+                                "При запуске будет предлагаться выбор приложения"),
+                                Color.rgb(90, 90, 90));
+                    } else {
+                        ResolveInfo info = apps.get(which - 1);
+                        String label = appLabel(pm, info);
+                        EmulatorSettings.set(this, info.activityInfo.packageName, label);
+                        setStatus(t("Default TAP app: ", "Приложение для TAP: ") + label,
+                                Color.rgb(45, 80, 150));
+                    }
+                    updateEmulatorButton();
+                    dialog.dismiss();
+                })
+                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .show();
+    }
+
+    private String appLabel(PackageManager pm, ResolveInfo info) {
+        CharSequence label = info.loadLabel(pm);
+        if (label != null && label.length() > 0) return label.toString();
+        return info.activityInfo.packageName;
+    }
+
+    private void updateEmulatorButton() {
+        if (emulatorButton == null) return;
+        String label = EmulatorSettings.getLabel(this);
+        if (label == null || label.trim().isEmpty()) {
+            emulatorButton.setText(t("App: ask", "Прил.: выбор"));
+        } else {
+            String shortLabel = label.length() > 15 ? label.substring(0, 14) + "…" : label;
+            emulatorButton.setText(t("App: ", "Прил.: ") + shortLabel);
+        }
+    }
+
     private void openReference() {
         Intent intent = new Intent(this, ReferenceActivity.class);
         String word = wordAtCursor();
@@ -308,6 +395,18 @@ public class MainActivity extends Activity {
         }
     }
 
+    private Uri tapUri() {
+        return Uri.parse("content://" + getPackageName() + ".tap/program.tap");
+    }
+
+    private Intent createTapViewIntent(Uri uri) {
+        Intent view = new Intent(Intent.ACTION_VIEW);
+        view.setDataAndType(uri, "application/octet-stream");
+        view.setClipData(ClipData.newRawUri("ZX Spectrum TAP", uri));
+        view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        return view;
+    }
+
     private void runTapInEmulator() {
         String source = editor.getText().toString();
         if (lastTap == null || lastBuiltSource == null || !source.equals(lastBuiltSource)) {
@@ -326,11 +425,29 @@ public class MainActivity extends Activity {
                 stream.write(lastTap);
             }
 
-            Uri uri = Uri.parse("content://" + getPackageName() + ".tap/program.tap");
-            Intent view = new Intent(Intent.ACTION_VIEW);
-            view.setDataAndType(uri, "application/octet-stream");
-            view.setClipData(ClipData.newRawUri("ZX Spectrum TAP", uri));
-            view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Uri uri = tapUri();
+            Intent view = createTapViewIntent(uri);
+            String preferredPackage = EmulatorSettings.getPackage(this);
+            String preferredLabel = EmulatorSettings.getLabel(this);
+
+            if (preferredPackage != null) {
+                view.setPackage(preferredPackage);
+                if (view.resolveActivity(getPackageManager()) != null) {
+                    setStatus(t("Opening TAP in ", "Открытие TAP в ")
+                                    + (preferredLabel == null ? preferredPackage : preferredLabel),
+                            Color.rgb(45, 80, 150));
+                    startActivity(view);
+                    return;
+                }
+
+                EmulatorSettings.clear(this);
+                updateEmulatorButton();
+                Toast.makeText(this,
+                        t("Saved TAP app is unavailable; choose another app",
+                                "Сохранённое приложение для TAP недоступно; выберите другое"),
+                        Toast.LENGTH_LONG).show();
+                view.setPackage(null);
+            }
 
             setStatus(t("Opening TAP · choose your ZX Spectrum emulator",
                     "Открытие TAP · выберите эмулятор ZX Spectrum"), Color.rgb(45, 80, 150));
