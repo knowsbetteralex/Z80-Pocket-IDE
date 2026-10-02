@@ -2,35 +2,41 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.4)
+## Current development build (v0.5)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
-- Mobile-safe layout that respects status/navigation bar insets.
-- Live Z80 syntax highlighting for mnemonics, registers, directives, labels, numbers, strings and comments.
-- Searchable built-in Z80 reference with syntax, opcode patterns, T-states, flag notes and short descriptions.
-- Reference opens pre-filtered when the cursor is on a mnemonic such as `LD`, `JR` or `LDIR`.
-- Light ZX Spectrum-inspired branding: six-color stripe accent and matching app icon.
+- Mobile-safe UI that respects Android system bars.
+- English / Russian language switch with the selected language persisted between launches.
+- Localized interface, statuses, notifications, examples and Z80 reference.
+- Live Z80 syntax highlighting for mnemonics, registers, directives, numbers, labels, strings and comments.
+- Searchable built-in Z80 reference with syntax, opcode patterns, T-states, flags and descriptions.
+- Russian reference search understands localized terms as well as technical mnemonics/opcodes.
 - Two-pass assembler core independent of Android.
-- Broad documented Z80 instruction coverage, including base, CB/ED and documented IX/IY indexed forms.
+- Table/family-driven Z80 encoder with broad documented instruction coverage, including CB/ED groups and documented IX/IY forms.
 - Assembler directives: `ORG`, `EQU`, `DB`, `DW`, `DS`.
-- Integer expressions with symbols and numeric forms such as `$FFFF`, `#FFFF`, `%1010`, `1010b`, `FFFFh`.
-- Forward label resolution and line-numbered diagnostics.
-- ZX Spectrum TAP output with generated BASIC autorun loader.
-- `Run` exports a temporary TAP through an Android content URI and opens the system app chooser.
-- Built-in visual examples for border cycling, attribute colors and bitmap stripes.
-- GitHub Actions runs tests, builds a debug APK and uploads it as an artifact.
+- Integer expressions, labels and line-numbered diagnostics.
+- ZX Spectrum TAP generation with BASIC autorun loader.
+- Build / Run / Save `.tap` workflow.
+- Android Intent launch into installed apps that can open TAP files.
+- Built-in visual ZX Spectrum example programs.
+- Spectrum-inspired branding and app icon.
+- JUnit tests and GitHub Actions debug APK builds.
 
-The opcode implementation targets the documented Z80 instruction set. Undocumented IXH/IYH forms and undocumented DDCB/FDCB register-result variants remain outside the current scope.
+The opcode implementation is based on the documented Z80 instruction set. Undocumented instructions (for example IXH/IYH forms and undocumented DDCB/FDCB register-result variants) are intentionally outside the current scope.
+
+## Language
+
+Use the `EN` / `RU` button in the app header. On first launch the app follows the device language when it is Russian; otherwise it defaults to English. The choice is then stored locally.
 
 ## Next milestones
 
-1. Line-number gutter and current-line highlight.
-2. Autocomplete / quick instruction insertion.
-3. Live non-destructive diagnostics before Build.
-4. `INCLUDE`, `INCBIN`, project format and multiple source files.
-5. Symbols panel, memory map and cycle analysis.
-6. Emulator-specific launch adapters where generic `.tap` intents are insufficient.
-7. Optional undocumented-instruction compatibility mode.
+1. Line numbers and current-line highlighting.
+2. Autocomplete for mnemonics, registers and labels.
+3. Inline instruction signature/T-state hints.
+4. Symbols panel and memory map.
+5. `INCLUDE`, `INCBIN`, project format and multiple source files.
+6. Cycle analysis and timing tools.
+7. Optional compatibility/undocumented-instruction mode.
 
 ## Build
 
