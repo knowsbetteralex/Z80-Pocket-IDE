@@ -2,39 +2,35 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.2-dev)
+## Current development build (v0.4)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
-- Minimal source editor and Build button.
+- Mobile-safe layout that respects status/navigation bar insets.
+- Live Z80 syntax highlighting for mnemonics, registers, directives, labels, numbers, strings and comments.
+- Searchable built-in Z80 reference with syntax, opcode patterns, T-states, flag notes and short descriptions.
+- Reference opens pre-filtered when the cursor is on a mnemonic such as `LD`, `JR` or `LDIR`.
+- Light ZX Spectrum-inspired branding: six-color stripe accent and matching app icon.
 - Two-pass assembler core independent of Android.
-- Table/family-driven Z80 encoder instead of line-specific regular expressions.
-- Broad documented Z80 instruction coverage, including:
-  - 8-bit and 16-bit loads and arithmetic;
-  - conditional/unconditional `JP`, `JR`, `CALL`, `RET`, `DJNZ`, `RST`;
-  - stack, exchange, interrupt and I/O instructions;
-  - `CB` rotate/shift/bit operations;
-  - `ED` block/special instructions;
-  - documented `IX` / `IY` indexed forms such as `(IX+d)` and `(IY+d)`.
+- Broad documented Z80 instruction coverage, including base, CB/ED and documented IX/IY indexed forms.
 - Assembler directives: `ORG`, `EQU`, `DB`, `DW`, `DS`.
-- `DB` string literals and comma-aware parsing.
-- Integer expressions with symbols, parentheses, `+ - * / % << >> & ^ | ~`.
-- Numeric forms: decimal, `$FFFF`, `#FFFF`, `%1010`, `1010b`, `FFFFh`.
+- Integer expressions with symbols and numeric forms such as `$FFFF`, `#FFFF`, `%1010`, `1010b`, `FFFFh`.
 - Forward label resolution and line-numbered diagnostics.
-- Minimal ZX Spectrum TAP CODE writer.
-- JUnit tests for labels, expressions, directives, indexed code and prefixed opcodes.
+- ZX Spectrum TAP output with generated BASIC autorun loader.
+- `Run` exports a temporary TAP through an Android content URI and opens the system app chooser.
+- Built-in visual examples for border cycling, attribute colors and bitmap stripes.
 - GitHub Actions runs tests, builds a debug APK and uploads it as an artifact.
 
-The opcode implementation is based on the documented Z80 instruction set. Undocumented instructions (for example IXH/IYH forms and undocumented DDCB/FDCB register-result variants) are intentionally outside the current scope.
+The opcode implementation targets the documented Z80 instruction set. Undocumented IXH/IYH forms and undocumented DDCB/FDCB register-result variants remain outside the current scope.
 
 ## Next milestones
 
-1. Syntax highlighting and editor diagnostics while typing.
-2. Built-in Z80 reference with bytes, flags and T-states.
-3. TAP with generated BASIC loader and autorun.
-4. Export/share plus Android Intent launch into an installed emulator.
-5. `INCLUDE`, `INCBIN`, project format and multiple source files.
-6. Memory map, symbols panel and cycle analysis.
-7. Optional compatibility/undocumented-instruction mode.
+1. Line-number gutter and current-line highlight.
+2. Autocomplete / quick instruction insertion.
+3. Live non-destructive diagnostics before Build.
+4. `INCLUDE`, `INCBIN`, project format and multiple source files.
+5. Symbols panel, memory map and cycle analysis.
+6. Emulator-specific launch adapters where generic `.tap` intents are insufficient.
+7. Optional undocumented-instruction compatibility mode.
 
 ## Build
 

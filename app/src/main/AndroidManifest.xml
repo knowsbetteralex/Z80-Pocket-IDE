@@ -2,8 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
         android:allowBackup="true"
+        android:icon="@drawable/ic_spectrum"
+        android:roundIcon="@drawable/ic_spectrum"
         android:label="@string/app_name"
         android:theme="@style/AppTheme">
+        <activity
+            android:name=".ReferenceActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

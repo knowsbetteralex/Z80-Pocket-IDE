@@ -25,7 +25,9 @@ import android.widget.Toast;
 
 import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
+import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
+import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.zx.TapWriter;
 
 import java.io.File;
@@ -72,7 +74,7 @@ public class MainActivity extends Activity {
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(dp(4), 0, dp(4), dp(6));
+        topBar.setPadding(dp(4), 0, dp(4), dp(4));
 
         LinearLayout titleBlock = new LinearLayout(this);
         titleBlock.setOrientation(LinearLayout.VERTICAL);
@@ -80,10 +82,10 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Z80 Pocket IDE");
         title.setTextSize(20);
-        title.setTextColor(Color.rgb(30, 30, 30));
+        title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("ZX Spectrum · v0.3");
+        subtitle.setText("for ZX Spectrum · v0.4");
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -92,15 +94,20 @@ public class MainActivity extends Activity {
         topBar.addView(titleBlock, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button examples = new Button(this);
-        examples.setText("EXAMPLES");
-        examples.setAllCaps(false);
+        Button reference = compactButton("Ref");
+        Button examples = compactButton("Examples");
+        topBar.addView(reference);
         topBar.addView(examples);
         root.addView(topBar);
+
+        SpectrumStripeView stripe = new SpectrumStripeView(this);
+        root.addView(stripe, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(6)));
 
         editor = new EditText(this);
         editor.setGravity(Gravity.TOP | Gravity.START);
         editor.setTextSize(16);
+        editor.setTypeface(android.graphics.Typeface.MONOSPACE);
         editor.setTextColor(Color.rgb(25, 25, 25));
         editor.setBackgroundColor(Color.rgb(248, 248, 248));
         editor.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -113,6 +120,8 @@ public class MainActivity extends Activity {
         root.addView(editor, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        SyntaxHighlighter.attach(editor);
+
         LinearLayout bottomPanel = new LinearLayout(this);
         bottomPanel.setOrientation(LinearLayout.VERTICAL);
         bottomPanel.setPadding(dp(8), dp(6), dp(8), 0);
@@ -120,7 +129,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) bottomPanel.setElevation(dp(4));
 
         status = new TextView(this);
-        status.setText("Border cycle example · Build to assemble");
+        status.setText("Syntax highlighting on · Build to assemble");
         status.setTextSize(13);
         status.setTextColor(Color.rgb(90, 90, 90));
         status.setPadding(dp(4), dp(3), dp(4), dp(5));
@@ -147,6 +156,7 @@ public class MainActivity extends Activity {
         runTap.setOnClickListener(v -> runTapInEmulator());
         saveTap.setOnClickListener(v -> saveTapFile());
         examples.setOnClickListener(v -> showExamples());
+        reference.setOnClickListener(v -> openReference());
 
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -159,6 +169,16 @@ public class MainActivity extends Activity {
         });
 
         setContentView(root);
+    }
+
+    private Button compactButton(String text) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setAllCaps(false);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setPadding(dp(10), 0, dp(10), 0);
+        return button;
     }
 
     private Button actionButton(String text) {
@@ -174,6 +194,29 @@ public class MainActivity extends Activity {
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
         p.setMargins(dp(2), 0, dp(2), 0);
         return p;
+    }
+
+    private void openReference() {
+        Intent intent = new Intent(this, ReferenceActivity.class);
+        String word = wordAtCursor();
+        if (!word.isEmpty()) intent.putExtra(ReferenceActivity.EXTRA_QUERY, word);
+        startActivity(intent);
+    }
+
+    private String wordAtCursor() {
+        int cursor = Math.max(0, editor.getSelectionStart());
+        String text = editor.getText().toString();
+        if (text.isEmpty()) return "";
+        cursor = Math.min(cursor, text.length());
+        int start = cursor;
+        int end = cursor;
+        while (start > 0 && isWordChar(text.charAt(start - 1))) start--;
+        while (end < text.length() && isWordChar(text.charAt(end))) end++;
+        return start < end ? text.substring(start, end) : "";
+    }
+
+    private boolean isWordChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '\'';
     }
 
     private boolean buildSource() {
