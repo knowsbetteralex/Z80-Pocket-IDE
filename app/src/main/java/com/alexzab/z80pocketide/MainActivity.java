@@ -18,13 +18,13 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
+import com.alexzab.z80pocketide.editor.CodeEditorView;
 import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
 import com.alexzab.z80pocketide.i18n.AppLanguage;
@@ -44,7 +44,7 @@ public class MainActivity extends Activity {
     private static final String STATE_SOURCE = "source";
     private static final String STATE_CURSOR = "cursor";
 
-    private EditText editor;
+    private CodeEditorView editor;
     private TextView status;
     private Button runTap;
     private Button saveTap;
@@ -93,7 +93,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.6", "для ZX Spectrum · v0.6"));
+        subtitle.setText(t("for ZX Spectrum · v0.7", "для ZX Spectrum · v0.7"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -114,9 +114,8 @@ public class MainActivity extends Activity {
         root.addView(stripe, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(6)));
 
-        editor = new EditText(this);
+        editor = new CodeEditorView(this);
         editor.setGravity(Gravity.TOP | Gravity.START);
-        editor.setTextSize(16);
         editor.setTypeface(android.graphics.Typeface.MONOSPACE);
         editor.setTextColor(Color.rgb(25, 25, 25));
         editor.setBackgroundColor(Color.rgb(248, 248, 248));
@@ -144,8 +143,8 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) bottomPanel.setElevation(dp(4));
 
         status = new TextView(this);
-        status.setText(t("Syntax highlighting on · Build to assemble",
-                "Подсветка синтаксиса включена · Соберите программу"));
+        status.setText(t("Tap: cursor · drag: scroll · pinch: font size",
+                "Тап: курсор · перетаскивание: прокрутка · щипок: размер шрифта"));
         status.setTextSize(13);
         status.setTextColor(Color.rgb(90, 90, 90));
         status.setPadding(dp(4), dp(3), dp(4), dp(5));
