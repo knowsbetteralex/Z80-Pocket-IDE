@@ -16,7 +16,8 @@ public final class ExamplePreviewView extends View {
 
     public ExamplePreviewView(Context context) {
         super(context);
-        setBackgroundColor(Color.rgb(8, 12, 18));
+        setBackground(UiStyle.rounded(context, Color.rgb(8, 12, 18),
+                14, Color.rgb(35, 50, 60), 1));
     }
 
     public void setPreviewType(int previewType) {
@@ -57,6 +58,9 @@ public final class ExamplePreviewView extends View {
             case ExamplePrograms.PREVIEW_DIAGONAL: drawDiagonal(canvas, screen); break;
             case ExamplePrograms.PREVIEW_MARQUEE: drawMarquee(canvas, screen); break;
             case ExamplePrograms.PREVIEW_BEEPER: drawBeeper(canvas, screen); break;
+            case ExamplePrograms.PREVIEW_THIRDS: drawThirds(canvas, screen); break;
+            case ExamplePrograms.PREVIEW_NOISE: drawNoise(canvas, screen); break;
+            case ExamplePrograms.PREVIEW_ROUTINE: drawRoutine(canvas, screen); break;
             default: break;
         }
     }
@@ -199,6 +203,69 @@ public final class ExamplePreviewView extends View {
             canvas.drawRect(screen.left + x * cw, screen.top,
                     screen.left + (x + 1) * cw, screen.top + ch, paint);
         }
+    }
+
+    private void drawThirds(Canvas canvas, RectF screen) {
+        float third = screen.height() / 3f;
+        paint.setColor(Color.WHITE);
+        canvas.drawRect(screen.left, screen.top, screen.right, screen.top + third, paint);
+
+        float stripe = Math.max(1f, screen.width() / 36f);
+        for (int i = 0; i < 36; i++) {
+            paint.setColor((i & 1) == 0 ? Color.WHITE : Color.BLACK);
+            float x = screen.left + i * stripe;
+            canvas.drawRect(x, screen.top + third, x + stripe,
+                    screen.top + third * 2f, paint);
+        }
+
+        float cell = Math.max(2f, screen.width() / 28f);
+        int index = 0;
+        for (float y = screen.top + third * 2f; y < screen.bottom; y += cell) {
+            for (float x = screen.left; x < screen.right; x += cell) {
+                paint.setColor(((index++) & 1) == 0 ? 0xFFF4D328 : 0xFF0046C7);
+                canvas.drawRect(x, y, Math.min(x + cell, screen.right),
+                        Math.min(y + cell, screen.bottom), paint);
+            }
+        }
+    }
+
+    private void drawNoise(Canvas canvas, RectF screen) {
+        int cols = 28;
+        int rows = 18;
+        float cw = screen.width() / cols;
+        float ch = screen.height() / rows;
+        int state = 0x5A;
+        for (int y = 0; y < rows; y++) {
+            for (int x = 0; x < cols; x++) {
+                state = ((state << 1) ^ (((state >> 7) ^ (state >> 5)) & 1)) & 0xFF;
+                int v = (state & 1) != 0 ? 220 : 35;
+                paint.setColor(Color.rgb(v, v, v));
+                canvas.drawRect(screen.left + x * cw, screen.top + y * ch,
+                        screen.left + (x + 1) * cw, screen.top + (y + 1) * ch, paint);
+            }
+        }
+    }
+
+    private void drawRoutine(Canvas canvas, RectF screen) {
+        paint.setTypeface(android.graphics.Typeface.MONOSPACE);
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextSize(Math.max(10f, screen.width() / 14f));
+        paint.setColor(0xFF00B8E6);
+        canvas.drawText("IN", screen.left + screen.width() * 0.16f,
+                screen.centerY() + paint.getTextSize() * 0.35f, paint);
+        paint.setColor(0xFFF4D328);
+        RectF chip = new RectF(screen.centerX() - screen.width() * 0.19f,
+                screen.centerY() - screen.height() * 0.22f,
+                screen.centerX() + screen.width() * 0.19f,
+                screen.centerY() + screen.height() * 0.22f);
+        canvas.drawRoundRect(chip, 7f, 7f, paint);
+        paint.setColor(Color.BLACK);
+        canvas.drawText("Z80", screen.centerX(),
+                screen.centerY() + paint.getTextSize() * 0.35f, paint);
+        paint.setColor(0xFF00A650);
+        canvas.drawText("OUT", screen.right - screen.width() * 0.16f,
+                screen.centerY() + paint.getTextSize() * 0.35f, paint);
+        paint.setTextAlign(Paint.Align.LEFT);
     }
 
     private void drawBeeper(Canvas canvas, RectF screen) {
