@@ -8,10 +8,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -20,6 +24,7 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -27,6 +32,7 @@ import android.widget.Toast;
 import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
+import com.alexzab.z80pocketide.editor.EditorDocument;
 import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
 import com.alexzab.z80pocketide.emulator.EmulatorSettings;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
@@ -36,9 +42,14 @@ import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.zx.TapWriter;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -49,18 +60,37 @@ import java.util.Map;
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
     private static final int REQUEST_EXAMPLE = 1002;
-    private static final String STATE_SOURCE = "source";
-    private static final String STATE_CURSOR = "cursor";
+    private static final int REQUEST_OPEN_SOURCE = 1003;
+    private static final int REQUEST_SAVE_SOURCE_AS = 1004;
+
+    private static final String STATE_TITLES = "tab_titles";
+    private static final String STATE_TEXTS = "tab_texts";
+    private static final String STATE_URIS = "tab_uris";
+    private static final String STATE_DIRTY = "tab_dirty";
+    private static final String STATE_CURSORS = "tab_cursors";
+    private static final String STATE_SCROLL_X = "tab_scroll_x";
+    private static final String STATE_SCROLL_Y = "tab_scroll_y";
+    private static final String STATE_ACTIVE = "tab_active";
+    private static final String STATE_PENDING_SAVE = "pending_save";
+    private static final String STATE_PENDING_CLOSE = "pending_close";
+
+    private final List<EditorDocument> documents = new ArrayList<>();
 
     private CodeEditorView editor;
     private TextView status;
     private Button runTap;
     private Button saveTap;
     private Button emulatorButton;
+    private HorizontalScrollView tabStrip;
+    private LinearLayout tabRow;
     private AppLanguage language;
 
-    private byte[] lastTap;
-    private String lastBuiltSource;
+    private int activeIndex = -1;
+    private int pendingSaveIndex = -1;
+    private boolean pendingCloseAfterSave;
+    private boolean loadingDocument;
+    private byte[] pendingTapToSave;
+    private int untitledCounter = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -102,7 +132,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.8", "для ZX Spectrum · v0.8"));
+        subtitle.setText(t("for ZX Spectrum · v0.9", "для ZX Spectrum · v0.9"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -123,9 +153,32 @@ public class MainActivity extends Activity {
         root.addView(stripe, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(6)));
 
+        LinearLayout workspaceBar = new LinearLayout(this);
+        workspaceBar.setOrientation(LinearLayout.HORIZONTAL);
+        workspaceBar.setGravity(Gravity.CENTER_VERTICAL);
+        workspaceBar.setPadding(0, dp(3), 0, dp(3));
+        workspaceBar.setBackgroundColor(Color.rgb(242, 242, 242));
+
+        Button fileButton = compactButton(t("File", "Файл"));
+        fileButton.setOnClickListener(v -> showFileMenu());
+        workspaceBar.addView(fileButton);
+
+        tabStrip = new HorizontalScrollView(this);
+        tabStrip.setHorizontalScrollBarEnabled(false);
+        tabStrip.setFillViewport(false);
+        tabRow = new LinearLayout(this);
+        tabRow.setOrientation(LinearLayout.HORIZONTAL);
+        tabRow.setGravity(Gravity.CENTER_VERTICAL);
+        tabStrip.addView(tabRow, new HorizontalScrollView.LayoutParams(
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT,
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT));
+        workspaceBar.addView(tabStrip, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        root.addView(workspaceBar);
+
         editor = new CodeEditorView(this);
         editor.setGravity(Gravity.TOP | Gravity.START);
-        editor.setTypeface(android.graphics.Typeface.MONOSPACE);
+        editor.setTypeface(Typeface.MONOSPACE);
         editor.setTextColor(Color.rgb(25, 25, 25));
         editor.setBackgroundColor(Color.rgb(248, 248, 248));
         editor.setPadding(dp(12), dp(10), dp(12), dp(10));
@@ -133,13 +186,6 @@ public class MainActivity extends Activity {
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editor.setHorizontallyScrolling(true);
-
-        String source = savedInstanceState == null
-                ? ExamplePrograms.ALL[0].source
-                : savedInstanceState.getString(STATE_SOURCE, ExamplePrograms.ALL[0].source);
-        int cursor = savedInstanceState == null ? 0 : savedInstanceState.getInt(STATE_CURSOR, 0);
-        editor.setText(source);
-        editor.setSelection(Math.min(Math.max(cursor, 0), editor.length()));
         root.addView(editor, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -156,8 +202,8 @@ public class MainActivity extends Activity {
         infoRow.setGravity(Gravity.CENTER_VERTICAL);
 
         status = new TextView(this);
-        status.setText(t("Tap: cursor · drag: scroll · pinch: font size",
-                "Тап: курсор · перетаскивание: прокрутка · щипок: размер шрифта"));
+        status.setText(t("Tabs ready · File opens and saves .asm sources",
+                "Вкладки готовы · Файл открывает и сохраняет исходники .asm"));
         status.setTextSize(13);
         status.setTextColor(Color.rgb(90, 90, 90));
         status.setPadding(dp(4), dp(3), dp(4), dp(5));
@@ -197,24 +243,136 @@ public class MainActivity extends Activity {
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-            @Override public void afterTextChanged(Editable s) {
-                if (lastBuiltSource != null && !s.toString().equals(lastBuiltSource)) {
-                    invalidateBuild(t("Modified · Build required",
-                            "Изменено · требуется новая сборка"));
-                }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (loadingDocument || !hasActiveDocument()) return;
+                EditorDocument doc = currentDocument();
+                String next = s.toString();
+                if (next.equals(doc.text)) return;
+
+                boolean wasDirty = doc.dirty;
+                doc.text = next;
+                doc.dirty = true;
+                doc.invalidateBuild();
+                runTap.setEnabled(false);
+                saveTap.setEnabled(false);
+                setStatus(t("Modified · source file not saved",
+                        "Изменено · исходный файл не сохранён"), Color.rgb(120, 85, 0));
+                if (!wasDirty) renderTabs();
             }
         });
 
         setContentView(root);
+        restoreWorkspace(savedInstanceState);
+    }
+
+    @Override
+    protected void onPause() {
+        captureCurrentDocument();
+        super.onPause();
     }
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
+        captureCurrentDocument();
         super.onSaveInstanceState(outState);
-        if (editor != null) {
-            outState.putString(STATE_SOURCE, editor.getText().toString());
-            outState.putInt(STATE_CURSOR, editor.getSelectionStart());
+
+        ArrayList<String> titles = new ArrayList<>();
+        ArrayList<String> texts = new ArrayList<>();
+        ArrayList<String> uris = new ArrayList<>();
+        ArrayList<Integer> dirty = new ArrayList<>();
+        ArrayList<Integer> cursors = new ArrayList<>();
+        ArrayList<Integer> scrollX = new ArrayList<>();
+        ArrayList<Integer> scrollY = new ArrayList<>();
+
+        for (EditorDocument doc : documents) {
+            titles.add(doc.title);
+            texts.add(doc.text);
+            uris.add(doc.uriString == null ? "" : doc.uriString);
+            dirty.add(doc.dirty ? 1 : 0);
+            cursors.add(doc.cursor);
+            scrollX.add(doc.scrollX);
+            scrollY.add(doc.scrollY);
         }
+
+        outState.putStringArrayList(STATE_TITLES, titles);
+        outState.putStringArrayList(STATE_TEXTS, texts);
+        outState.putStringArrayList(STATE_URIS, uris);
+        outState.putIntegerArrayList(STATE_DIRTY, dirty);
+        outState.putIntegerArrayList(STATE_CURSORS, cursors);
+        outState.putIntegerArrayList(STATE_SCROLL_X, scrollX);
+        outState.putIntegerArrayList(STATE_SCROLL_Y, scrollY);
+        outState.putInt(STATE_ACTIVE, activeIndex);
+        outState.putInt(STATE_PENDING_SAVE, pendingSaveIndex);
+        outState.putBoolean(STATE_PENDING_CLOSE, pendingCloseAfterSave);
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (!hasDirtyDocuments()) {
+            super.onBackPressed();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(t("Unsaved tabs", "Несохранённые вкладки"))
+                .setMessage(t("Some source tabs contain unsaved changes. Exit without saving them?",
+                        "В некоторых вкладках есть несохранённые изменения. Выйти без сохранения?"))
+                .setPositiveButton(t("Exit", "Выйти"), (d, w) -> MainActivity.super.onBackPressed())
+                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .show();
+    }
+
+    private void restoreWorkspace(Bundle state) {
+        documents.clear();
+        if (state != null) {
+            ArrayList<String> titles = state.getStringArrayList(STATE_TITLES);
+            ArrayList<String> texts = state.getStringArrayList(STATE_TEXTS);
+            ArrayList<String> uris = state.getStringArrayList(STATE_URIS);
+            ArrayList<Integer> dirty = state.getIntegerArrayList(STATE_DIRTY);
+            ArrayList<Integer> cursors = state.getIntegerArrayList(STATE_CURSORS);
+            ArrayList<Integer> scrollX = state.getIntegerArrayList(STATE_SCROLL_X);
+            ArrayList<Integer> scrollY = state.getIntegerArrayList(STATE_SCROLL_Y);
+
+            if (titles != null && texts != null && titles.size() == texts.size()) {
+                for (int i = 0; i < titles.size(); i++) {
+                    String uri = uris != null && i < uris.size() ? uris.get(i) : "";
+                    EditorDocument doc = new EditorDocument(
+                            titles.get(i), texts.get(i), uri == null || uri.isEmpty() ? null : uri,
+                            dirty != null && i < dirty.size() && dirty.get(i) != 0);
+                    doc.cursor = cursors != null && i < cursors.size() ? cursors.get(i) : 0;
+                    doc.scrollX = scrollX != null && i < scrollX.size() ? scrollX.get(i) : 0;
+                    doc.scrollY = scrollY != null && i < scrollY.size() ? scrollY.get(i) : 0;
+                    documents.add(doc);
+                }
+            }
+            activeIndex = state.getInt(STATE_ACTIVE, 0);
+            pendingSaveIndex = state.getInt(STATE_PENDING_SAVE, -1);
+            pendingCloseAfterSave = state.getBoolean(STATE_PENDING_CLOSE, false);
+        }
+
+        if (documents.isEmpty()) {
+            EditorDocument start = new EditorDocument(
+                    nextUntitledName(), starterSource(), null, false);
+            documents.add(start);
+            activeIndex = 0;
+        }
+        activeIndex = Math.max(0, Math.min(activeIndex, documents.size() - 1));
+        updateUntitledCounter();
+        renderTabs();
+        loadActiveDocument();
+    }
+
+    private String starterSource() {
+        return "ORG $8000\n\nSTART:\n    NOP\n    RET\n";
+    }
+
+    private String nextUntitledName() {
+        return t("Untitled ", "Без имени ") + (untitledCounter++) + ".asm";
+    }
+
+    private void updateUntitledCounter() {
+        untitledCounter = Math.max(untitledCounter, documents.size() + 1);
     }
 
     private String t(String en, String ru) {
@@ -246,6 +404,345 @@ public class MainActivity extends Activity {
         return p;
     }
 
+    private void renderTabs() {
+        if (tabRow == null) return;
+        tabRow.removeAllViews();
+        final View[] activeCell = new View[1];
+
+        for (int i = 0; i < documents.size(); i++) {
+            final int index = i;
+            EditorDocument doc = documents.get(i);
+
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.HORIZONTAL);
+            cell.setGravity(Gravity.CENTER_VERTICAL);
+            cell.setPadding(dp(2), 0, dp(1), 0);
+            GradientDrawable bg = new GradientDrawable();
+            bg.setCornerRadius(dp(5));
+            bg.setColor(i == activeIndex ? Color.rgb(255, 244, 194) : Color.rgb(232, 232, 232));
+            bg.setStroke(dp(1), i == activeIndex
+                    ? Color.rgb(205, 160, 0) : Color.rgb(205, 205, 205));
+            cell.setBackground(bg);
+
+            TextView tabTitle = new TextView(this);
+            tabTitle.setText((doc.dirty ? "● " : "") + doc.title);
+            tabTitle.setTextSize(13);
+            tabTitle.setTextColor(Color.rgb(35, 35, 35));
+            tabTitle.setTypeface(Typeface.DEFAULT,
+                    i == activeIndex ? Typeface.BOLD : Typeface.NORMAL);
+            tabTitle.setPadding(dp(9), dp(7), dp(6), dp(7));
+            tabTitle.setSingleLine(true);
+            tabTitle.setOnClickListener(v -> selectTab(index));
+            tabTitle.setOnLongClickListener(v -> {
+                showTabMenu(index);
+                return true;
+            });
+            cell.addView(tabTitle);
+
+            TextView close = new TextView(this);
+            close.setText("×");
+            close.setTextSize(20);
+            close.setGravity(Gravity.CENTER);
+            close.setTextColor(Color.rgb(100, 100, 100));
+            close.setPadding(dp(6), dp(2), dp(7), dp(2));
+            close.setOnClickListener(v -> requestCloseTab(index));
+            cell.addView(close, new LinearLayout.LayoutParams(dp(34), dp(38)));
+
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cp.setMargins(dp(2), 0, dp(2), 0);
+            tabRow.addView(cell, cp);
+            if (i == activeIndex) activeCell[0] = cell;
+        }
+
+        if (activeCell[0] != null) {
+            tabStrip.post(() -> tabStrip.smoothScrollTo(
+                    Math.max(0, activeCell[0].getLeft() - dp(24)), 0));
+        }
+    }
+
+    private void selectTab(int index) {
+        if (index < 0 || index >= documents.size() || index == activeIndex) return;
+        captureCurrentDocument();
+        activeIndex = index;
+        renderTabs();
+        loadActiveDocument();
+    }
+
+    private void loadActiveDocument() {
+        if (!hasActiveDocument()) return;
+        EditorDocument doc = currentDocument();
+        loadingDocument = true;
+        editor.setText(doc.text);
+        editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
+        loadingDocument = false;
+        editor.post(() -> editor.scrollTo(doc.scrollX, doc.scrollY));
+
+        boolean built = doc.buildIsCurrent();
+        runTap.setEnabled(built);
+        saveTap.setEnabled(built);
+        setStatus(doc.dirty
+                        ? t("Modified · not saved", "Изменено · не сохранено")
+                        : (doc.hasFile()
+                            ? t("File · ", "Файл · ") + doc.title
+                            : t("Tab · ", "Вкладка · ") + doc.title),
+                doc.dirty ? Color.rgb(120, 85, 0) : Color.rgb(90, 90, 90));
+    }
+
+    private void captureCurrentDocument() {
+        if (!hasActiveDocument() || editor == null || loadingDocument) return;
+        EditorDocument doc = currentDocument();
+        doc.text = editor.getText().toString();
+        doc.cursor = Math.max(0, editor.getSelectionStart());
+        doc.scrollX = editor.getScrollX();
+        doc.scrollY = editor.getScrollY();
+    }
+
+    private boolean hasActiveDocument() {
+        return activeIndex >= 0 && activeIndex < documents.size();
+    }
+
+    private EditorDocument currentDocument() {
+        return documents.get(activeIndex);
+    }
+
+    private boolean hasDirtyDocuments() {
+        for (EditorDocument doc : documents) if (doc.dirty) return true;
+        return false;
+    }
+
+    private void showFileMenu() {
+        String[] items = {
+                t("New tab", "Новая вкладка"),
+                t("Open .asm…", "Открыть .asm…"),
+                t("Save source", "Сохранить исходник"),
+                t("Save source as…", "Сохранить исходник как…"),
+                t("Close tab", "Закрыть вкладку")
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(t("File", "Файл"))
+                .setItems(items, (dialog, which) -> {
+                    switch (which) {
+                        case 0: newTab(); break;
+                        case 1: openSourceFilePicker(); break;
+                        case 2: saveDocument(activeIndex, false); break;
+                        case 3: requestSaveAs(activeIndex, false); break;
+                        case 4: requestCloseTab(activeIndex); break;
+                        default: break;
+                    }
+                })
+                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .show();
+    }
+
+    private void showTabMenu(int index) {
+        if (index < 0 || index >= documents.size()) return;
+        String[] items = {
+                t("Save", "Сохранить"),
+                t("Save as…", "Сохранить как…"),
+                t("Close", "Закрыть")
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(documents.get(index).title)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) saveDocument(index, false);
+                    else if (which == 1) requestSaveAs(index, false);
+                    else if (which == 2) requestCloseTab(index);
+                })
+                .show();
+    }
+
+    private void newTab() {
+        captureCurrentDocument();
+        documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
+        activeIndex = documents.size() - 1;
+        renderTabs();
+        loadActiveDocument();
+    }
+
+    private void openSourceFilePicker() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
+                "text/plain", "application/octet-stream", "text/x-asm", "application/x-asm"
+        });
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, REQUEST_OPEN_SOURCE);
+    }
+
+    private void requestSaveAs(int index, boolean closeAfterSave) {
+        if (index < 0 || index >= documents.size()) return;
+        if (index == activeIndex) captureCurrentDocument();
+        pendingSaveIndex = index;
+        pendingCloseAfterSave = closeAfterSave;
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_TITLE, ensureAsmName(documents.get(index).title));
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent, REQUEST_SAVE_SOURCE_AS);
+    }
+
+    private void saveDocument(int index, boolean closeAfterSave) {
+        if (index < 0 || index >= documents.size()) return;
+        if (index == activeIndex) captureCurrentDocument();
+        EditorDocument doc = documents.get(index);
+        if (!doc.hasFile()) {
+            requestSaveAs(index, closeAfterSave);
+            return;
+        }
+
+        try {
+            writeSource(Uri.parse(doc.uriString), doc.text);
+            doc.dirty = false;
+            renderTabs();
+            setStatus(t("Saved · ", "Сохранено · ") + doc.title, Color.rgb(0, 110, 45));
+            Toast.makeText(this, t("Source saved", "Исходник сохранён"), Toast.LENGTH_SHORT).show();
+            if (closeAfterSave) closeTabImmediately(index);
+        } catch (Exception ex) {
+            setStatus(t("Save error · ", "Ошибка сохранения · ") + safeMessage(ex),
+                    Color.rgb(180, 30, 30));
+            Toast.makeText(this,
+                    t("Cannot overwrite this file; try Save as…",
+                            "Не удалось перезаписать файл; попробуйте «Сохранить как…»"),
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void requestCloseTab(int index) {
+        if (index < 0 || index >= documents.size()) return;
+        if (index == activeIndex) captureCurrentDocument();
+        EditorDocument doc = documents.get(index);
+        if (!doc.dirty) {
+            closeTabImmediately(index);
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(t("Save changes?", "Сохранить изменения?"))
+                .setMessage(doc.title)
+                .setPositiveButton(t("Save", "Сохранить"),
+                        (dialog, which) -> saveDocument(index, true))
+                .setNegativeButton(t("Don't save", "Не сохранять"),
+                        (dialog, which) -> closeTabImmediately(index))
+                .setNeutralButton(t("Cancel", "Отмена"), null)
+                .show();
+    }
+
+    private void closeTabImmediately(int index) {
+        if (index < 0 || index >= documents.size()) return;
+        documents.remove(index);
+        if (documents.isEmpty()) {
+            documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
+            activeIndex = 0;
+        } else if (index < activeIndex) {
+            activeIndex--;
+        } else if (index == activeIndex) {
+            activeIndex = Math.min(index, documents.size() - 1);
+        }
+        renderTabs();
+        loadActiveDocument();
+    }
+
+    private void addSourceTab(String title, String source, String uriString, boolean dirty) {
+        captureCurrentDocument();
+        EditorDocument doc = new EditorDocument(title, source, uriString, dirty);
+        documents.add(doc);
+        activeIndex = documents.size() - 1;
+        renderTabs();
+        loadActiveDocument();
+    }
+
+    private void openSourceUri(Uri uri, Intent resultIntent) {
+        if (uri == null) return;
+        String uriText = uri.toString();
+        for (int i = 0; i < documents.size(); i++) {
+            if (uriText.equals(documents.get(i).uriString)) {
+                selectTab(i);
+                setStatus(t("File is already open", "Файл уже открыт"), Color.rgb(90, 90, 90));
+                return;
+            }
+        }
+
+        try {
+            takePersistablePermission(uri, resultIntent);
+            String text = readSource(uri);
+            String name = displayName(uri);
+            if (name == null || name.trim().isEmpty()) name = t("Opened file.asm", "Открытый файл.asm");
+            addSourceTab(name, text, uriText, false);
+            setStatus(t("Opened · ", "Открыт · ") + name, Color.rgb(0, 110, 45));
+        } catch (Exception ex) {
+            String message = t("Open error · ", "Ошибка открытия · ") + safeMessage(ex);
+            setStatus(message, Color.rgb(180, 30, 30));
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private String readSource(Uri uri) throws Exception {
+        InputStream in = getContentResolver().openInputStream(uri);
+        if (in == null) throw new IllegalStateException(t("cannot open input file",
+                "не удалось открыть входной файл"));
+        StringBuilder out = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            char[] buffer = new char[4096];
+            int count;
+            while ((count = reader.read(buffer)) >= 0) out.append(buffer, 0, count);
+        }
+        return out.toString();
+    }
+
+    private void writeSource(Uri uri, String text) throws Exception {
+        OutputStream out = getContentResolver().openOutputStream(uri, "wt");
+        if (out == null) throw new IllegalStateException(t("cannot open output file",
+                "не удалось открыть выходной файл"));
+        try (OutputStreamWriter writer = new OutputStreamWriter(out, StandardCharsets.UTF_8)) {
+            writer.write(text == null ? "" : text);
+            writer.flush();
+        }
+    }
+
+    private void takePersistablePermission(Uri uri, Intent data) {
+        if (data == null) return;
+        int flags = data.getFlags()
+                & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        if (flags == 0) return;
+        try {
+            getContentResolver().takePersistableUriPermission(uri, flags);
+        } catch (SecurityException ignored) {
+            // Some document providers grant access only for the current session.
+        }
+    }
+
+    private String displayName(Uri uri) {
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri,
+                    new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (column >= 0) return cursor.getString(column);
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return uri.getLastPathSegment();
+    }
+
+    private String ensureAsmName(String title) {
+        if (title == null || title.trim().isEmpty()) return "program.asm";
+        String clean = title.trim();
+        return clean.toLowerCase(Locale.ROOT).endsWith(".asm") ? clean : clean + ".asm";
+    }
+
     private void showLanguageDialog() {
         String[] labels = {"English", "Русский"};
         int selected = language == AppLanguage.RU ? 1 : 0;
@@ -255,6 +752,7 @@ public class MainActivity extends Activity {
                     AppLanguage newLanguage = which == 1 ? AppLanguage.RU : AppLanguage.EN;
                     dialog.dismiss();
                     if (newLanguage != language) {
+                        captureCurrentDocument();
                         LanguageSettings.set(this, newLanguage);
                         recreate();
                     }
@@ -359,18 +857,19 @@ public class MainActivity extends Activity {
 
     private boolean buildSource() {
         hideKeyboard();
+        captureCurrentDocument();
+        if (!hasActiveDocument()) return false;
+        EditorDocument doc = currentDocument();
         setStatus(t("Building…", "Сборка…"), Color.DKGRAY);
         runTap.setEnabled(false);
         saveTap.setEnabled(false);
-        lastTap = null;
-        lastBuiltSource = null;
+        doc.invalidateBuild();
 
         try {
-            String source = editor.getText().toString();
-            AssemblyResult result = new Assembler().assemble(source);
-            lastTap = new TapWriter().programTap(
-                    "PROGRAM", result.getOrigin(), result.getBytes());
-            lastBuiltSource = source;
+            AssemblyResult result = new Assembler().assemble(doc.text);
+            doc.lastTap = new TapWriter().programTap(
+                    tapProgramName(doc.title), result.getOrigin(), result.getBytes());
+            doc.lastBuiltSource = doc.text;
             runTap.setEnabled(true);
             saveTap.setEnabled(true);
 
@@ -395,6 +894,15 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String tapProgramName(String title) {
+        String name = title == null ? "PROGRAM" : title;
+        int dot = name.lastIndexOf('.');
+        if (dot > 0) name = name.substring(0, dot);
+        name = name.replaceAll("[^A-Za-z0-9_-]", "_");
+        if (name.isEmpty()) name = "PROGRAM";
+        return name.length() > 10 ? name.substring(0, 10) : name;
+    }
+
     private Uri tapUri() {
         return Uri.parse("content://" + getPackageName() + ".tap/program.tap");
     }
@@ -408,9 +916,12 @@ public class MainActivity extends Activity {
     }
 
     private void runTapInEmulator() {
-        String source = editor.getText().toString();
-        if (lastTap == null || lastBuiltSource == null || !source.equals(lastBuiltSource)) {
+        captureCurrentDocument();
+        if (!hasActiveDocument()) return;
+        EditorDocument doc = currentDocument();
+        if (!doc.buildIsCurrent()) {
             if (!buildSource()) return;
+            doc = currentDocument();
         }
 
         try {
@@ -422,7 +933,7 @@ public class MainActivity extends Activity {
 
             File file = new File(dir, "program.tap");
             try (FileOutputStream stream = new FileOutputStream(file)) {
-                stream.write(lastTap);
+                stream.write(doc.lastTap);
             }
 
             Uri uri = tapUri();
@@ -459,22 +970,26 @@ public class MainActivity extends Activity {
             Toast.makeText(this, t("No app can open TAP files",
                     "Нет приложения, которое может открыть TAP"), Toast.LENGTH_LONG).show();
         } catch (Exception ex) {
-            String message = t("Run error · ", "Ошибка запуска · ") + ex.getMessage();
+            String message = t("Run error · ", "Ошибка запуска · ") + safeMessage(ex);
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         }
     }
 
     private void saveTapFile() {
-        String source = editor.getText().toString();
-        if (lastTap == null || lastBuiltSource == null || !source.equals(lastBuiltSource)) {
+        captureCurrentDocument();
+        if (!hasActiveDocument()) return;
+        EditorDocument doc = currentDocument();
+        if (!doc.buildIsCurrent()) {
             if (!buildSource()) return;
+            doc = currentDocument();
         }
 
+        pendingTapToSave = doc.lastTap;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/octet-stream");
-        intent.putExtra(Intent.EXTRA_TITLE, "program.tap");
+        intent.putExtra(Intent.EXTRA_TITLE, tapProgramName(doc.title).toLowerCase(Locale.ROOT) + ".tap");
         startActivityForResult(intent, REQUEST_SAVE_TAP);
     }
 
@@ -487,46 +1002,77 @@ public class MainActivity extends Activity {
                 String source = data.getStringExtra(ExampleCatalogActivity.EXTRA_SOURCE);
                 String title = data.getStringExtra(ExampleCatalogActivity.EXTRA_TITLE);
                 if (source != null) {
-                    editor.setText(source);
-                    editor.setSelection(0);
                     String displayTitle = title == null ? t("Example", "Пример") : title;
-                    invalidateBuild(language == AppLanguage.RU
-                            ? "Загружен пример «" + displayTitle + "» · Соберите и запустите"
-                            : displayTitle + " loaded · Build, then Run");
+                    addSourceTab(ensureAsmName(displayTitle), source, null, false);
+                    setStatus(language == AppLanguage.RU
+                                    ? "Пример «" + displayTitle + "» открыт в новой вкладке"
+                                    : displayTitle + " opened in a new tab",
+                            Color.rgb(45, 80, 150));
                 }
             }
             return;
         }
 
+        if (requestCode == REQUEST_OPEN_SOURCE) {
+            if (resultCode == RESULT_OK && data != null) openSourceUri(data.getData(), data);
+            return;
+        }
+
+        if (requestCode == REQUEST_SAVE_SOURCE_AS) {
+            int index = pendingSaveIndex;
+            boolean closeAfter = pendingCloseAfterSave;
+            pendingSaveIndex = -1;
+            pendingCloseAfterSave = false;
+
+            if (resultCode != RESULT_OK || data == null || index < 0 || index >= documents.size()) {
+                return;
+            }
+            Uri uri = data.getData();
+            if (uri == null) return;
+
+            try {
+                takePersistablePermission(uri, data);
+                EditorDocument doc = documents.get(index);
+                writeSource(uri, doc.text);
+                doc.uriString = uri.toString();
+                String name = displayName(uri);
+                if (name != null && !name.trim().isEmpty()) doc.title = name;
+                doc.dirty = false;
+                renderTabs();
+                setStatus(t("Saved · ", "Сохранено · ") + doc.title, Color.rgb(0, 110, 45));
+                Toast.makeText(this, t("Source saved", "Исходник сохранён"), Toast.LENGTH_SHORT).show();
+                if (closeAfter) closeTabImmediately(index);
+            } catch (Exception ex) {
+                String message = t("Save error · ", "Ошибка сохранения · ") + safeMessage(ex);
+                setStatus(message, Color.rgb(180, 30, 30));
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+
         if (requestCode != REQUEST_SAVE_TAP || resultCode != RESULT_OK
-                || data == null || lastTap == null) {
+                || data == null || pendingTapToSave == null) {
             return;
         }
 
         Uri uri = data.getData();
         if (uri == null) return;
+        byte[] bytes = pendingTapToSave;
+        pendingTapToSave = null;
 
         try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
             if (stream == null) throw new IllegalStateException(t("cannot open output file",
                     "не удалось открыть выходной файл"));
-            stream.write(lastTap);
+            stream.write(bytes);
             stream.flush();
             setStatus(t("TAP saved · ", "TAP сохранён · ") + uri.getLastPathSegment(),
                     Color.rgb(0, 110, 45));
             Toast.makeText(this, t("TAP saved", "TAP сохранён"), Toast.LENGTH_SHORT).show();
         } catch (Exception ex) {
-            String message = t("Save error · ", "Ошибка сохранения · ") + ex.getMessage();
+            String message = t("Save error · ", "Ошибка сохранения · ") + safeMessage(ex);
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         }
-    }
-
-    private void invalidateBuild(String message) {
-        lastTap = null;
-        lastBuiltSource = null;
-        runTap.setEnabled(false);
-        saveTap.setEnabled(false);
-        setStatus(message, Color.rgb(90, 90, 90));
     }
 
     private void setStatus(String message, int color) {
@@ -560,8 +1106,13 @@ public class MainActivity extends Activity {
             editor.requestFocus();
             editor.setSelection(Math.min(position, editor.length()));
         } catch (NumberFormatException ignored) {
-            // Keep the textual error visible even if a line number cannot be parsed.
         }
+    }
+
+    private String safeMessage(Exception ex) {
+        String message = ex.getMessage();
+        return message == null || message.trim().isEmpty()
+                ? ex.getClass().getSimpleName() : message;
     }
 
     private int dp(int value) {
