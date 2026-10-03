@@ -33,6 +33,8 @@ import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
 import com.alexzab.z80pocketide.editor.EditorDocument;
+import com.alexzab.z80pocketide.editor.EditorPreferences;
+import com.alexzab.z80pocketide.editor.EditorSettingsDialog;
 import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
 import com.alexzab.z80pocketide.emulator.EmulatorSettings;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
@@ -40,6 +42,7 @@ import com.alexzab.z80pocketide.i18n.AppLanguage;
 import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
+import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
 
 import java.io.BufferedReader;
@@ -81,6 +84,9 @@ public class MainActivity extends Activity {
     private Button runTap;
     private Button saveTap;
     private Button emulatorButton;
+    private Button tabKeyButton;
+    private Button formatButton;
+    private Button foldButton;
     private HorizontalScrollView tabStrip;
     private LinearLayout tabRow;
     private AppLanguage language;
@@ -102,7 +108,7 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
+        root.setBackgroundColor(Color.rgb(246, 247, 249));
 
         final int side = dp(12);
         final int vertical = dp(8);
@@ -156,8 +162,9 @@ public class MainActivity extends Activity {
         LinearLayout workspaceBar = new LinearLayout(this);
         workspaceBar.setOrientation(LinearLayout.HORIZONTAL);
         workspaceBar.setGravity(Gravity.CENTER_VERTICAL);
-        workspaceBar.setPadding(0, dp(3), 0, dp(3));
-        workspaceBar.setBackgroundColor(Color.rgb(242, 242, 242));
+        workspaceBar.setPadding(dp(4), dp(4), dp(4), dp(4));
+        workspaceBar.setBackground(UiStyle.rounded(this,
+                Color.rgb(238, 240, 244), 16, Color.rgb(220, 222, 226), 1));
 
         Button fileButton = compactButton(t("File", "Файл"));
         fileButton.setOnClickListener(v -> showFileMenu());
@@ -174,27 +181,68 @@ public class MainActivity extends Activity {
                 HorizontalScrollView.LayoutParams.WRAP_CONTENT));
         workspaceBar.addView(tabStrip, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        root.addView(workspaceBar);
+        LinearLayout.LayoutParams workspaceParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        workspaceParams.setMargins(0, dp(5), 0, dp(4));
+        root.addView(workspaceBar, workspaceParams);
 
         editor = new CodeEditorView(this);
         editor.setGravity(Gravity.TOP | Gravity.START);
         editor.setTypeface(Typeface.MONOSPACE);
         editor.setTextColor(Color.rgb(25, 25, 25));
-        editor.setBackgroundColor(Color.rgb(248, 248, 248));
-        editor.setPadding(dp(12), dp(10), dp(12), dp(10));
+        editor.setBackground(UiStyle.rounded(this,
+                Color.rgb(252, 252, 253), 18, Color.rgb(222, 224, 228), 1));
+        editor.setPadding(dp(14), dp(12), dp(14), dp(12));
         editor.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editor.setHorizontallyScrolling(true);
-        root.addView(editor, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        LinearLayout editorTools = new LinearLayout(this);
+        editorTools.setOrientation(LinearLayout.HORIZONTAL);
+        editorTools.setGravity(Gravity.CENTER_VERTICAL);
+        editorTools.setPadding(dp(2), dp(2), dp(2), dp(4));
+
+        tabKeyButton = compactButton("TAB ⇥");
+        formatButton = compactButton(t("Format", "Формат"));
+        foldButton = compactButton(t("Fold", "Свернуть"));
+        editorTools.addView(tabKeyButton);
+        editorTools.addView(formatButton);
+        editorTools.addView(foldButton);
+        root.addView(editorTools);
+
+        LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
+        editorParams.setMargins(0, 0, 0, dp(5));
+        root.addView(editor, editorParams);
 
         SyntaxHighlighter.attach(editor);
 
+        tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
+        formatButton.setOnClickListener(v -> {
+            editor.formatAllFromSettings();
+            setStatus(t("Document formatted", "Документ отформатирован"),
+                    Color.rgb(45, 80, 150));
+        });
+        foldButton.setOnClickListener(v -> {
+            if (editor.toggleFoldAtCursor()) {
+                setStatus(t("Fold toggled · source is preserved",
+                                "Сворачивание переключено · исходник сохранён полностью"),
+                        Color.rgb(45, 80, 150));
+            } else {
+                Toast.makeText(this,
+                        t("Place the cursor under a label before the next blank line",
+                                "Поставьте курсор под меткой до следующей пустой строки"),
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
+        refreshEditorTools();
+
         LinearLayout bottomPanel = new LinearLayout(this);
         bottomPanel.setOrientation(LinearLayout.VERTICAL);
-        bottomPanel.setPadding(dp(8), dp(6), dp(8), 0);
-        bottomPanel.setBackgroundColor(Color.rgb(245, 245, 245));
+        bottomPanel.setPadding(dp(10), dp(7), dp(10), dp(5));
+        bottomPanel.setBackground(UiStyle.rounded(this,
+                Color.rgb(247, 248, 250), 18, Color.rgb(222, 224, 228), 1));
         if (Build.VERSION.SDK_INT >= 21) bottomPanel.setElevation(dp(4));
 
         LinearLayout infoRow = new LinearLayout(this);
@@ -248,7 +296,7 @@ public class MainActivity extends Activity {
             public void afterTextChanged(Editable s) {
                 if (loadingDocument || !hasActiveDocument()) return;
                 EditorDocument doc = currentDocument();
-                String next = s.toString();
+                String next = editor.getSourceText();
                 if (next.equals(doc.text)) return;
 
                 boolean wasDirty = doc.dirty;
@@ -404,18 +452,22 @@ public class MainActivity extends Activity {
     private Button compactButton(String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setAllCaps(false);
         button.setMinWidth(0);
         button.setMinimumWidth(0);
-        button.setPadding(dp(9), 0, dp(9), 0);
+        button.setPadding(dp(11), 0, dp(11), 0);
+        button.setMinHeight(dp(38));
+        UiStyle.styleButton(button, Color.rgb(238, 240, 244),
+                Color.rgb(45, 48, 54), 14);
         return button;
     }
 
     private Button actionButton(String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setAllCaps(false);
         button.setMinWidth(0);
+        button.setMinHeight(dp(44));
+        UiStyle.styleButton(button, Color.rgb(255, 238, 166),
+                Color.rgb(45, 42, 28), 16);
         return button;
     }
 
@@ -440,7 +492,7 @@ public class MainActivity extends Activity {
             cell.setGravity(Gravity.CENTER_VERTICAL);
             cell.setPadding(dp(2), 0, dp(1), 0);
             GradientDrawable bg = new GradientDrawable();
-            bg.setCornerRadius(dp(5));
+            bg.setCornerRadius(dp(12));
             bg.setColor(i == activeIndex ? Color.rgb(255, 244, 194) : Color.rgb(232, 232, 232));
             bg.setStroke(dp(1), i == activeIndex
                     ? Color.rgb(205, 160, 0) : Color.rgb(205, 205, 205));
@@ -496,7 +548,7 @@ public class MainActivity extends Activity {
         if (!hasActiveDocument()) return;
         EditorDocument doc = currentDocument();
         loadingDocument = true;
-        editor.setText(doc.text);
+        editor.setSourceText(doc.text);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
         editor.post(() -> editor.scrollTo(doc.scrollX, doc.scrollY));
@@ -515,7 +567,7 @@ public class MainActivity extends Activity {
     private void captureCurrentDocument() {
         if (!hasActiveDocument() || editor == null || loadingDocument) return;
         EditorDocument doc = currentDocument();
-        doc.text = editor.getText().toString();
+        doc.text = editor.getSourceText();
         doc.cursor = Math.max(0, editor.getSelectionStart());
         doc.scrollX = editor.getScrollX();
         doc.scrollY = editor.getScrollY();
@@ -542,7 +594,8 @@ public class MainActivity extends Activity {
                 t("Open .asm…", "Открыть .asm…"),
                 t("Save source", "Сохранить исходник"),
                 t("Save source as…", "Сохранить исходник как…"),
-                t("Close tab", "Закрыть вкладку")
+                t("Close tab", "Закрыть вкладку"),
+                t("Editor settings…", "Настройки редактора…")
         };
         new AlertDialog.Builder(this)
                 .setTitle(t("File", "Файл"))
@@ -553,11 +606,33 @@ public class MainActivity extends Activity {
                         case 2: saveDocument(activeIndex, false); break;
                         case 3: requestSaveAs(activeIndex, false); break;
                         case 4: requestCloseTab(activeIndex); break;
+                        case 5: showEditorSettings(); break;
                         default: break;
                     }
                 })
                 .setNegativeButton(t("Cancel", "Отмена"), null)
                 .show();
+    }
+
+    private void showEditorSettings() {
+        EditorSettingsDialog.show(this, language, () -> {
+            editor.refreshPreferences();
+            refreshEditorTools();
+            setStatus(t("Editor settings applied", "Настройки редактора применены"),
+                    Color.rgb(45, 80, 150));
+        });
+    }
+
+    private void refreshEditorTools() {
+        if (editor == null) return;
+        editor.refreshPreferences();
+        EditorPreferences.Snapshot prefs = editor.getEditorPreferences();
+        if (tabKeyButton != null) {
+            tabKeyButton.setVisibility(prefs.showTabButton ? View.VISIBLE : View.GONE);
+        }
+        if (foldButton != null) {
+            foldButton.setVisibility(prefs.folding ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void showTabMenu(int index) {
