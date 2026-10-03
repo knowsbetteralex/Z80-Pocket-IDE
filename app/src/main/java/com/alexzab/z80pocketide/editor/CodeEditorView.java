@@ -2,7 +2,9 @@ package com.alexzab.z80pocketide.editor;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.text.Editable;
 import android.text.Layout;
+import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.MotionEvent;
@@ -10,14 +12,13 @@ import android.view.ScaleGestureDetector;
 import android.view.ViewConfiguration;
 import android.widget.EditText;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.regex.Pattern;
+
 /**
- * EditText tuned for source code on a touch screen.
- *
- * A tap keeps the normal EditText cursor/selection behaviour. Once a one-finger
- * gesture crosses touch slop it becomes a pan gesture instead of dragging the
- * insertion cursor. Native selection mode is deliberately left untouched so
- * Android's selection handles can still be dragged. A two-finger pinch changes
- * the editor font size.
+ * Touch-friendly source editor with panning, pinch zoom, light auto-formatting,
+ * a configurable TAB action and reversible label-block folding.
  */
 public class CodeEditorView extends EditText {
     private static final String PREFS = "code_editor";
@@ -25,9 +26,12 @@ public class CodeEditorView extends EditText {
     private static final float DEFAULT_FONT_SP = 16f;
     private static final float MIN_FONT_SP = 10f;
     private static final float MAX_FONT_SP = 30f;
+    private static final Pattern LABEL_ONLY = Pattern.compile(
+            "^[A-Za-z_.$?][A-Za-z0-9_.$?]*\\s*:\\s*(?:;.*)?$");
 
     private final ScaleGestureDetector scaleDetector;
     private final int touchSlop;
+    private final Map<String, String> foldedBlocks = new LinkedHashMap<>();
 
     private float downX;
     private float downY;
@@ -39,6 +43,14 @@ public class CodeEditorView extends EditText {
     private boolean scaling;
     private boolean nativeSelectionGesture;
     private float fontSp;
+
+    private EditorPreferences.Snapshot editorPreferences;
+    private boolean autoFormatting;
+    private boolean presentationChange;
+    private int changeStart;
+    private int changeBefore;
+    private int changeCount;
+    private int nextFoldId = 1;
 
     public CodeEditorView(Context context) {
         this(context, null);
@@ -57,6 +69,41 @@ public class CodeEditorView extends EditText {
         setHorizontalScrollBarEnabled(true);
         setVerticalScrollBarEnabled(true);
         setOverScrollMode(OVER_SCROLL_NEVER);
+        refreshPreferences();
+
+        addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                changeStart = start;
+                changeBefore = count;
+                changeCount = after;
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                changeStart = start;
+                changeBefore = before;
+                changeCount = count;
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (autoFormatting || presentationChange || editorPreferences == null) return;
+                int cursor = getSelectionStart();
+                if (cursor < 0) return;
+
+                boolean newline = changeCount == 1 && changeStart >= 0
+                        && changeStart < s.length() && s.charAt(changeStart) == '\n';
+
+                if (newline && editorPreferences.autoIndent) {
+                    applyNewLineIndent(s, cursor);
+                    return;
+                }
+                if (editorPreferences.autoUppercase) {
+                    uppercaseCurrentLine(s, cursor);
+                }
+            }
+        });
 
         scaleDetector = new ScaleGestureDetector(context,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -87,6 +134,199 @@ public class CodeEditorView extends EditText {
                         post(CodeEditorView.this::clampScrollPosition);
                     }
                 });
+    }
+
+    public void refreshPreferences() {
+        editorPreferences = EditorPreferences.get(getContext());
+    }
+
+    public EditorPreferences.Snapshot getEditorPreferences() {
+        return editorPreferences;
+    }
+
+    public void insertTabFromSettings() {
+        refreshPreferences();
+        String unit = SourceFormatter.indentUnit(
+                editorPreferences.tabSize, editorPreferences.useSpaces);
+        int start = Math.max(0, getSelectionStart());
+        int end = Math.max(start, getSelectionEnd());
+        getText().replace(start, end, unit);
+        setSelection(start + unit.length());
+    }
+
+    public void formatAllFromSettings() {
+        refreshPreferences();
+        String source = getSourceText();
+        int oldCursor = Math.max(0, getSelectionStart());
+        foldedBlocks.clear();
+        String formatted = SourceFormatter.formatDocument(
+                source,
+                editorPreferences.autoUppercase,
+                editorPreferences.autoIndent,
+                editorPreferences.tabSize,
+                editorPreferences.useSpaces);
+        autoFormatting = true;
+        setText(formatted);
+        setSelection(Math.min(oldCursor, length()));
+        autoFormatting = false;
+    }
+
+    /**
+     * Returns real source text, expanding visual fold marker lines in memory
+     * without changing what the user currently sees.
+     */
+    public String getSourceText() {
+        String source = getText().toString();
+        for (Map.Entry<String, String> entry : foldedBlocks.entrySet()) {
+            source = source.replace(entry.getKey(), entry.getValue());
+        }
+        return source;
+    }
+
+    public void setSourceText(String source) {
+        foldedBlocks.clear();
+        presentationChange = true;
+        setText(source == null ? "" : source);
+        presentationChange = false;
+    }
+
+    /**
+     * Folds the block that starts at the nearest label above the cursor and ends
+     * immediately before the next blank line. Toggling on a fold marker unfolds it.
+     */
+    public boolean toggleFoldAtCursor() {
+        refreshPreferences();
+        if (!editorPreferences.folding) return false;
+        Editable editable = getText();
+        if (editable == null || editable.length() == 0) return false;
+        int cursor = Math.max(0, Math.min(getSelectionStart(), editable.length()));
+        String text = editable.toString();
+
+        for (Map.Entry<String, String> entry : new LinkedHashMap<>(foldedBlocks).entrySet()) {
+            int at = text.indexOf(entry.getKey());
+            if (at >= 0 && cursor >= at && cursor <= at + entry.getKey().length()) {
+                presentationChange = true;
+                editable.replace(at, at + entry.getKey().length(), entry.getValue());
+                presentationChange = false;
+                foldedBlocks.remove(entry.getKey());
+                setSelection(Math.min(at, length()));
+                return true;
+            }
+        }
+
+        int labelStart = findNearestLabelStart(text, cursor);
+        if (labelStart < 0) return false;
+        int labelEnd = lineEnd(text, labelStart);
+        if (labelEnd >= text.length()) return false;
+
+        int bodyStart = labelEnd + 1;
+        int bodyEnd = findNextBlankLineStart(text, bodyStart);
+        if (bodyEnd < 0) bodyEnd = text.length();
+        if (bodyEnd <= bodyStart) return false;
+
+        String hidden = text.substring(bodyStart, bodyEnd);
+        if (hidden.trim().isEmpty() || hidden.contains("· fold#")) return false;
+
+        int lines = countVisibleLines(hidden);
+        String indent = SourceFormatter.indentUnit(
+                editorPreferences.tabSize, editorPreferences.useSpaces);
+        boolean endsWithNewline = hidden.endsWith("\n");
+        String marker = indent + "; ▶ " + lines + (lines == 1 ? " line" : " lines")
+                + " · fold#" + (nextFoldId++) + (endsWithNewline ? "\n" : "");
+
+        presentationChange = true;
+        editable.replace(bodyStart, bodyEnd, marker);
+        presentationChange = false;
+        foldedBlocks.put(marker, hidden);
+        setSelection(Math.min(bodyStart, length()));
+        return true;
+    }
+
+    public void unfoldAll() {
+        if (foldedBlocks.isEmpty()) return;
+        String source = getSourceText();
+        foldedBlocks.clear();
+        presentationChange = true;
+        setText(source);
+        presentationChange = false;
+    }
+
+    private void applyNewLineIndent(Editable text, int cursor) {
+        if (cursor <= 0) return;
+        int previousEnd = cursor - 1;
+        int previousStart = previousEnd > 0
+                ? text.toString().lastIndexOf('\n', previousEnd - 1) + 1 : 0;
+        String previousLine = text.subSequence(previousStart, previousEnd).toString();
+        String indent = SourceFormatter.indentationForNewLine(
+                previousLine, editorPreferences.tabSize, editorPreferences.useSpaces);
+        if (indent.isEmpty()) return;
+
+        autoFormatting = true;
+        text.insert(cursor, indent);
+        setSelection(cursor + indent.length());
+        autoFormatting = false;
+    }
+
+    private void uppercaseCurrentLine(Editable text, int cursor) {
+        String all = text.toString();
+        int lineStart = all.lastIndexOf('\n', Math.max(0, cursor - 1)) + 1;
+        int nextNewLine = all.indexOf('\n', cursor);
+        int lineEnd = nextNewLine < 0 ? all.length() : nextNewLine;
+        if (lineStart > lineEnd) return;
+
+        String line = all.substring(lineStart, lineEnd);
+        String formatted = SourceFormatter.uppercaseKeywordsInLine(line);
+        if (line.equals(formatted)) return;
+
+        int relative = Math.max(0, cursor - lineStart);
+        autoFormatting = true;
+        text.replace(lineStart, lineEnd, formatted);
+        setSelection(Math.min(lineStart + relative, text.length()));
+        autoFormatting = false;
+    }
+
+    private int findNearestLabelStart(String text, int cursor) {
+        int start = lineStart(text, cursor);
+        while (start >= 0) {
+            int end = lineEnd(text, start);
+            String line = text.substring(start, end).trim();
+            if (LABEL_ONLY.matcher(line).matches()) return start;
+            if (line.isEmpty()) return -1;
+            if (start == 0) return -1;
+            start = lineStart(text, start - 1);
+        }
+        return -1;
+    }
+
+    private int findNextBlankLineStart(String text, int start) {
+        int line = start;
+        while (line < text.length()) {
+            int end = lineEnd(text, line);
+            if (text.substring(line, end).trim().isEmpty()) return line;
+            if (end >= text.length()) return text.length();
+            line = end + 1;
+        }
+        return text.length();
+    }
+
+    private int lineStart(String text, int position) {
+        int p = Math.max(0, Math.min(position, text.length()));
+        if (p == 0) return 0;
+        int i = text.lastIndexOf('\n', Math.max(0, p - 1));
+        return i + 1;
+    }
+
+    private int lineEnd(String text, int start) {
+        int i = text.indexOf('\n', Math.max(0, start));
+        return i < 0 ? text.length() : i;
+    }
+
+    private int countVisibleLines(String text) {
+        if (text.isEmpty()) return 0;
+        int count = 1;
+        for (int i = 0; i < text.length(); i++) if (text.charAt(i) == '\n') count++;
+        if (text.endsWith("\n")) count--;
+        return Math.max(1, count);
     }
 
     @Override
@@ -124,9 +364,6 @@ public class CodeEditorView extends EditText {
                     return true;
                 }
 
-                // While text is selected, keep Android's native selection-handle
-                // gestures intact. This is the one case where a drag is not
-                // converted to canvas panning.
                 if (nativeSelectionGesture || hasActiveSelection()) {
                     return super.onTouchEvent(event);
                 }
@@ -164,8 +401,6 @@ public class CodeEditorView extends EditText {
                     return true;
                 }
                 nativeSelectionGesture = false;
-                // A genuine tap reaches normal EditText handling and positions
-                // the cursor at the tapped character.
                 return super.onTouchEvent(event);
 
             case MotionEvent.ACTION_CANCEL:
@@ -197,7 +432,6 @@ public class CodeEditorView extends EditText {
         try {
             setSelection(start, end);
         } catch (IndexOutOfBoundsException ignored) {
-            // Text may have changed between gesture events.
         }
     }
 
@@ -215,7 +449,6 @@ public class CodeEditorView extends EditText {
             scrollTo(0, 0);
             return;
         }
-
         int maxX = maxScrollX(layout);
         int maxY = maxScrollY(layout);
         scrollTo(clamp(x, 0, maxX), clamp(y, 0, maxY));
