@@ -9,6 +9,10 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - English / Russian language switch with the selected language persisted between launches.
 - Localized interface, statuses, notifications, examples and Z80 reference.
 - Live Z80 syntax highlighting for mnemonics, registers, directives, numbers, labels, strings and comments.
+- Live optional uppercase formatting for Z80 mnemonics/registers/directives without touching labels, comments or strings.
+- Configurable auto-indent, TAB width (2/4/8), spaces-vs-tab and an on-screen TAB key.
+- One-tap document formatter.
+- Reversible label-block folding from a label to the next blank line; build/save always use the full source.
 - Touch-oriented code editor: tap moves the caret, one-finger drag pans the code canvas, pinch changes and remembers font size.
 - Searchable built-in Z80 reference with syntax, opcode patterns, T-states, flags and descriptions.
 - Russian reference search understands localized terms as well as technical mnemonics/opcodes.
