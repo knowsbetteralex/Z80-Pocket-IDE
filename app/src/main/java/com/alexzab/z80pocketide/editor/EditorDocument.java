@@ -25,6 +25,15 @@ public final class EditorDocument {
         return uriString != null && !uriString.isEmpty();
     }
 
+    /**
+     * Closing a modified file must ask, but so must a non-empty document that has
+     * never had a backing file. The latter is important for starter/example tabs:
+     * their source is valuable even when it has not yet been edited.
+     */
+    public boolean needsCloseConfirmation() {
+        return dirty || (!hasFile() && text != null && !text.trim().isEmpty());
+    }
+
     public boolean buildIsCurrent() {
         return lastTap != null && lastBuiltSource != null && lastBuiltSource.equals(text);
     }
