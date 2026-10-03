@@ -234,10 +234,10 @@ public class CodeEditorView extends EditText {
         String marker = indent + "; ▶ " + lines + (lines == 1 ? " line" : " lines")
                 + " · fold#" + (nextFoldId++) + (endsWithNewline ? "\n" : "");
 
+        foldedBlocks.put(marker, hidden);
         presentationChange = true;
         editable.replace(bodyStart, bodyEnd, marker);
         presentationChange = false;
-        foldedBlocks.put(marker, hidden);
         setSelection(Math.min(bodyStart, length()));
         return true;
     }
