@@ -19,6 +19,7 @@ import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.ui.ExamplePreviewView;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
+import com.alexzab.z80pocketide.ui.UiStyle;
 
 /** Browseable example gallery inspired by compact electronics reference cards. */
 public final class ExampleCatalogActivity extends Activity {
@@ -60,13 +61,14 @@ public final class ExampleCatalogActivity extends Activity {
         back.setText("←");
         back.setTextSize(19);
         back.setMinWidth(0);
+        UiStyle.styleButton(back, Color.rgb(27, 45, 57), 0xFFFFD43B, 16);
         header.addView(back, new LinearLayout.LayoutParams(dp(52), dp(48)));
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         TextView title = label(t("Examples", "Примеры"), 24, 0xFFFFD43B);
-        TextView subtitle = label(t("Learn Z80 by running small visual programs",
-                "Изучайте Z80 на небольших наглядных программах"), 12, 0xFFA8BAC5);
+        TextView subtitle = label(t("Visual demos and reusable Z80 routines",
+                "Наглядные примеры и готовые подпрограммы Z80"), 12, 0xFFA8BAC5);
         titles.addView(title);
         titles.addView(subtitle);
         header.addView(titles, new LinearLayout.LayoutParams(0,
@@ -107,8 +109,9 @@ public final class ExampleCatalogActivity extends Activity {
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(0, 0, dp(8), 0);
-        card.setBackgroundColor(Color.rgb(27, 45, 57));
-        if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(2));
+        card.setBackground(UiStyle.rounded(this, Color.rgb(27, 45, 57),
+                18, Color.rgb(42, 63, 75), 1));
+        if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(1));
 
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(112));
