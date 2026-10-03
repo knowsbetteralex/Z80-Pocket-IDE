@@ -18,6 +18,9 @@ public final class ExamplePrograms {
     public static final int PREVIEW_DIAGONAL = 10;
     public static final int PREVIEW_MARQUEE = 11;
     public static final int PREVIEW_BEEPER = 12;
+    public static final int PREVIEW_THIRDS = 13;
+    public static final int PREVIEW_NOISE = 14;
+    public static final int PREVIEW_ROUTINE = 15;
 
     public static final Example[] ALL = new Example[] {
             ex("border-cycle", "Colour & attributes", "Цвет и атрибуты",
@@ -150,7 +153,77 @@ public final class ExamplePrograms {
                     PREVIEW_BEEPER,
                     "ORG $8000\n\n    LD A,0\nTONE:\n    XOR $10\n    OUT ($FE),A\n    LD B,40\nDELAY:\n    DJNZ DELAY\n    JR TONE\n",
                     "; Toggle speaker bit 4 on port $FE\nORG $8000\n\n    LD A,0\nTONE:\n    XOR $10         ; flip beeper output bit\n    OUT ($FE),A\n    LD B,40         ; simple pitch delay\nDELAY:\n    DJNZ DELAY\n    JR TONE\n",
-                    "; Переключаем бит 4 пищалки в порту $FE\nORG $8000\n\n    LD A,0\nTONE:\n    XOR $10         ; меняем состояние динамика\n    OUT ($FE),A\n    LD B,40         ; простая задержка, задающая высоту тона\nDELAY:\n    DJNZ DELAY\n    JR TONE\n")
+                    "; Переключаем бит 4 пищалки в порту $FE\nORG $8000\n\n    LD A,0\nTONE:\n    XOR $10         ; меняем состояние динамика\n    OUT ($FE),A\n    LD B,40         ; простая задержка, задающая высоту тона\nDELAY:\n    DJNZ DELAY\n    JR TONE\n"),
+
+            ex("screen-thirds",\n                    "Graphics",\n                    "Графика",\n                    "Three bitmap thirds",\n                    "Три трети экрана",\n                    "Fills the three 64-line Spectrum bitmap thirds with different patterns.",\n                    "Заполняет три 64-строчные трети bitmap Spectrum разными узорами.",\n                    "$4000..$47FF, $4800..$4FFF and $5000..$57FF correspond to the top, middle and bottom screen thirds. The example makes that unusual layout immediately visible.",\n                    "$4000..$47FF, $4800..$4FFF и $5000..$57FF соответствуют верхней, средней и нижней трети экрана. Пример наглядно показывает необычную организацию видеопамяти.",
+                    PREVIEW_THIRDS,
+                    "ORG $8000\n\n    LD HL,$4000\n    LD A,$FF\n    LD D,8\n    CALL FILL\n    LD A,$AA\n    LD D,8\n    CALL FILL\n    LD A,$55\n    LD D,8\n    CALL FILL\nHOLD:\n    JR HOLD\n\nFILL:\n    LD B,0\nBYTE:\n    LD (HL),A\n    INC HL\n    DJNZ BYTE\n    DEC D\n    JR NZ,FILL\n    RET\n",
+                    "; Show the three 2048-byte bitmap thirds\nORG $8000\n\n    LD HL,$4000\n    LD A,$FF\n    LD D,8\n    CALL FILL\n    LD A,$AA\n    LD D,8\n    CALL FILL\n    LD A,$55\n    LD D,8\n    CALL FILL\nHOLD:\n    JR HOLD\n\nFILL:\n    LD B,0          ; 256 bytes per page\nBYTE:\n    LD (HL),A\n    INC HL\n    DJNZ BYTE\n    DEC D           ; eight pages per screen third\n    JR NZ,FILL\n    RET\n",
+                    "; Показываем три части bitmap по 2048 байт\nORG $8000\n\n    LD HL,$4000\n    LD A,$FF\n    LD D,8\n    CALL FILL\n    LD A,$AA\n    LD D,8\n    CALL FILL\n    LD A,$55\n    LD D,8\n    CALL FILL\nHOLD:\n    JR HOLD\n\nFILL:\n    LD B,0          ; 256 байт на страницу\nBYTE:\n    LD (HL),A\n    INC HL\n    DJNZ BYTE\n    DEC D           ; восемь страниц на треть экрана\n    JR NZ,FILL\n    RET\n"),
+
+            ex("r-register-noise",\n                    "Graphics",\n                    "Графика",\n                    "R-register noise",\n                    "Шум из регистра R",\n                    "Uses the Z80 refresh register R as a quick changing source for a screen pattern.",\n                    "Использует регистр регенерации Z80 R как быстро меняющийся источник узора.",\n                    "LD A,R exposes the refresh counter. It is not random in the strict sense, but while filling 6144 bytes it creates a characteristic pseudo-noise bitmap.",\n                    "LD A,R читает счётчик регенерации. Это не настоящий генератор случайных чисел, но при заполнении 6144 байт получается характерный псевдошум.",
+                    PREVIEW_NOISE,
+                    "ORG $8000\n\n    LD HL,$4000\n    LD D,24\nPAGE:\n    LD B,0\nPIXEL:\n    LD A,R\n    LD (HL),A\n    INC HL\n    DJNZ PIXEL\n    DEC D\n    JR NZ,PAGE\nHOLD:\n    JR HOLD\n",
+                    "; Fill bitmap using the changing Z80 R register\nORG $8000\n\n    LD HL,$4000\n    LD D,24\nPAGE:\n    LD B,0\nPIXEL:\n    LD A,R          ; refresh counter, changes continuously\n    LD (HL),A\n    INC HL\n    DJNZ PIXEL\n    DEC D\n    JR NZ,PAGE\nHOLD:\n    JR HOLD\n",
+                    "; Заполняем bitmap меняющимся регистром R\nORG $8000\n\n    LD HL,$4000\n    LD D,24\nPAGE:\n    LD B,0\nPIXEL:\n    LD A,R          ; счётчик регенерации постоянно меняется\n    LD (HL),A\n    INC HL\n    DJNZ PIXEL\n    DEC D\n    JR NZ,PAGE\nHOLD:\n    JR HOLD\n"),
+
+            ex("moving-attribute",\n                    "Colour & attributes",\n                    "Цвет и атрибуты",\n                    "Moving attribute cell",\n                    "Бегущее знакоместо",\n                    "Moves one bright attribute cell across the top row at 50 Hz.",\n                    "Перемещает одно яркое знакоместо по верхней строке с частотой кадров.",\n                    "Only attribute RAM is touched. HALT gives stable frame timing, while the old cell is restored before HL advances to the next one.",\n                    "Меняется только память атрибутов. HALT даёт стабильную кадровую синхронизацию, а старое знакоместо восстанавливается перед переходом к следующему.",
+                    PREVIEW_MARQUEE,
+                    "ORG $8000\n\n    EI\nSTART:\n    LD HL,$5800\n    LD B,32\nMOVE:\n    LD (HL),$47\n    HALT\n    LD (HL),$07\n    INC HL\n    DJNZ MOVE\n    JR START\n",
+                    "; Move a bright cell across the first attribute row\nORG $8000\n\n    EI\nSTART:\n    LD HL,$5800     ; first attribute\n    LD B,32\nMOVE:\n    LD (HL),$47     ; bright white/blue cell\n    HALT            ; one position per frame\n    LD (HL),$07     ; restore normal attribute\n    INC HL\n    DJNZ MOVE\n    JR START\n",
+                    "; Двигаем яркое знакоместо по первой строке атрибутов\nORG $8000\n\n    EI\nSTART:\n    LD HL,$5800     ; первый атрибут\n    LD B,32\nMOVE:\n    LD (HL),$47     ; яркое знакоместо\n    HALT            ; одна позиция за кадр\n    LD (HL),$07     ; возвращаем обычный атрибут\n    INC HL\n    DJNZ MOVE\n    JR START\n"),
+
+            ex("invert-cell",\n                    "Graphics",\n                    "Графика",\n                    "Animated inverse cell",\n                    "Инверсия знакоместа",\n                    "Draws an 8x8 stripe cell and inverts all eight scanlines every frame.",\n                    "Рисует полосатое знакоместо 8x8 и инвертирует все восемь строк каждый кадр.",\n                    "The example deliberately increments H rather than HL because the eight scanlines of one Spectrum character cell are separated by $100 bytes.",\n                    "Здесь специально увеличивается H, а не HL: восемь строк одного знакоместа Spectrum разделены шагом $100.",
+                    PREVIEW_SMILEY,
+                    "ORG $8000\n\n    EI\n    LD HL,$4000\n    LD B,8\nDRAW:\n    LD (HL),$AA\n    INC H\n    DJNZ DRAW\n\nLOOP:\n    HALT\n    LD HL,$4000\n    LD B,8\nINVERT:\n    LD A,(HL)\n    XOR $FF\n    LD (HL),A\n    INC H\n    DJNZ INVERT\n    JR LOOP\n",
+                    "; Invert one 8x8 cell every video frame\nORG $8000\n\n    EI\n    LD HL,$4000\n    LD B,8\nDRAW:\n    LD (HL),$AA\n    INC H           ; next scanline is +$100\n    DJNZ DRAW\n\nLOOP:\n    HALT\n    LD HL,$4000\n    LD B,8\nINVERT:\n    LD A,(HL)\n    XOR $FF\n    LD (HL),A\n    INC H\n    DJNZ INVERT\n    JR LOOP\n",
+                    "; Инвертируем одно знакоместо 8x8 каждый кадр\nORG $8000\n\n    EI\n    LD HL,$4000\n    LD B,8\nDRAW:\n    LD (HL),$AA\n    INC H           ; следующая строка находится через $100\n    DJNZ DRAW\n\nLOOP:\n    HALT\n    LD HL,$4000\n    LD B,8\nINVERT:\n    LD A,(HL)\n    XOR $FF\n    LD (HL),A\n    INC H\n    DJNZ INVERT\n    JR LOOP\n"),
+
+            ex("space-prints-star",\n                    "Input",\n                    "Ввод",\n                    "SPACE prints a star",\n                    "SPACE печатает звёздочку",\n                    "Waits for SPACE and prints one '*' through the ROM for every key press.",\n                    "Ждёт SPACE и печатает одну '*' через ПЗУ на каждое нажатие.",\n                    "BC=$7FFE selects the keyboard half-row containing SPACE. The routine waits for a press and then for release, so holding the key does not flood the screen.",\n                    "BC=$7FFE выбирает полуряд клавиатуры со SPACE. После нажатия программа ждёт отпускания, поэтому удержание клавиши не забивает экран символами.",
+                    PREVIEW_KEY,
+                    "ORG $8000\n\n    LD BC,$7FFE\nWAIT_PRESS:\n    IN A,(C)\n    AND 1\n    JR NZ,WAIT_PRESS\n    PUSH BC\n    LD A,42\n    RST $10\n    POP BC\nWAIT_RELEASE:\n    IN A,(C)\n    AND 1\n    JR Z,WAIT_RELEASE\n    JR WAIT_PRESS\n",
+                    "; Print one star for each SPACE press\nORG $8000\n\n    LD BC,$7FFE     ; keyboard row containing SPACE\nWAIT_PRESS:\n    IN A,(C)\n    AND 1           ; SPACE is active low\n    JR NZ,WAIT_PRESS\n    PUSH BC\n    LD A,42         ; '*'\n    RST $10\n    POP BC\nWAIT_RELEASE:\n    IN A,(C)\n    AND 1\n    JR Z,WAIT_RELEASE\n    JR WAIT_PRESS\n",
+                    "; Печатаем одну звёздочку на каждое нажатие SPACE\nORG $8000\n\n    LD BC,$7FFE     ; полуряд клавиатуры со SPACE\nWAIT_PRESS:\n    IN A,(C)\n    AND 1           ; SPACE активен нулём\n    JR NZ,WAIT_PRESS\n    PUSH BC\n    LD A,42         ; '*'\n    RST $10\n    POP BC\nWAIT_RELEASE:\n    IN A,(C)\n    AND 1\n    JR Z,WAIT_RELEASE\n    JR WAIT_PRESS\n"),
+
+            snippet("routine-clear-bitmap",\n                    "Clear bitmap",\n                    "Очистить bitmap",\n                    "Fast 6144-byte screen clear using LDIR.",\n                    "Быстрая очистка 6144 байт экрана через LDIR.",\n                    "Seeds the first byte with zero and copies it forward over the remaining 6143 bitmap bytes.",\n                    "В первый байт записывается ноль, после чего он размножается вперёд на оставшиеся 6143 байта.",\n                    "IN: none\\nOUT: bitmap $4000..$57FF = 0\\nDESTROYS: BC, DE, HL, flags",\n                    "IN: нет\\nOUT: bitmap $4000..$57FF = 0\\nПОРТИТ: BC, DE, HL, флаги",
+                    "ORG $8000\n    CALL CLEAR_BITMAP\nHOLD:\n    JR HOLD\n\nCLEAR_BITMAP:\n    LD HL,$4000\n    LD (HL),0\n    LD DE,$4001\n    LD BC,6143\n    LDIR\n    RET\n",
+                    "; IN: none\n; OUT: bitmap $4000..$57FF = 0\n; DESTROYS: BC, DE, HL, flags\nORG $8000\n    CALL CLEAR_BITMAP\nHOLD:\n    JR HOLD\n\nCLEAR_BITMAP:\n    LD HL,$4000\n    LD (HL),0\n    LD DE,$4001\n    LD BC,6143\n    LDIR\n    RET\n",
+                    "; IN: нет\n; OUT: bitmap $4000..$57FF = 0\n; ПОРТИТ: BC, DE, HL, флаги\nORG $8000\n    CALL CLEAR_BITMAP\nHOLD:\n    JR HOLD\n\nCLEAR_BITMAP:\n    LD HL,$4000\n    LD (HL),0\n    LD DE,$4001\n    LD BC,6143\n    LDIR\n    RET\n"),
+
+            snippet("routine-clear-attrs",\n                    "Fill attributes",\n                    "Заполнить атрибуты",\n                    "Fills all 768 attribute cells with one value in A.",\n                    "Заполняет все 768 атрибутов одним значением из A.",\n                    "Stores A at $5800 and uses LDIR to duplicate it over the rest of attribute RAM.",\n                    "Записывает A в $5800 и размножает значение через LDIR по всей памяти атрибутов.",\n                    "IN: A = attribute byte\\nOUT: $5800..$5AFF filled\\nDESTROYS: BC, DE, HL, flags",\n                    "IN: A = байт атрибута\\nOUT: $5800..$5AFF заполнены\\nПОРТИТ: BC, DE, HL, флаги",
+                    "ORG $8000\n    LD A,$47\n    CALL FILL_ATTRS\nHOLD:\n    JR HOLD\n\nFILL_ATTRS:\n    LD HL,$5800\n    LD (HL),A\n    LD DE,$5801\n    LD BC,767\n    LDIR\n    RET\n",
+                    "; IN: A = attribute value\n; OUT: all 768 attribute cells filled\n; DESTROYS: BC, DE, HL, flags\nORG $8000\n    LD A,$47\n    CALL FILL_ATTRS\nHOLD:\n    JR HOLD\n\nFILL_ATTRS:\n    LD HL,$5800\n    LD (HL),A\n    LD DE,$5801\n    LD BC,767\n    LDIR\n    RET\n",
+                    "; IN: A = значение атрибута\n; OUT: заполнены все 768 атрибутов\n; ПОРТИТ: BC, DE, HL, флаги\nORG $8000\n    LD A,$47\n    CALL FILL_ATTRS\nHOLD:\n    JR HOLD\n\nFILL_ATTRS:\n    LD HL,$5800\n    LD (HL),A\n    LD DE,$5801\n    LD BC,767\n    LDIR\n    RET\n"),
+
+            snippet("routine-wait-frames",\n                    "Wait N frames",\n                    "Ждать N кадров",\n                    "Waits an exact number of 50 Hz frame interrupts.",\n                    "Ждёт заданное число кадровых прерываний 50 Гц.",\n                    "B is decremented once per HALT. This is a compact timing primitive for animation and debounce code.",\n                    "B уменьшается один раз на каждый HALT. Это удобная основа для анимации, задержек и подавления дребезга.",\n                    "IN: B = frames (1..255)\\nOUT: B = 0\\nDESTROYS: B",\n                    "IN: B = число кадров (1..255)\\nOUT: B = 0\\nПОРТИТ: B",
+                    "ORG $8000\n    EI\n    LD B,50\n    CALL WAIT_FRAMES\n    LD A,2\n    OUT ($FE),A\nHOLD:\n    JR HOLD\n\nWAIT_FRAMES:\nWAIT_LOOP:\n    HALT\n    DJNZ WAIT_LOOP\n    RET\n",
+                    "; IN: B = number of frames\n; OUT: B = 0\nORG $8000\n    EI\n    LD B,50\n    CALL WAIT_FRAMES\n    LD A,2\n    OUT ($FE),A\nHOLD:\n    JR HOLD\n\nWAIT_FRAMES:\nWAIT_LOOP:\n    HALT\n    DJNZ WAIT_LOOP\n    RET\n",
+                    "; IN: B = число кадров\n; OUT: B = 0\nORG $8000\n    EI\n    LD B,50\n    CALL WAIT_FRAMES\n    LD A,2\n    OUT ($FE),A\nHOLD:\n    JR HOLD\n\nWAIT_FRAMES:\nWAIT_LOOP:\n    HALT\n    DJNZ WAIT_LOOP\n    RET\n"),
+
+            snippet("routine-set-border",\n                    "Set border",\n                    "Установить бордюр",\n                    "Small reusable routine that limits A to 0..7 and writes the border.",\n                    "Небольшая подпрограмма ограничивает A диапазоном 0..7 и задаёт бордюр.",\n                    "AND 7 makes the routine tolerant of higher bits in A. Note that writing port $FE also affects MIC/EAR output bits.",\n                    "AND 7 позволяет передавать значение с лишними старшими битами. Запись в $FE также затрагивает линии MIC/EAR.",\n                    "IN: A = colour\\nOUT: A = colour & 7\\nDESTROYS: flags",\n                    "IN: A = цвет\\nOUT: A = цвет & 7\\nПОРТИТ: флаги",
+                    "ORG $8000\n    LD A,6\n    CALL SET_BORDER\nHOLD:\n    JR HOLD\n\nSET_BORDER:\n    AND 7\n    OUT ($FE),A\n    RET\n",
+                    "; IN: A = border colour\n; OUT: A = colour & 7\n; DESTROYS: flags\nORG $8000\n    LD A,6\n    CALL SET_BORDER\nHOLD:\n    JR HOLD\n\nSET_BORDER:\n    AND 7\n    OUT ($FE),A\n    RET\n",
+                    "; IN: A = цвет бордюра\n; OUT: A = цвет & 7\n; ПОРТИТ: флаги\nORG $8000\n    LD A,6\n    CALL SET_BORDER\nHOLD:\n    JR HOLD\n\nSET_BORDER:\n    AND 7\n    OUT ($FE),A\n    RET\n"),
+
+            snippet("routine-test-space",\n                    "Test SPACE",\n                    "Проверить SPACE",\n                    "Returns Z=1 while SPACE is pressed.",\n                    "Возвращает Z=1, пока нажата клавиша SPACE.",\n                    "The keyboard is active-low. AND 1 leaves zero exactly when the SPACE bit is pulled low.",\n                    "Клавиатура активна нулём. После AND 1 флаг Z устанавливается именно при нажатом SPACE.",\n                    "IN: none\\nOUT: Z=1 pressed, Z=0 released; A=0/1\\nDESTROYS: A, BC, flags",\n                    "IN: нет\\nOUT: Z=1 нажата, Z=0 отпущена; A=0/1\\nПОРТИТ: A, BC, флаги",
+                    "ORG $8000\nLOOP:\n    CALL TEST_SPACE\n    JR Z,PRESSED\n    LD A,1\n    OUT ($FE),A\n    JR LOOP\nPRESSED:\n    LD A,2\n    OUT ($FE),A\n    JR LOOP\n\nTEST_SPACE:\n    LD BC,$7FFE\n    IN A,(C)\n    AND 1\n    RET\n",
+                    "; OUT: Z=1 when SPACE is pressed\n; DESTROYS: A, BC, flags\nORG $8000\nLOOP:\n    CALL TEST_SPACE\n    JR Z,PRESSED\n    LD A,1\n    OUT ($FE),A\n    JR LOOP\nPRESSED:\n    LD A,2\n    OUT ($FE),A\n    JR LOOP\n\nTEST_SPACE:\n    LD BC,$7FFE\n    IN A,(C)\n    AND 1\n    RET\n",
+                    "; OUT: Z=1, когда SPACE нажата\n; ПОРТИТ: A, BC, флаги\nORG $8000\nLOOP:\n    CALL TEST_SPACE\n    JR Z,PRESSED\n    LD A,1\n    OUT ($FE),A\n    JR LOOP\nPRESSED:\n    LD A,2\n    OUT ($FE),A\n    JR LOOP\n\nTEST_SPACE:\n    LD BC,$7FFE\n    IN A,(C)\n    AND 1\n    RET\n"),
+
+            snippet("routine-print-string",\n                    "Print fixed string",\n                    "Печать строки",\n                    "Prints B characters from HL through ROM RST $10.",\n                    "Печатает B символов из HL через ПЗУ RST $10.",\n                    "BC and HL are protected around each ROM call because ROM services are allowed to modify working registers.",\n                    "BC и HL сохраняются вокруг каждого вызова ПЗУ, поскольку ROM-процедуры могут менять рабочие регистры.",\n                    "IN: HL = text, B = length\\nOUT: HL += length, B = 0\\nDESTROYS: A, flags",\n                    "IN: HL = строка, B = длина\\nOUT: HL += длина, B = 0\\nПОРТИТ: A, флаги",
+                    "ORG $8000\n    LD HL,MESSAGE\n    LD B,12\n    CALL PRINT_STRING\nHOLD:\n    JR HOLD\n\nPRINT_STRING:\nNEXT_CHAR:\n    LD A,(HL)\n    PUSH BC\n    PUSH HL\n    RST $10\n    POP HL\n    POP BC\n    INC HL\n    DJNZ NEXT_CHAR\n    RET\n\nMESSAGE:\n    DB \"USEFUL Z80!\"\n",
+                    "; IN: HL = string, B = length\n; OUT: HL advanced, B = 0\n; DESTROYS: A, flags\nORG $8000\n    LD HL,MESSAGE\n    LD B,12\n    CALL PRINT_STRING\nHOLD:\n    JR HOLD\n\nPRINT_STRING:\nNEXT_CHAR:\n    LD A,(HL)\n    PUSH BC\n    PUSH HL\n    RST $10\n    POP HL\n    POP BC\n    INC HL\n    DJNZ NEXT_CHAR\n    RET\n\nMESSAGE:\n    DB \"USEFUL Z80!\"\n",
+                    "; IN: HL = строка, B = длина\n; OUT: HL продвинут, B = 0\n; ПОРТИТ: A, флаги\nORG $8000\n    LD HL,MESSAGE\n    LD B,12\n    CALL PRINT_STRING\nHOLD:\n    JR HOLD\n\nPRINT_STRING:\nNEXT_CHAR:\n    LD A,(HL)\n    PUSH BC\n    PUSH HL\n    RST $10\n    POP HL\n    POP BC\n    INC HL\n    DJNZ NEXT_CHAR\n    RET\n\nMESSAGE:\n    DB \"USEFUL Z80!\"\n"),
+
+            snippet("routine-draw-8x8",\n                    "Draw 8x8 cell",\n                    "Нарисовать 8x8",\n                    "Copies eight sprite bytes to one Spectrum character cell.",\n                    "Копирует восемь байт спрайта в одно знакоместо Spectrum.",\n                    "DE must point to the first scanline of the target cell. Incrementing D steps by $100 to the next scanline inside the same character row.",\n                    "DE должен указывать на первую строку целевого знакоместа. INC D даёт шаг $100 к следующей строке внутри этого знакоместа.",\n                    "IN: HL = 8 sprite bytes, DE = first scanline address\\nOUT: HL += 8, D += 8\\nDESTROYS: A, B, flags",\n                    "IN: HL = 8 байт спрайта, DE = адрес первой строки\\nOUT: HL += 8, D += 8\\nПОРТИТ: A, B, флаги",
+                    "ORG $8000\n    LD HL,SPRITE\n    LD DE,$4000\n    CALL DRAW_8X8\nHOLD:\n    JR HOLD\n\nDRAW_8X8:\n    LD B,8\nROW:\n    LD A,(HL)\n    LD (DE),A\n    INC HL\n    INC D\n    DJNZ ROW\n    RET\n\nSPRITE:\n    DB $3C,$42,$A5,$81,$A5,$99,$42,$3C\n",
+                    "; IN: HL = sprite, DE = first scanline address\n; OUT: HL += 8, D += 8\n; DESTROYS: A, B, flags\nORG $8000\n    LD HL,SPRITE\n    LD DE,$4000\n    CALL DRAW_8X8\nHOLD:\n    JR HOLD\n\nDRAW_8X8:\n    LD B,8\nROW:\n    LD A,(HL)\n    LD (DE),A\n    INC HL\n    INC D           ; next scanline = +$100\n    DJNZ ROW\n    RET\n\nSPRITE:\n    DB $3C,$42,$A5,$81,$A5,$99,$42,$3C\n",
+                    "; IN: HL = спрайт, DE = адрес первой строки\n; OUT: HL += 8, D += 8\n; ПОРТИТ: A, B, флаги\nORG $8000\n    LD HL,SPRITE\n    LD DE,$4000\n    CALL DRAW_8X8\nHOLD:\n    JR HOLD\n\nDRAW_8X8:\n    LD B,8\nROW:\n    LD A,(HL)\n    LD (DE),A\n    INC HL\n    INC D           ; следующая строка = +$100\n    DJNZ ROW\n    RET\n\nSPRITE:\n    DB $3C,$42,$A5,$81,$A5,$99,$42,$3C\n"),
+
+            snippet("routine-memfill",\n                    "Fill memory",\n                    "Заполнить память",\n                    "Fills BC bytes from HL with the value passed in A.",\n                    "Заполняет BC байт от HL значением, переданным в A.",\n                    "D keeps the fill byte while A is temporarily used to test whether BC reached zero.",\n                    "D хранит байт заполнения, пока A временно используется для проверки BC на ноль.",\n                    "IN: HL = address, BC = length, A = value\\nOUT: HL += length, BC = 0\\nDESTROYS: A, D, flags",\n                    "IN: HL = адрес, BC = длина, A = значение\\nOUT: HL += длина, BC = 0\\nПОРТИТ: A, D, флаги",
+                    "ORG $8000\n    LD HL,$5800\n    LD BC,768\n    LD A,$45\n    CALL MEMFILL\nHOLD:\n    JR HOLD\n\nMEMFILL:\n    LD D,A\nFILL_LOOP:\n    LD A,D\n    LD (HL),A\n    INC HL\n    DEC BC\n    LD A,B\n    OR C\n    JR NZ,FILL_LOOP\n    RET\n",
+                    "; IN: HL = address, BC = length, A = fill byte\n; OUT: HL advanced, BC = 0\n; DESTROYS: A, D, flags\nORG $8000\n    LD HL,$5800\n    LD BC,768\n    LD A,$45\n    CALL MEMFILL\nHOLD:\n    JR HOLD\n\nMEMFILL:\n    LD D,A\nFILL_LOOP:\n    LD A,D\n    LD (HL),A\n    INC HL\n    DEC BC\n    LD A,B\n    OR C\n    JR NZ,FILL_LOOP\n    RET\n",
+                    "; IN: HL = адрес, BC = длина, A = байт заполнения\n; OUT: HL продвинут, BC = 0\n; ПОРТИТ: A, D, флаги\nORG $8000\n    LD HL,$5800\n    LD BC,768\n    LD A,$45\n    CALL MEMFILL\nHOLD:\n    JR HOLD\n\nMEMFILL:\n    LD D,A\nFILL_LOOP:\n    LD A,D\n    LD (HL),A\n    INC HL\n    DEC BC\n    LD A,B\n    OR C\n    JR NZ,FILL_LOOP\n    RET\n")
     };
 
     private static Example ex(String id, String categoryEn, String categoryRu,
@@ -161,7 +234,18 @@ public final class ExamplePrograms {
                               String commentedEn, String commentedRu) {
         return new Example(id, categoryEn, categoryRu, titleEn, titleRu,
                 descriptionEn, descriptionRu, detailsEn, detailsRu,
-                previewType, source, commentedEn, commentedRu);
+                previewType, source, commentedEn, commentedRu, null, null);
+    }
+
+    private static Example snippet(String id,
+                                   String titleEn, String titleRu,
+                                   String descriptionEn, String descriptionRu,
+                                   String detailsEn, String detailsRu,
+                                   String ioEn, String ioRu,
+                                   String source, String commentedEn, String commentedRu) {
+        return new Example(id, "Useful routines", "Полезные подпрограммы",
+                titleEn, titleRu, descriptionEn, descriptionRu, detailsEn, detailsRu,
+                PREVIEW_ROUTINE, source, commentedEn, commentedRu, ioEn, ioRu);
     }
 
     public static Example findById(String id) {
@@ -185,11 +269,13 @@ public final class ExamplePrograms {
         public final String source;
         public final String commentedEn;
         public final String commentedRu;
+        public final String ioEn;
+        public final String ioRu;
 
         Example(String id, String categoryEn, String categoryRu,
                 String title, String titleRu, String description, String descriptionRu,
                 String detailsEn, String detailsRu, int previewType, String source,
-                String commentedEn, String commentedRu) {
+                String commentedEn, String commentedRu, String ioEn, String ioRu) {
             this.id = id;
             this.categoryEn = categoryEn;
             this.categoryRu = categoryRu;
@@ -203,6 +289,8 @@ public final class ExamplePrograms {
             this.source = source;
             this.commentedEn = commentedEn;
             this.commentedRu = commentedRu;
+            this.ioEn = ioEn;
+            this.ioRu = ioRu;
         }
 
         public String category(AppLanguage language) {
@@ -224,6 +312,14 @@ public final class ExamplePrograms {
         public String source(AppLanguage language, boolean comments) {
             if (!comments) return source;
             return language == AppLanguage.RU ? commentedRu : commentedEn;
+        }
+
+        public String io(AppLanguage language) {
+            return language == AppLanguage.RU ? ioRu : ioEn;
+        }
+
+        public boolean hasIo() {
+            return ioEn != null && !ioEn.trim().isEmpty();
         }
     }
 }
