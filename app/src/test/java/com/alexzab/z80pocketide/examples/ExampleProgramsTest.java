@@ -2,6 +2,7 @@ package com.alexzab.z80pocketide.examples;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
@@ -31,6 +32,22 @@ public class ExampleProgramsTest {
             assertFalse(example.details(AppLanguage.RU).isEmpty());
             assertNotNull(ExamplePrograms.findById(example.id));
         }
+    }
+
+    @Test
+    public void usefulRoutinesDescribeRegisterContracts() {
+        int routines = 0;
+        for (ExamplePrograms.Example example : ExamplePrograms.ALL) {
+            if ("Useful routines".equals(example.categoryEn)) {
+                routines++;
+                assertTrue(example.hasIo());
+                assertTrue(example.io(AppLanguage.EN).contains("IN:"));
+                assertTrue(example.io(AppLanguage.EN).contains("OUT:"));
+                assertTrue(example.io(AppLanguage.RU).contains("IN:"));
+                assertTrue(example.io(AppLanguage.RU).contains("OUT:"));
+            }
+        }
+        assertTrue(routines >= 7);
     }
 
     private static void assertAssembles(Assembler assembler, String source) {
