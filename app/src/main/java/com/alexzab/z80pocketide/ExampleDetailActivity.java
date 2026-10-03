@@ -20,6 +20,7 @@ import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.ui.ExamplePreviewView;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
+import com.alexzab.z80pocketide.ui.UiStyle;
 
 /** Detailed example page with explanation and commented/plain source choice. */
 public final class ExampleDetailActivity extends Activity {
@@ -63,6 +64,7 @@ public final class ExampleDetailActivity extends Activity {
         back.setText("←");
         back.setTextSize(19);
         back.setMinWidth(0);
+        UiStyle.styleButton(back, Color.rgb(27, 45, 57), 0xFFFFD43B, 16);
         header.addView(back, new LinearLayout.LayoutParams(dp(52), dp(48)));
 
         TextView headerTitle = text(example.title(language), 20, 0xFFFFD43B);
@@ -110,6 +112,23 @@ public final class ExampleDetailActivity extends Activity {
         details.setPadding(0, dp(4), 0, dp(14));
         content.addView(details);
 
+        if (example.hasIo()) {
+            TextView ioTitle = text(t("Registers", "Регистры"), 19, 0xFFFFD43B);
+            ioTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+            content.addView(ioTitle);
+
+            TextView io = text(example.io(language), 14, 0xFFE8EEF2);
+            io.setTypeface(android.graphics.Typeface.MONOSPACE);
+            io.setPadding(dp(12), dp(10), dp(12), dp(10));
+            io.setBackground(UiStyle.rounded(this, Color.rgb(7, 12, 17),
+                    14, Color.rgb(45, 62, 72), 1));
+            LinearLayout.LayoutParams iop = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            iop.setMargins(0, dp(5), 0, dp(14));
+            content.addView(io, iop);
+        }
+
         LinearLayout codeHeader = new LinearLayout(this);
         codeHeader.setGravity(Gravity.CENTER_VERTICAL);
         TextView codeTitle = text(t("Source", "Код"), 19, 0xFFFFD43B);
@@ -125,7 +144,8 @@ public final class ExampleDetailActivity extends Activity {
         content.addView(codeHeader);
 
         HorizontalScrollView hScroll = new HorizontalScrollView(this);
-        hScroll.setBackgroundColor(Color.rgb(7, 12, 17));
+        hScroll.setBackground(UiStyle.rounded(this, Color.rgb(7, 12, 17),
+                14, Color.rgb(45, 62, 72), 1));
         code = text("", 13, 0xFFE8EEF2);
         code.setTypeface(android.graphics.Typeface.MONOSPACE);
         code.setPadding(dp(10), dp(9), dp(10), dp(9));
@@ -143,7 +163,7 @@ public final class ExampleDetailActivity extends Activity {
 
         Button open = new Button(this);
         open.setText(t("Open in editor", "Открыть в редакторе"));
-        open.setAllCaps(false);
+        UiStyle.styleButton(open, 0xFFFFD43B, Color.rgb(25, 25, 25), 18);
         LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         op.setMargins(0, dp(7), 0, 0);
