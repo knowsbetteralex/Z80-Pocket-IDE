@@ -132,7 +132,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.9", "для ZX Spectrum · v0.9"));
+        subtitle.setText(t("for ZX Spectrum · v0.9.1", "для ZX Spectrum · v0.9.1"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -238,7 +238,7 @@ public class MainActivity extends Activity {
         saveTap.setOnClickListener(v -> saveTapFile());
         examples.setOnClickListener(v -> showExamples());
         reference.setOnClickListener(v -> openReference());
-        languageButton.setOnClickListener(v -> showLanguageDialog());
+        languageButton.setOnClickListener(v -> toggleLanguage());
 
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -310,14 +310,14 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (!hasDirtyDocuments()) {
+        if (!hasDocumentsNeedingSave()) {
             super.onBackPressed();
             return;
         }
         new AlertDialog.Builder(this)
                 .setTitle(t("Unsaved tabs", "Несохранённые вкладки"))
-                .setMessage(t("Some source tabs contain unsaved changes. Exit without saving them?",
-                        "В некоторых вкладках есть несохранённые изменения. Выйти без сохранения?"))
+                .setMessage(t("Some source tabs are not saved. Exit without saving them?",
+                        "Некоторые вкладки не сохранены. Выйти без сохранения?"))
                 .setPositiveButton(t("Exit", "Выйти"), (d, w) -> MainActivity.super.onBackPressed())
                 .setNegativeButton(t("Cancel", "Отмена"), null)
                 .show();
@@ -352,9 +352,7 @@ public class MainActivity extends Activity {
         }
 
         if (documents.isEmpty()) {
-            EditorDocument start = new EditorDocument(
-                    nextUntitledName(), starterSource(), null, false);
-            documents.add(start);
+            documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
             activeIndex = 0;
         }
         activeIndex = Math.max(0, Math.min(activeIndex, documents.size() - 1));
@@ -367,12 +365,36 @@ public class MainActivity extends Activity {
         return "ORG $8000\n\nSTART:\n    NOP\n    RET\n";
     }
 
+    private String untitledName(int number, AppLanguage lang) {
+        return Texts.pick(lang, "Untitled ", "Без имени ") + number + ".asm";
+    }
+
     private String nextUntitledName() {
-        return t("Untitled ", "Без имени ") + (untitledCounter++) + ".asm";
+        return untitledName(untitledCounter++, language);
+    }
+
+    private int untitledNumber(String title) {
+        if (title == null) return -1;
+        String lower = title.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("untitled ") && !lower.startsWith("без имени ")) return -1;
+        int dot = lower.lastIndexOf(".asm");
+        int space = lower.lastIndexOf(' ', dot >= 0 ? dot : lower.length());
+        if (space < 0) return -1;
+        String number = lower.substring(space + 1, dot >= 0 ? dot : lower.length()).trim();
+        try {
+            return Integer.parseInt(number);
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
     }
 
     private void updateUntitledCounter() {
-        untitledCounter = Math.max(untitledCounter, documents.size() + 1);
+        int max = 0;
+        for (EditorDocument doc : documents) {
+            int number = untitledNumber(doc.title);
+            if (number > max) max = number;
+        }
+        untitledCounter = Math.max(1, max + 1);
     }
 
     private String t(String en, String ru) {
@@ -507,8 +529,10 @@ public class MainActivity extends Activity {
         return documents.get(activeIndex);
     }
 
-    private boolean hasDirtyDocuments() {
-        for (EditorDocument doc : documents) if (doc.dirty) return true;
+    private boolean hasDocumentsNeedingSave() {
+        for (EditorDocument doc : documents) {
+            if (doc.needsCloseConfirmation()) return true;
+        }
         return false;
     }
 
@@ -620,7 +644,7 @@ public class MainActivity extends Activity {
         if (index < 0 || index >= documents.size()) return;
         if (index == activeIndex) captureCurrentDocument();
         EditorDocument doc = documents.get(index);
-        if (!doc.dirty) {
+        if (!doc.needsCloseConfirmation()) {
             closeTabImmediately(index);
             return;
         }
@@ -640,13 +664,17 @@ public class MainActivity extends Activity {
         if (index < 0 || index >= documents.size()) return;
         documents.remove(index);
         if (documents.isEmpty()) {
-            documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
+            // Keep one quiet, truly blank scratch tab. Repeatedly closing the last tab
+            // must not just count Untitled 1, 2, 3... in front of the user.
+            untitledCounter = 2;
+            documents.add(new EditorDocument(untitledName(1, language), "", null, false));
             activeIndex = 0;
         } else if (index < activeIndex) {
             activeIndex--;
         } else if (index == activeIndex) {
             activeIndex = Math.min(index, documents.size() - 1);
         }
+        updateUntitledCounter();
         renderTabs();
         loadActiveDocument();
     }
@@ -717,7 +745,7 @@ public class MainActivity extends Activity {
         try {
             getContentResolver().takePersistableUriPermission(uri, flags);
         } catch (SecurityException ignored) {
-            // Some document providers grant access only for the current session.
+            // Some providers grant access only for the current session.
         }
     }
 
@@ -743,22 +771,19 @@ public class MainActivity extends Activity {
         return clean.toLowerCase(Locale.ROOT).endsWith(".asm") ? clean : clean + ".asm";
     }
 
-    private void showLanguageDialog() {
-        String[] labels = {"English", "Русский"};
-        int selected = language == AppLanguage.RU ? 1 : 0;
-        new AlertDialog.Builder(this)
-                .setTitle(t("Language", "Язык"))
-                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
-                    AppLanguage newLanguage = which == 1 ? AppLanguage.RU : AppLanguage.EN;
-                    dialog.dismiss();
-                    if (newLanguage != language) {
-                        captureCurrentDocument();
-                        LanguageSettings.set(this, newLanguage);
-                        recreate();
-                    }
-                })
-                .setNegativeButton(t("Cancel", "Отмена"), null)
-                .show();
+    private void toggleLanguage() {
+        captureCurrentDocument();
+        AppLanguage next = language == AppLanguage.RU ? AppLanguage.EN : AppLanguage.RU;
+
+        // Generated untitled names follow the UI language too. Real file/example titles stay intact.
+        for (EditorDocument doc : documents) {
+            if (doc.hasFile()) continue;
+            int number = untitledNumber(doc.title);
+            if (number > 0) doc.title = untitledName(number, next);
+        }
+
+        LanguageSettings.set(this, next);
+        recreate();
     }
 
     private void showEmulatorDialog() {
