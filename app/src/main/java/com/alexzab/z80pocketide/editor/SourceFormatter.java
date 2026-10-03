@@ -31,20 +31,40 @@ public final class SourceFormatter {
 
     public static String uppercaseKeywordsInLine(String line) {
         if (line == null || line.isEmpty()) return line == null ? "" : line;
-        int comment = commentStart(line);
-        String code = comment < 0 ? line : line.substring(0, comment);
-        String suffix = comment < 0 ? "" : line.substring(comment);
+        StringBuilder out = new StringBuilder(line.length());
+        boolean quoted = false;
+        char quote = 0;
 
-        Matcher matcher = WORD.matcher(code);
-        StringBuffer out = new StringBuffer();
-        while (matcher.find()) {
-            String token = matcher.group();
-            String upper = token.toUpperCase(Locale.ROOT);
-            matcher.appendReplacement(out, Matcher.quoteReplacement(
-                    KEYWORDS.contains(upper) ? upper : token));
+        for (int i = 0; i < line.length();) {
+            char ch = line.charAt(i);
+            if (!quoted && ch == ';') {
+                out.append(line.substring(i));
+                break;
+            }
+            if (ch == '\'' || ch == '"') {
+                if (!quoted) { quoted = true; quote = ch; }
+                else if (quote == ch) quoted = false;
+                out.append(ch);
+                i++;
+                continue;
+            }
+            if (!quoted && Character.isLetter(ch)) {
+                int end = i + 1;
+                while (end < line.length()) {
+                    char x = line.charAt(end);
+                    if (!Character.isLetterOrDigit(x) && x != '\'') break;
+                    end++;
+                }
+                String token = line.substring(i, end);
+                String upper = token.toUpperCase(Locale.ROOT);
+                out.append(KEYWORDS.contains(upper) ? upper : token);
+                i = end;
+                continue;
+            }
+            out.append(ch);
+            i++;
         }
-        matcher.appendTail(out);
-        return out + suffix;
+        return out.toString();
     }
 
     public static String formatDocument(String source, boolean uppercase, boolean indentation,
