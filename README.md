@@ -10,6 +10,8 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Localized interface, statuses, notifications, examples and Z80 reference.
 - Live Z80 syntax highlighting for mnemonics, registers, directives, numbers, labels, strings and comments.
 - Live optional uppercase formatting for Z80 mnemonics/registers/directives without touching labels, comments or strings.
+- Built-in live DEC / HEX / BIN converter with assembler-style prefixes and a one-tap Clear action.
+- Editor line-number gutter and current-line highlighting.
 - Configurable auto-indent, TAB width (2/4/8), spaces-vs-tab and an on-screen TAB key.
 - One-tap document formatter.
 - Reversible label-block folding from a label to the next blank line; build/save always use the full source.
@@ -28,8 +30,10 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - ZX Spectrum TAP generation with BASIC autorun loader.
 - Build / Run / Save `.tap` workflow.
 - Optional remembered Android app for one-tap automatic TAP launch, with chooser fallback.
-- Twelve built-in visual/audio/input ZX Spectrum examples, with localized explanations and commented/uncommented source variants.
+- Twenty-five built-in visual/audio/input/routine ZX Spectrum examples, with localized explanations and commented/uncommented source variants.
+- Reusable routine examples include explicit IN / OUT / DESTROYS register contracts.
 - Spectrum-inspired branding and app icon.
+- Rounded green action styling with explicit grey disabled Build-dependent actions.
 - JUnit tests and GitHub Actions debug APK builds.
 
 The opcode implementation is based on the documented Z80 instruction set. Undocumented instructions (for example IXH/IYH forms and undocumented DDCB/FDCB register-result variants) are intentionally outside the current scope.
@@ -48,14 +52,13 @@ Use the `EN` / `RU` button in the app header. On first launch the app follows th
 
 ## Next milestones
 
-1. Line numbers and current-line highlighting.
-2. Autocomplete for mnemonics, registers and labels.
-3. Inline instruction signature/T-state hints.
-4. Symbols panel and memory map.
-5. `INCLUDE`, `INCBIN` and multi-file project build rules.
-6. Session/project restore across full app restarts.
-7. Cycle analysis and timing tools.
-8. Optional compatibility/undocumented-instruction mode.
+1. Autocomplete for mnemonics, registers and labels.
+2. Inline instruction signature/T-state hints.
+3. Symbols panel and memory map.
+4. `INCLUDE`, `INCBIN` and multi-file project build rules.
+5. Session/project restore across full app restarts.
+6. Cycle analysis and timing tools.
+7. Optional compatibility/undocumented-instruction mode.
 
 ## Build
 
