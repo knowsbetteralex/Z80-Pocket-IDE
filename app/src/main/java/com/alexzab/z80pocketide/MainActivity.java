@@ -87,6 +87,7 @@ public class MainActivity extends Activity {
     private Button tabKeyButton;
     private Button formatButton;
     private Button foldButton;
+    private Button converterButton;
     private HorizontalScrollView tabStrip;
     private LinearLayout tabRow;
     private AppLanguage language;
@@ -108,7 +109,7 @@ public class MainActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(246, 247, 249));
+        root.setBackgroundColor(Color.rgb(244, 248, 246));
 
         final int side = dp(12);
         final int vertical = dp(8);
@@ -138,7 +139,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.9.1", "для ZX Spectrum · v0.9.1"));
+        subtitle.setText(t("for ZX Spectrum · v0.11", "для ZX Spectrum · v0.11"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -164,7 +165,7 @@ public class MainActivity extends Activity {
         workspaceBar.setGravity(Gravity.CENTER_VERTICAL);
         workspaceBar.setPadding(dp(4), dp(4), dp(4), dp(4));
         workspaceBar.setBackground(UiStyle.rounded(this,
-                Color.rgb(238, 240, 244), 16, Color.rgb(220, 222, 226), 1));
+                Color.rgb(235, 243, 238), 18, Color.rgb(205, 222, 212), 1));
 
         Button fileButton = compactButton(t("File", "Файл"));
         fileButton.setOnClickListener(v -> showFileMenu());
@@ -191,8 +192,8 @@ public class MainActivity extends Activity {
         editor.setTypeface(Typeface.MONOSPACE);
         editor.setTextColor(Color.rgb(25, 25, 25));
         editor.setBackground(UiStyle.rounded(this,
-                Color.rgb(252, 252, 253), 18, Color.rgb(222, 224, 228), 1));
-        editor.setPadding(dp(14), dp(12), dp(14), dp(12));
+                Color.rgb(252, 253, 252), 20, Color.rgb(207, 222, 213), 1));
+        editor.setPadding(dp(54), dp(12), dp(14), dp(12));
         editor.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -206,9 +207,12 @@ public class MainActivity extends Activity {
         tabKeyButton = compactButton("TAB ⇥");
         formatButton = compactButton(t("Format", "Формат"));
         foldButton = compactButton(t("Fold", "Свернуть"));
+        converterButton = compactButton("123");
+        converterButton.setContentDescription(t("Number converter", "Системы счисления"));
         editorTools.addView(tabKeyButton);
         editorTools.addView(formatButton);
         editorTools.addView(foldButton);
+        editorTools.addView(converterButton);
         root.addView(editorTools);
 
         LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
@@ -224,6 +228,8 @@ public class MainActivity extends Activity {
             setStatus(t("Document formatted", "Документ отформатирован"),
                     Color.rgb(45, 80, 150));
         });
+        converterButton.setOnClickListener(v ->
+                startActivity(new Intent(this, NumberConverterActivity.class)));
         foldButton.setOnClickListener(v -> {
             if (editor.toggleFoldAtCursor()) {
                 setStatus(t("Fold toggled · source is preserved",
@@ -242,7 +248,7 @@ public class MainActivity extends Activity {
         bottomPanel.setOrientation(LinearLayout.VERTICAL);
         bottomPanel.setPadding(dp(10), dp(7), dp(10), dp(5));
         bottomPanel.setBackground(UiStyle.rounded(this,
-                Color.rgb(247, 248, 250), 18, Color.rgb(222, 224, 228), 1));
+                Color.rgb(240, 247, 243), 20, Color.rgb(205, 222, 212), 1));
         if (Build.VERSION.SDK_INT >= 21) bottomPanel.setElevation(dp(4));
 
         LinearLayout infoRow = new LinearLayout(this);
@@ -456,8 +462,7 @@ public class MainActivity extends Activity {
         button.setMinimumWidth(0);
         button.setPadding(dp(11), 0, dp(11), 0);
         button.setMinHeight(dp(38));
-        UiStyle.styleButton(button, Color.rgb(238, 240, 244),
-                Color.rgb(45, 48, 54), 14);
+        UiStyle.styleSoftGreenButton(button);
         return button;
     }
 
@@ -465,9 +470,8 @@ public class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(text);
         button.setMinWidth(0);
-        button.setMinHeight(dp(44));
-        UiStyle.styleButton(button, Color.rgb(255, 238, 166),
-                Color.rgb(45, 42, 28), 16);
+        button.setMinHeight(dp(46));
+        UiStyle.styleGreenButton(button);
         return button;
     }
 
@@ -493,9 +497,9 @@ public class MainActivity extends Activity {
             cell.setPadding(dp(2), 0, dp(1), 0);
             GradientDrawable bg = new GradientDrawable();
             bg.setCornerRadius(dp(12));
-            bg.setColor(i == activeIndex ? Color.rgb(255, 244, 194) : Color.rgb(232, 232, 232));
+            bg.setColor(i == activeIndex ? Color.rgb(220, 240, 228) : Color.rgb(238, 241, 239));
             bg.setStroke(dp(1), i == activeIndex
-                    ? Color.rgb(205, 160, 0) : Color.rgb(205, 205, 205));
+                    ? Color.rgb(92, 153, 118) : Color.rgb(207, 214, 210));
             cell.setBackground(bg);
 
             TextView tabTitle = new TextView(this);
