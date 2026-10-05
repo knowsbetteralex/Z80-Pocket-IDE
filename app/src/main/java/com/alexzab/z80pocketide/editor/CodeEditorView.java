@@ -2,6 +2,10 @@ package com.alexzab.z80pocketide.editor;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
 import android.text.Editable;
 import android.text.Layout;
 import android.text.TextWatcher;
@@ -32,6 +36,11 @@ public class CodeEditorView extends EditText {
     private final ScaleGestureDetector scaleDetector;
     private final int touchSlop;
     private final Map<String, String> foldedBlocks = new LinkedHashMap<>();
+    private final Paint gutterPaint = new Paint();
+    private final Paint lineNumberPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint currentLinePaint = new Paint();
+    private final Rect lineBounds = new Rect();
+    private int gutterWidth;
 
     private float downX;
     private float downY;
@@ -69,6 +78,12 @@ public class CodeEditorView extends EditText {
         setHorizontalScrollBarEnabled(true);
         setVerticalScrollBarEnabled(true);
         setOverScrollMode(OVER_SCROLL_NEVER);
+
+        gutterWidth = dp(46);
+        gutterPaint.setColor(Color.rgb(242, 245, 243));
+        lineNumberPaint.setTextAlign(Paint.Align.RIGHT);
+        lineNumberPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+        currentLinePaint.setColor(Color.rgb(236, 247, 240));
         refreshPreferences();
 
         addTextChangedListener(new TextWatcher() {
@@ -330,6 +345,58 @@ public class CodeEditorView extends EditText {
     }
 
     @Override
+    protected void onDraw(Canvas canvas) {
+        Layout layout = getLayout();
+        int currentLine = -1;
+        if (layout != null && length() >= 0) {
+            int offset = Math.max(0, Math.min(getSelectionStart(), length()));
+            currentLine = layout.getLineForOffset(offset);
+
+            int lineTop = layout.getLineTop(currentLine) + getTotalPaddingTop();
+            int lineBottom = layout.getLineBottom(currentLine) + getTotalPaddingTop();
+            float left = getScrollX();
+            canvas.drawRect(left, lineTop, left + getWidth(), lineBottom, currentLinePaint);
+        }
+
+        super.onDraw(canvas);
+
+        if (layout == null) return;
+
+        int sx = getScrollX();
+        int sy = getScrollY();
+        canvas.drawRect(sx, sy, sx + gutterWidth, sy + getHeight(), gutterPaint);
+
+        lineNumberPaint.setTextSize(getTextSize() * 0.67f);
+        int first = layout.getLineForVertical(Math.max(0, sy - getTotalPaddingTop()));
+        int last = layout.getLineForVertical(Math.max(0,
+                sy + getHeight() - getTotalPaddingTop()));
+        first = Math.max(0, first - 1);
+        last = Math.min(layout.getLineCount() - 1, last + 1);
+
+        for (int i = first; i <= last; i++) {
+            int baseline = getLineBounds(i, lineBounds);
+            lineNumberPaint.setColor(i == currentLine
+                    ? Color.rgb(47, 125, 88)
+                    : Color.rgb(145, 154, 149));
+            lineNumberPaint.setFakeBoldText(i == currentLine);
+            canvas.drawText(String.valueOf(i + 1),
+                    sx + gutterWidth - dp(8), baseline, lineNumberPaint);
+        }
+    }
+
+    @Override
+    protected void onSelectionChanged(int selStart, int selEnd) {
+        super.onSelectionChanged(selStart, selEnd);
+        invalidate();
+    }
+
+    @Override
+    protected void onScrollChanged(int horiz, int vert, int oldHoriz, int oldVert) {
+        super.onScrollChanged(horiz, vert, oldHoriz, oldVert);
+        invalidate();
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent event) {
         scaleDetector.onTouchEvent(event);
 
@@ -472,6 +539,10 @@ public class CodeEditorView extends EditText {
         int content = layout.getHeight()
                 + getCompoundPaddingTop() + getCompoundPaddingBottom();
         return Math.max(0, content - getHeight());
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
     private SharedPreferences preferences() {
