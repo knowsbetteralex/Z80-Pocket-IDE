@@ -182,6 +182,7 @@ public final class NumberConverterActivity extends Activity {
                     status.setTextColor(Color.rgb(45, 102, 72));
                 } catch (IllegalArgumentException ex) {
                     updating = false;
+                    clearOthers(field);
                     status.setText(t("Invalid value for this base",
                             "Некорректное число для этой системы"));
                     status.setTextColor(Color.rgb(180, 45, 45));
