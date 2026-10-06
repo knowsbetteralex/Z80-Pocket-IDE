@@ -179,6 +179,110 @@ public final class SpectrumReference {
                     "Более низкоуровневая, чем RST $10, но требует корректного состояния подсистемы печати ПЗУ. Обычно лучше использовать RST $10.")
     };
 
+    public static final PortEntry[] PORTS = {
+            new PortEntry(
+                    "$FE / any even ULA port", "$FE / любой чётный порт ULA",
+                    "ULA: border, keyboard, EAR/MIC and beeper", "ULA: бордюр, клавиатура, EAR/MIC и пищалка",
+                    new String[] {
+                            "OUT: D0-D2 border colour 0..7",
+                            "OUT: D3 MIC, D4 EAR/speaker",
+                            "IN: D0-D4 keyboard columns, active low",
+                            "IN: D6 EAR input",
+                            "Keyboard rows are selected by A8..A15; A0 must be 0"
+                    },
+                    new String[] {
+                            "OUT: D0-D2 цвет бордюра 0..7",
+                            "OUT: D3 MIC, D4 EAR/динамик",
+                            "IN: D0-D4 столбцы клавиатуры, активный 0",
+                            "IN: D6 вход EAR",
+                            "Строки клавиатуры выбираются A8..A15; A0 должен быть 0"
+                    },
+                    "The original 48K ULA only partially decodes the I/O address, so software conventionally writes port $FE but many even ports also reach it.",
+                    "Оригинальная ULA 48K декодирует адрес порта неполностью, поэтому обычно используют $FE, хотя к ULA попадают и многие другие чётные адреса."),
+            new PortEntry(
+                    "Keyboard matrix", "Матрица клавиатуры",
+                    "Eight half-rows, five keys per row", "Восемь полурядов по пять клавиш",
+                    new String[] {
+                            "$FEFE  CAPS SHIFT Z X C V",
+                            "$FDFE  A S D F G",
+                            "$FBFE  Q W E R T",
+                            "$F7FE  1 2 3 4 5",
+                            "$EFFE  0 9 8 7 6",
+                            "$DFFE  P O I U Y",
+                            "$BFFE  ENTER L K J H",
+                            "$7FFE  SPACE SYMBOL SHIFT M N B"
+                    },
+                    new String[] {
+                            "$FEFE  CAPS SHIFT Z X C V",
+                            "$FDFE  A S D F G",
+                            "$FBFE  Q W E R T",
+                            "$F7FE  1 2 3 4 5",
+                            "$EFFE  0 9 8 7 6",
+                            "$DFFE  P O I U Y",
+                            "$BFFE  ENTER L K J H",
+                            "$7FFE  SPACE SYMBOL SHIFT M N B"
+                    },
+                    "Read with IN A,(C) after loading BC with the row address. A pressed key clears its corresponding bit among D0-D4.",
+                    "Для чтения удобно загрузить адрес строки в BC и выполнить IN A,(C). Нажатая клавиша сбрасывает соответствующий бит D0-D4."),
+            new PortEntry(
+                    "$1F", "$1F",
+                    "Kempston joystick", "Джойстик Kempston",
+                    new String[] {
+                            "Bit 0 = RIGHT",
+                            "Bit 1 = LEFT",
+                            "Bit 2 = DOWN",
+                            "Bit 3 = UP",
+                            "Bit 4 = FIRE",
+                            "Bits are active high"
+                    },
+                    new String[] {
+                            "Бит 0 = ВПРАВО",
+                            "Бит 1 = ВЛЕВО",
+                            "Бит 2 = ВНИЗ",
+                            "Бит 3 = ВВЕРХ",
+                            "Бит 4 = ОГОНЬ",
+                            "Биты активны единицей"
+                    },
+                    "Classic Kempston interfaces are read with IN A,($1F). Some clones or modern emulators may expose extra bits or configurable mappings.",
+                    "Классический Kempston читается через IN A,($1F). Клоны и современные эмуляторы могут иметь дополнительные биты или настраиваемую раскладку."),
+            new PortEntry(
+                    "$FFFD / $BFFD", "$FFFD / $BFFD",
+                    "AY-3-8912/8910 on 128K machines and AY interfaces", "AY-3-8912/8910 на 128K и внешних AY-интерфейсах",
+                    new String[] {
+                            "OUT $FFFD: select AY register",
+                            "OUT $BFFD: write selected register",
+                            "IN  $FFFD: read selected register",
+                            "Registers 0-5 tone periods; 6 noise; 7 mixer; 8-10 volumes",
+                            "Registers 11-13 envelope period/shape"
+                    },
+                    new String[] {
+                            "OUT $FFFD: выбрать регистр AY",
+                            "OUT $BFFD: записать выбранный регистр",
+                            "IN  $FFFD: прочитать выбранный регистр",
+                            "Регистры 0-5 периоды тона; 6 шум; 7 микшер; 8-10 громкости",
+                            "Регистры 11-13 период/форма огибающей"
+                    },
+                    "The plain 48K Spectrum has no built-in AY. These ports apply to the 128K family or a compatible external AY interface.",
+                    "В обычном Spectrum 48K встроенного AY нет. Эти порты относятся к семейству 128K или совместимому внешнему AY-интерфейсу."),
+            new PortEntry(
+                    "EAR / MIC / speaker", "EAR / MIC / динамик",
+                    "Audio and cassette bits share the ULA port", "Аудио и кассета делят порт ULA",
+                    new String[] {
+                            "OUT $FE bit 3 = MIC",
+                            "OUT $FE bit 4 = EAR/speaker level",
+                            "IN  $FE bit 6 = EAR cassette input",
+                            "Changing border via OUT $FE should preserve audio bits when needed"
+                    },
+                    new String[] {
+                            "OUT $FE бит 3 = MIC",
+                            "OUT $FE бит 4 = EAR/уровень динамика",
+                            "IN  $FE бит 6 = вход EAR с кассеты",
+                            "При смене бордюра через OUT $FE при необходимости сохраняйте аудиобиты"
+                    },
+                    "Simple beeper music is generated by toggling bit 4 in software; ROM BEEPER $03B5 is a convenient higher-level alternative.",
+                    "Простейший звук пищалки получается программным переключением бита 4; более удобная альтернатива — ROM BEEPER $03B5.")
+    };
+
     public static final class Topic {
         public final String titleEn, titleRu;
         public final String subtitleEn, subtitleRu;
@@ -199,6 +303,30 @@ public final class SpectrumReference {
 
         public String title(AppLanguage l) { return l == AppLanguage.RU ? titleRu : titleEn; }
         public String subtitle(AppLanguage l) { return l == AppLanguage.RU ? subtitleRu : subtitleEn; }
+        public String[] lines(AppLanguage l) { return l == AppLanguage.RU ? linesRu : linesEn; }
+        public String note(AppLanguage l) { return l == AppLanguage.RU ? noteRu : noteEn; }
+    }
+
+    public static final class PortEntry {
+        public final String portEn, portRu;
+        public final String titleEn, titleRu;
+        public final String[] linesEn, linesRu;
+        public final String noteEn, noteRu;
+
+        PortEntry(String portEn, String portRu, String titleEn, String titleRu,
+                  String[] linesEn, String[] linesRu, String noteEn, String noteRu) {
+            this.portEn = portEn;
+            this.portRu = portRu;
+            this.titleEn = titleEn;
+            this.titleRu = titleRu;
+            this.linesEn = linesEn;
+            this.linesRu = linesRu;
+            this.noteEn = noteEn;
+            this.noteRu = noteRu;
+        }
+
+        public String port(AppLanguage l) { return l == AppLanguage.RU ? portRu : portEn; }
+        public String title(AppLanguage l) { return l == AppLanguage.RU ? titleRu : titleEn; }
         public String[] lines(AppLanguage l) { return l == AppLanguage.RU ? linesRu : linesEn; }
         public String note(AppLanguage l) { return l == AppLanguage.RU ? noteRu : noteEn; }
     }
