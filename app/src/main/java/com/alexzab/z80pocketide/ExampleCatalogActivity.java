@@ -21,13 +21,17 @@ import com.alexzab.z80pocketide.ui.ExamplePreviewView;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 
-/** Browseable example gallery inspired by compact electronics reference cards. */
+/** Browseable example gallery with separate demos and reusable-routines tabs. */
 public final class ExampleCatalogActivity extends Activity {
     public static final String EXTRA_SOURCE = "example_source";
     public static final String EXTRA_TITLE = "example_title";
     private static final int REQUEST_DETAIL = 2101;
 
     private AppLanguage language;
+    private LinearLayout list;
+    private Button examplesTab;
+    private Button routinesTab;
+    private boolean showRoutines;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +61,7 @@ public final class ExampleCatalogActivity extends Activity {
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
+
         Button back = new Button(this);
         back.setText("←");
         back.setTextSize(19);
@@ -66,42 +71,107 @@ public final class ExampleCatalogActivity extends Activity {
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label(t("Examples", "Примеры"), 24, 0xFFFFD43B);
-        TextView subtitle = label(t("Visual demos and reusable Z80 routines",
-                "Наглядные примеры и готовые подпрограммы Z80"), 12, 0xFFA8BAC5);
+        TextView title = label(t("Library", "Библиотека"), 24, 0xFFFFD43B);
+        TextView subtitle = label(t("Visual demos and reusable Z80 building blocks",
+                "Наглядные примеры и готовые блоки Z80"), 12, 0xFFA8BAC5);
         titles.addView(title);
         titles.addView(subtitle);
-        header.addView(titles, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(titles, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         root.addView(header);
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
         root.addView(stripe, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(6)));
 
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setGravity(Gravity.CENTER);
+        tabs.setPadding(0, dp(10), 0, dp(8));
+
+        examplesTab = new Button(this);
+        examplesTab.setText(t("Examples", "Примеры"));
+        examplesTab.setMinHeight(dp(42));
+        examplesTab.setMinWidth(0);
+
+        routinesTab = new Button(this);
+        routinesTab.setText(t("Routines", "Подпрограммы"));
+        routinesTab.setMinHeight(dp(42));
+        routinesTab.setMinWidth(0);
+
+        LinearLayout.LayoutParams tp1 = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        tp1.setMargins(0, 0, dp(4), 0);
+        LinearLayout.LayoutParams tp2 = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        tp2.setMargins(dp(4), 0, 0, 0);
+        tabs.addView(examplesTab, tp1);
+        tabs.addView(routinesTab, tp2);
+        root.addView(tabs);
+
         ScrollView scroll = new ScrollView(this);
-        LinearLayout list = new LinearLayout(this);
+        list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(0, dp(10), 0, dp(18));
+        list.setPadding(0, 0, 0, dp(18));
         scroll.addView(list);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
+        examplesTab.setOnClickListener(v -> {
+            showRoutines = false;
+            renderTab();
+        });
+        routinesTab.setOnClickListener(v -> {
+            showRoutines = true;
+            renderTab();
+        });
+        back.setOnClickListener(v -> finish());
+
+        renderTab();
+        setContentView(root);
+    }
+
+    private void renderTab() {
+        list.removeAllViews();
+        updateTabButtons();
+
+        String introText = showRoutines
+                ? t("Ready-to-copy routines with IN / OUT / DESTROYS contracts.",
+                    "Готовые подпрограммы с контрактами IN / OUT / ПОРТИТ.")
+                : t("Small runnable programs that demonstrate Spectrum hardware and Z80 techniques.",
+                    "Небольшие запускаемые программы, показывающие железо Spectrum и приёмы Z80.");
+        TextView intro = label(introText, 13, 0xFFA8BAC5);
+        intro.setPadding(dp(4), 0, dp(4), dp(10));
+        list.addView(intro);
+
         String previousCategory = null;
         for (ExamplePrograms.Example example : ExamplePrograms.ALL) {
+            boolean routine = "Useful routines".equals(example.categoryEn);
+            if (routine != showRoutines) continue;
+
             String category = example.category(language);
-            if (!category.equals(previousCategory)) {
+            if (!showRoutines && !category.equals(previousCategory)) {
                 TextView heading = label(category, 21, 0xFFFFD43B);
                 heading.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                heading.setPadding(0, dp(previousCategory == null ? 6 : 18), 0, dp(7));
+                heading.setPadding(0, dp(previousCategory == null ? 2 : 18), 0, dp(7));
                 list.addView(heading);
                 previousCategory = category;
             }
             list.addView(card(example));
         }
+    }
 
-        back.setOnClickListener(v -> finish());
-        setContentView(root);
+    private void updateTabButtons() {
+        styleTab(examplesTab, !showRoutines);
+        styleTab(routinesTab, showRoutines);
+    }
+
+    private void styleTab(Button button, boolean active) {
+        if (active) {
+            UiStyle.styleButton(button, 0xFFFFD43B, Color.rgb(20, 28, 34), 16);
+        } else {
+            UiStyle.styleButton(button, Color.rgb(27, 45, 57), 0xFFD9E0E4, 16);
+        }
     }
 
     private View card(ExamplePrograms.Example example) {
@@ -114,7 +184,7 @@ public final class ExampleCatalogActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(1));
 
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(112));
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(showRoutines ? 124 : 112));
         cardParams.setMargins(0, 0, 0, dp(9));
         card.setLayoutParams(cardParams);
 
@@ -130,16 +200,27 @@ public final class ExampleCatalogActivity extends Activity {
         TextView title = label(example.title(language), 18, 0xFFFFD43B);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         TextView desc = label(example.description(language), 13, 0xFFE5E8EA);
-        desc.setMaxLines(3);
+        desc.setMaxLines(showRoutines ? 2 : 3);
         textBlock.addView(title);
         textBlock.addView(desc);
-        card.addView(textBlock, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+
+        if (showRoutines && example.hasIo()) {
+            String io = example.io(language);
+            String first = io == null ? "" : io.split("\n", 2)[0];
+            TextView contract = label(first, 11, 0xFF9ED9B5);
+            contract.setTypeface(android.graphics.Typeface.MONOSPACE);
+            contract.setPadding(0, dp(4), 0, 0);
+            contract.setMaxLines(1);
+            textBlock.addView(contract);
+        }
+
+        card.addView(textBlock, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
         TextView arrow = label("›", 28, 0xFFB9C8D0);
         arrow.setGravity(Gravity.CENTER);
-        card.addView(arrow, new LinearLayout.LayoutParams(dp(26),
-                LinearLayout.LayoutParams.MATCH_PARENT));
+        card.addView(arrow, new LinearLayout.LayoutParams(
+                dp(26), LinearLayout.LayoutParams.MATCH_PARENT));
 
         card.setOnClickListener(v -> {
             Intent intent = new Intent(this, ExampleDetailActivity.class);
