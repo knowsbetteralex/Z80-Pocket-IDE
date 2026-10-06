@@ -1,6 +1,7 @@
 package com.alexzab.z80pocketide;
 
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
@@ -13,7 +14,9 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.alexzab.z80pocketide.emulator.TapRunHelper;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
 import com.alexzab.z80pocketide.i18n.AppLanguage;
 import com.alexzab.z80pocketide.i18n.LanguageSettings;
@@ -22,13 +25,14 @@ import com.alexzab.z80pocketide.ui.ExamplePreviewView;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 
-/** Detailed example page with explanation and commented/plain source choice. */
+/** Detailed example page with direct Run and optional editor handoff. */
 public final class ExampleDetailActivity extends Activity {
     public static final String EXTRA_ID = "example_id";
 
     private AppLanguage language;
     private ExamplePrograms.Example example;
     private TextView code;
+    private TextView runStatus;
     private CheckBox comments;
 
     @Override
@@ -69,8 +73,8 @@ public final class ExampleDetailActivity extends Activity {
 
         TextView headerTitle = text(example.title(language), 20, 0xFFFFD43B);
         headerTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        header.addView(headerTitle, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(headerTitle, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         root.addView(header);
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
@@ -133,8 +137,8 @@ public final class ExampleDetailActivity extends Activity {
         codeHeader.setGravity(Gravity.CENTER_VERTICAL);
         TextView codeTitle = text(t("Source", "Код"), 19, 0xFFFFD43B);
         codeTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        codeHeader.addView(codeTitle, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        codeHeader.addView(codeTitle, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         comments = new CheckBox(this);
         comments.setText(t("With comments", "С комментариями"));
@@ -156,28 +160,94 @@ public final class ExampleDetailActivity extends Activity {
         hp.setMargins(0, dp(5), 0, dp(8));
         content.addView(hScroll, hp);
 
-        TextView hint = text(t("You can edit the loaded example freely in the main editor.",
-                "После открытия пример можно свободно редактировать в основном редакторе."),
+        TextView hint = text(t(
+                "Run builds a temporary autorun TAP without creating an editor tab. Open in editor only when you want to modify the source.",
+                "«Запустить» собирает временный autorun TAP без создания вкладки. Открывайте в редакторе только если хотите менять код."),
                 12, 0xFF95A8B2);
         content.addView(hint);
+
+        runStatus = text("", 12, 0xFF9ED9B5);
+        runStatus.setPadding(dp(2), dp(5), dp(2), 0);
+        content.addView(runStatus);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER);
+        actions.setPadding(0, dp(7), 0, 0);
+
+        Button run = new Button(this);
+        run.setText(t("Run", "Запустить"));
+        UiStyle.styleGreenButton(run);
 
         Button open = new Button(this);
         open.setText(t("Open in editor", "Открыть в редакторе"));
         UiStyle.styleButton(open, 0xFFFFD43B, Color.rgb(25, 25, 25), 18);
-        LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        op.setMargins(0, dp(7), 0, 0);
-        root.addView(open, op);
+
+        LinearLayout.LayoutParams left = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        left.setMargins(0, 0, dp(4), 0);
+        LinearLayout.LayoutParams right = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        right.setMargins(dp(4), 0, 0, 0);
+        actions.addView(run, left);
+        actions.addView(open, right);
+        root.addView(actions);
 
         comments.setOnCheckedChangeListener((buttonView, isChecked) -> refreshCode());
         back.setOnClickListener(v -> finish());
         open.setOnClickListener(v -> returnExample());
+        run.setOnClickListener(v -> runExample());
+
         refreshCode();
+        refreshBuildSummary();
         setContentView(root);
     }
 
     private void refreshCode() {
         code.setText(example.source(language, comments.isChecked()));
+    }
+
+    private void refreshBuildSummary() {
+        try {
+            runStatus.setText(t("Ready · ", "Готово · ")
+                    + TapRunHelper.buildSummary(example.source(language, false), language));
+            runStatus.setTextColor(0xFF9ED9B5);
+        } catch (RuntimeException ex) {
+            String detail = Texts.localizeAssemblerError(language, ex.getMessage());
+            runStatus.setText(t("Build error · ", "Ошибка сборки · ") + detail);
+            runStatus.setTextColor(0xFFFF8585);
+        }
+    }
+
+    private void runExample() {
+        try {
+            String message = TapRunHelper.buildAndLaunch(
+                    this,
+                    example.source(language, comments.isChecked()),
+                    example.title(language),
+                    language);
+            runStatus.setText(message);
+            runStatus.setTextColor(0xFF9ED9B5);
+        } catch (ActivityNotFoundException ex) {
+            String message = t(
+                    "No app can open TAP files",
+                    "Нет приложения, которое может открыть TAP");
+            runStatus.setText(message);
+            runStatus.setTextColor(0xFFFF8585);
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        } catch (RuntimeException ex) {
+            String detail = Texts.localizeAssemblerError(language, ex.getMessage());
+            String message = t("Build error · ", "Ошибка сборки · ") + detail;
+            runStatus.setText(message);
+            runStatus.setTextColor(0xFFFF8585);
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        } catch (Exception ex) {
+            String message = t("Run error · ", "Ошибка запуска · ")
+                    + (ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
+            runStatus.setText(message);
+            runStatus.setTextColor(0xFFFF8585);
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        }
     }
 
     private void returnExample() {
