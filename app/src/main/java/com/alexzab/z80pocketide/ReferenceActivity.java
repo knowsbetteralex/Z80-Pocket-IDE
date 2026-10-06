@@ -22,6 +22,7 @@ import com.alexzab.z80pocketide.i18n.LocalizedReference;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.reference.InstructionReference;
 import com.alexzab.z80pocketide.reference.SpectrumReference;
+import com.alexzab.z80pocketide.ui.SpectrumScreenMapView;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 
@@ -37,6 +38,7 @@ public final class ReferenceActivity extends Activity {
     private static final int SECTION_Z80 = 0;
     private static final int SECTION_ZX = 1;
     private static final int SECTION_ROM = 2;
+    private static final int SECTION_IO = 3;
 
     private LinearLayout results;
     private TextView count;
@@ -44,6 +46,7 @@ public final class ReferenceActivity extends Activity {
     private Button z80Tab;
     private Button zxTab;
     private Button romTab;
+    private Button ioTab;
     private AppLanguage language;
     private int section = SECTION_Z80;
 
@@ -114,9 +117,11 @@ public final class ReferenceActivity extends Activity {
         z80Tab = tabButton("Z80");
         zxTab = tabButton("ZX 48K");
         romTab = tabButton("ROM");
-        tabs.addView(z80Tab, tabParams(0, 3));
-        tabs.addView(zxTab, tabParams(3, 3));
-        tabs.addView(romTab, tabParams(3, 0));
+        ioTab = tabButton("I/O");
+        tabs.addView(z80Tab, tabParams(0, 2));
+        tabs.addView(zxTab, tabParams(2, 2));
+        tabs.addView(romTab, tabParams(2, 2));
+        tabs.addView(ioTab, tabParams(2, 0));
         root.addView(tabs);
 
         search = new EditText(this);
@@ -148,6 +153,7 @@ public final class ReferenceActivity extends Activity {
         z80Tab.setOnClickListener(v -> setSection(SECTION_Z80));
         zxTab.setOnClickListener(v -> setSection(SECTION_ZX));
         romTab.setOnClickListener(v -> setSection(SECTION_ROM));
+        ioTab.setOnClickListener(v -> setSection(SECTION_IO));
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -192,6 +198,7 @@ public final class ReferenceActivity extends Activity {
         styleTab(z80Tab, section == SECTION_Z80);
         styleTab(zxTab, section == SECTION_ZX);
         styleTab(romTab, section == SECTION_ROM);
+        styleTab(ioTab, section == SECTION_IO);
 
         search.setVisibility(section == SECTION_ZX ? View.GONE : View.VISIBLE);
         if (section == SECTION_Z80) {
@@ -200,6 +207,9 @@ public final class ReferenceActivity extends Activity {
         } else if (section == SECTION_ROM) {
             search.setHint(t("Search ROM address, routine or purpose…",
                     "Поиск по адресу, рутине или назначению ПЗУ…"));
+        } else if (section == SECTION_IO) {
+            search.setHint(t("Search port, keyboard, joystick, AY…",
+                    "Поиск по порту, клавиатуре, джойстику, AY…"));
         }
     }
 
@@ -208,7 +218,8 @@ public final class ReferenceActivity extends Activity {
         results.removeAllViews();
         if (section == SECTION_Z80) renderZ80();
         else if (section == SECTION_ZX) renderSpectrum();
-        else renderRom();
+        else if (section == SECTION_ROM) renderRom();
+        else renderIo();
     }
 
     private void renderZ80() {
@@ -225,6 +236,14 @@ public final class ReferenceActivity extends Activity {
     private void renderSpectrum() {
         count.setText(t("48K memory · display · attributes · system variables",
                 "Память 48K · экран · атрибуты · системные переменные"));
+
+        SpectrumScreenMapView map = new SpectrumScreenMapView(this);
+        map.setLanguage(language);
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(245));
+        mp.setMargins(0, dp(4), 0, dp(5));
+        results.addView(map, mp);
+
         for (SpectrumReference.Topic topic : SpectrumReference.TOPICS) {
             results.addView(topicCard(topic));
         }
@@ -245,6 +264,54 @@ public final class ReferenceActivity extends Activity {
                 : matching.size() + " practical entry points in the standard 48K ROM");
         for (SpectrumReference.RomRoutine routine : matching) results.addView(romCard(routine));
         if (matching.isEmpty()) results.addView(empty(t("No matching ROM routine", "Рутина ПЗУ не найдена")));
+    }
+
+    private void renderIo() {
+        String q = search.getText().toString().trim().toLowerCase(Locale.ROOT);
+        List<SpectrumReference.PortEntry> matching = new ArrayList<>();
+        for (SpectrumReference.PortEntry entry : SpectrumReference.PORTS) {
+            StringBuilder haystack = new StringBuilder();
+            haystack.append(entry.port(language)).append(' ')
+                    .append(entry.title(language)).append(' ')
+                    .append(entry.note(language)).append(' ');
+            for (String line : entry.lines(language)) haystack.append(line).append(' ');
+            if (q.isEmpty() || haystack.toString().toLowerCase(Locale.ROOT).contains(q)) {
+                matching.add(entry);
+            }
+        }
+
+        count.setText(language == AppLanguage.RU
+                ? matching.size() + " шпаргалок по портам и железу"
+                : matching.size() + " port and hardware quick references");
+        for (SpectrumReference.PortEntry entry : matching) results.addView(portCard(entry));
+        if (matching.isEmpty()) results.addView(empty(t("No matching I/O entry", "Порт или устройство не найдено")));
+    }
+
+    private View portCard(SpectrumReference.PortEntry entry) {
+        LinearLayout card = baseCard();
+
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView port = text(entry.port(language), 16, Color.rgb(38, 102, 72), true);
+        port.setTypeface(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD);
+        head.addView(port, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView title = text(entry.title(language), 13, Color.rgb(100, 75, 115), false);
+        title.setGravity(Gravity.END);
+        head.addView(title);
+        card.addView(head);
+
+        for (String line : entry.lines(language)) {
+            TextView item = text(line, 13, Color.rgb(30, 35, 32), true);
+            item.setPadding(dp(6), dp(2), 0, dp(2));
+            card.addView(item);
+        }
+
+        TextView note = text(entry.note(language), 12, Color.rgb(85, 95, 89), false);
+        note.setPadding(0, dp(7), 0, 0);
+        card.addView(note);
+        return card;
     }
 
     private View instructionCard(InstructionReference.Entry e) {
