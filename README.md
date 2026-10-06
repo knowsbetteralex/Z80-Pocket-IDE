@@ -17,6 +17,9 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Reversible label-block folding from a label to the next blank line; build/save always use the full source.
 - Touch-oriented code editor: tap moves the caret, one-finger drag pans the code canvas, pinch changes and remembers font size.
 - Searchable built-in Z80 reference with syntax, opcode patterns, T-states, flags and descriptions.
+- Reference screen now has separate Z80 / ZX 48K / ROM tabs.
+- ZX 48K quick reference covers memory map, bitmap thirds, `010 TT LLL RRR CCCCC` pixel-address bit layout, attributes and useful system variables.
+- ROM quick reference lists practical standard-48K entry points with addresses and register contracts.
 - Russian reference search understands localized terms as well as technical mnemonics/opcodes.
 - Tabbed source workspace with a horizontal tab strip, dirty markers and per-tab build state.
 - New / Open / Save / Save As / Close source workflow through Android Storage Access Framework.
@@ -30,7 +33,7 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - ZX Spectrum TAP generation with BASIC autorun loader.
 - Build / Run / Save `.tap` workflow.
 - Optional remembered Android app for one-tap automatic TAP launch, with chooser fallback.
-- Twenty-five built-in visual/audio/input/routine ZX Spectrum examples, with localized explanations and commented/uncommented source variants.
+- Twenty-five built-in ZX Spectrum items split into separate Examples and Routines tabs, with localized explanations and commented/uncommented source variants.
 - Reusable routine examples include explicit IN / OUT / DESTROYS register contracts.
 - Spectrum-inspired branding and app icon.
 - Rounded green action styling with explicit grey disabled Build-dependent actions.
