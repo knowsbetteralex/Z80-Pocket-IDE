@@ -16,7 +16,7 @@ public class AssemblyTimingTest {
                 + "    JR NZ,START\n"
                 + "    RET\n";
         AssemblyResult r = new Assembler().assemble(source);
-        assertEquals(6, r.getLineCount());
+        assertEquals(7, r.getLineCount()); // trailing newline creates a blank source line
         assertEquals(0, r.getLineSize(0));
         assertFalse(r.isInstruction(1));
         assertEquals(2, r.getLineSize(2));
