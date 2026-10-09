@@ -16,8 +16,12 @@ import android.view.ScaleGestureDetector;
 import android.view.ViewConfiguration;
 import android.widget.EditText;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 /**
@@ -39,7 +43,22 @@ public class CodeEditorView extends EditText {
     private final Paint gutterPaint = new Paint();
     private final Paint lineNumberPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint currentLinePaint = new Paint();
+    private final Paint selectedLinePaint = new Paint();
+    private final Paint selectedGutterPaint = new Paint();
+    private final Paint hintPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint hintBackgroundPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Rect lineBounds = new Rect();
+    private final Set<Integer> selectedLines = new TreeSet<>();
+    private Runnable onLineSelectionChanged;
+    private Runnable onCaretMoved;
+    private int[] instructionSizes;
+    private int[] instructionMinCycles;
+    private int[] instructionMaxCycles;
+    private boolean[] isInstruction;
+    private int selectionAnchor = -1;
+    private int gutterLastLine = -1;
+    private boolean gutterDragging;
+    private boolean gutterTouched;
     private int gutterWidth;
 
     private float downX;
@@ -84,6 +103,11 @@ public class CodeEditorView extends EditText {
         lineNumberPaint.setTextAlign(Paint.Align.RIGHT);
         lineNumberPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
         currentLinePaint.setColor(Color.rgb(236, 247, 240));
+        selectedLinePaint.setColor(Color.rgb(213, 234, 224));
+        selectedGutterPaint.setColor(Color.rgb(130, 194, 154));
+        hintPaint.setColor(Color.rgb(32, 96, 64));
+        hintPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
+        hintBackgroundPaint.setColor(Color.rgb(227, 245, 233));
         refreshPreferences();
 
         addTextChangedListener(new TextWatcher() {
@@ -159,6 +183,83 @@ public class CodeEditorView extends EditText {
         return editorPreferences;
     }
 
+    public void setOnLineSelectionChanged(Runnable listener) {
+        onLineSelectionChanged = listener;
+    }
+
+    public void setOnCaretMoved(Runnable listener) {
+        onCaretMoved = listener;
+    }
+
+    public List<Integer> getSelectedLines() {
+        return new ArrayList<>(selectedLines);
+    }
+
+    public boolean hasLineSelection() {
+        return !selectedLines.isEmpty();
+    }
+
+    public void clearLineSelection() {
+        if (selectedLines.isEmpty()) return;
+        selectedLines.clear();
+        selectionAnchor = -1;
+        gutterLastLine = -1;
+        invalidate();
+        notifyLineSelection();
+    }
+
+    public void setInstructionMetrics(int[] sizes, int[] minCycles, int[] maxCycles,
+                                      boolean[] instructionFlags) {
+        instructionSizes = sizes == null ? null : sizes.clone();
+        instructionMinCycles = minCycles == null ? null : minCycles.clone();
+        instructionMaxCycles = maxCycles == null ? null : maxCycles.clone();
+        isInstruction = instructionFlags == null ? null : instructionFlags.clone();
+        invalidate();
+    }
+
+    public void clearInstructionMetrics() {
+        instructionSizes = null;
+        instructionMinCycles = null;
+        instructionMaxCycles = null;
+        isInstruction = null;
+        invalidate();
+    }
+
+    public int currentSourceLine() {
+        Layout layout = getLayout();
+        if (layout == null) return 0;
+        return layout.getLineForOffset(Math.max(0, Math.min(getSelectionStart(), length())));
+    }
+
+    private void notifyLineSelection() {
+        if (onLineSelectionChanged != null) onLineSelectionChanged.run();
+    }
+
+    private void selectGutterLine(int line, boolean drag) {
+        Layout layout = getLayout();
+        if (layout == null) return;
+        line = clamp(line, 0, layout.getLineCount() - 1);
+        if (!drag) {
+            selectionAnchor = line;
+            if (!selectedLines.add(line)) selectedLines.remove(line);
+        } else {
+            if (selectionAnchor < 0) selectionAnchor = line;
+            int low = Math.min(selectionAnchor, line);
+            int high = Math.max(selectionAnchor, line);
+            for (int i = low; i <= high; i++) selectedLines.add(i);
+        }
+        gutterLastLine = line;
+        invalidate();
+        notifyLineSelection();
+    }
+
+    private int gestureLine(MotionEvent event) {
+        Layout layout = getLayout();
+        if (layout == null) return 0;
+        int y = Math.round(event.getY() + getScrollY() - getTotalPaddingTop());
+        return layout.getLineForVertical(Math.max(0, y));
+    }
+
     public void insertTabFromSettings() {
         refreshPreferences();
         String unit = SourceFormatter.indentUnit(
@@ -174,6 +275,7 @@ public class CodeEditorView extends EditText {
         String source = getSourceText();
         int oldCursor = Math.max(0, getSelectionStart());
         foldedBlocks.clear();
+        clearLineSelection();
         String formatted = SourceFormatter.formatDocument(
                 source,
                 editorPreferences.autoUppercase,
@@ -199,6 +301,8 @@ public class CodeEditorView extends EditText {
     }
 
     public void setSourceText(String source) {
+        clearLineSelection();
+        clearInstructionMetrics();
         foldedBlocks.clear();
         presentationChange = true;
         setText(source == null ? "" : source);
@@ -212,6 +316,7 @@ public class CodeEditorView extends EditText {
     public boolean toggleFoldAtCursor() {
         refreshPreferences();
         if (!editorPreferences.folding) return false;
+        clearLineSelection();
         Editable editable = getText();
         if (editable == null || editable.length() == 0) return false;
         int cursor = Math.max(0, Math.min(getSelectionStart(), editable.length()));
@@ -259,6 +364,7 @@ public class CodeEditorView extends EditText {
 
     public void unfoldAll() {
         if (foldedBlocks.isEmpty()) return;
+        clearLineSelection();
         String source = getSourceText();
         foldedBlocks.clear();
         presentationChange = true;
@@ -336,6 +442,8 @@ public class CodeEditorView extends EditText {
         return i < 0 ? text.length() : i;
     }
 
+    public boolean isFolded() { return !foldedBlocks.isEmpty(); }
+
     private int countVisibleLines(String text) {
         if (text.isEmpty()) return 0;
         int count = 1;
@@ -348,24 +456,30 @@ public class CodeEditorView extends EditText {
     protected void onDraw(Canvas canvas) {
         Layout layout = getLayout();
         int currentLine = -1;
-        if (layout != null && length() >= 0) {
+        int sx = getScrollX();
+        int sy = getScrollY();
+
+        if (layout != null) {
             int offset = Math.max(0, Math.min(getSelectionStart(), length()));
             currentLine = layout.getLineForOffset(offset);
-
-            int lineTop = layout.getLineTop(currentLine) + getTotalPaddingTop();
-            int lineBottom = layout.getLineBottom(currentLine) + getTotalPaddingTop();
-            float left = getScrollX();
-            canvas.drawRect(left, lineTop, left + getWidth(), lineBottom, currentLinePaint);
+            for (Integer line : selectedLines) {
+                if (line >= 0 && line < layout.getLineCount()) {
+                    int top = layout.getLineTop(line) + getTotalPaddingTop();
+                    int bottom = layout.getLineBottom(line) + getTotalPaddingTop();
+                    canvas.drawRect(sx, top, sx + getWidth(), bottom, selectedLinePaint);
+                }
+            }
+            if (!selectedLines.contains(currentLine)) {
+                int top = layout.getLineTop(currentLine) + getTotalPaddingTop();
+                int bottom = layout.getLineBottom(currentLine) + getTotalPaddingTop();
+                canvas.drawRect(sx, top, sx + getWidth(), bottom, currentLinePaint);
+            }
         }
 
         super.onDraw(canvas);
-
         if (layout == null) return;
 
-        int sx = getScrollX();
-        int sy = getScrollY();
         canvas.drawRect(sx, sy, sx + gutterWidth, sy + getHeight(), gutterPaint);
-
         lineNumberPaint.setTextSize(getTextSize() * 0.67f);
         int first = layout.getLineForVertical(Math.max(0, sy - getTotalPaddingTop()));
         int last = layout.getLineForVertical(Math.max(0,
@@ -375,12 +489,32 @@ public class CodeEditorView extends EditText {
 
         for (int i = first; i <= last; i++) {
             int baseline = getLineBounds(i, lineBounds);
+            if (selectedLines.contains(i)) {
+                int top = layout.getLineTop(i) + getTotalPaddingTop();
+                int bottom = layout.getLineBottom(i) + getTotalPaddingTop();
+                canvas.drawRect(sx, top, sx + gutterWidth, bottom, selectedGutterPaint);
+            }
             lineNumberPaint.setColor(i == currentLine
-                    ? Color.rgb(47, 125, 88)
-                    : Color.rgb(145, 154, 149));
-            lineNumberPaint.setFakeBoldText(i == currentLine);
+                    ? Color.rgb(47, 125, 88) : Color.rgb(125, 147, 133));
+            lineNumberPaint.setFakeBoldText(i == currentLine || selectedLines.contains(i));
             canvas.drawText(String.valueOf(i + 1),
                     sx + gutterWidth - dp(8), baseline, lineNumberPaint);
+        }
+
+        if (!isFolded() && currentLine >= 0 && isInstruction != null
+                && currentLine < isInstruction.length && isInstruction[currentLine]) {
+            String duration = instructionMinCycles[currentLine] == instructionMaxCycles[currentLine]
+                    ? String.valueOf(instructionMinCycles[currentLine])
+                    : instructionMinCycles[currentLine] + "-" + instructionMaxCycles[currentLine];
+            String label = instructionSizes[currentLine] + " B · " + duration + " T";
+            hintPaint.setTextSize(Math.max(dp(10), getTextSize() * 0.63f));
+            float width = hintPaint.measureText(label) + dp(14);
+            float right = sx + getWidth() - dp(5);
+            float top = layout.getLineTop(currentLine) + getTotalPaddingTop();
+            float bottom = top + Math.min(dp(22), getTextSize() * 1.25f);
+            canvas.drawRoundRect(right - width, top, right, bottom, dp(7), dp(7),
+                    hintBackgroundPaint);
+            canvas.drawText(label, right - width + dp(7), bottom - dp(5), hintPaint);
         }
     }
 
@@ -388,6 +522,7 @@ public class CodeEditorView extends EditText {
     protected void onSelectionChanged(int selStart, int selEnd) {
         super.onSelectionChanged(selStart, selEnd);
         invalidate();
+        if (onCaretMoved != null) post(onCaretMoved);
     }
 
     @Override
@@ -398,9 +533,38 @@ public class CodeEditorView extends EditText {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN
+                && event.getX() <= gutterWidth && getLayout() != null) {
+            // Multiple-line gutter selection never enters native cursor-drag mode.
+            if (isFolded()) unfoldAll();
+            gutterTouched = true;
+            gutterDragging = false;
+            selectGutterLine(gestureLine(event), false);
+            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+            return true;
+        }
+        if (gutterTouched) {
+            if (action == MotionEvent.ACTION_MOVE) {
+                int line = gestureLine(event);
+                if (line != gutterLastLine) {
+                    gutterDragging = true;
+                    selectGutterLine(line, true);
+                }
+                return true;
+            }
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                gutterTouched = false;
+                gutterDragging = false;
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+                return true;
+            }
+            return true;
+        }
+
         scaleDetector.onTouchEvent(event);
 
-        switch (event.getActionMasked()) {
+        switch (action) {
             case MotionEvent.ACTION_DOWN:
                 panning = false;
                 scaling = false;
