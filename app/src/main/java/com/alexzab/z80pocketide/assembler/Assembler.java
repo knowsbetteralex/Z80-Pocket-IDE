@@ -44,6 +44,10 @@ public final class Assembler {
         resolvePendingEqu(symbols,pendingEqu);
 
         ByteArrayOutputStream out=new ByteArrayOutputStream();
+        int[] lineSizes = new int[lines.size()];
+        int[] lineMinCycles = new int[lines.size()];
+        int[] lineMaxCycles = new int[lines.size()];
+        boolean[] instructions = new boolean[lines.size()];
         pc=origin;
         boolean started=false;
         for (ParsedLine line : lines) {
@@ -54,6 +58,8 @@ public final class Assembler {
                     int next=evalRequired(h.tail,symbols,line.number);
                     if (!started) { pc=next; started=true; continue; }
                     if (next < pc) throw new IllegalArgumentException("backward ORG is not supported in a flat binary");
+                    int gap = next - pc;
+                    lineSizes[line.number - 1] = gap;
                     while (pc<next) { out.write(0); pc++; }
                     continue;
                 }
@@ -66,10 +72,19 @@ public final class Assembler {
                     default: encoded=Z80Encoder.encode(line.code,pc,symbols); break;
                 }
                 out.write(encoded,0,encoded.length);
+                int index = line.number - 1;
+                lineSizes[index] = encoded.length;
+                if (!h.op.equals("DB") && !h.op.equals("DW") && !h.op.equals("DS")) {
+                    Z80Timing.Cycles duration = Z80Timing.decode(encoded);
+                    lineMinCycles[index] = duration.min;
+                    lineMaxCycles[index] = duration.max;
+                    instructions[index] = true;
+                }
                 pc+=encoded.length;
             } catch (IllegalArgumentException ex) { throw wrap(line.number,ex); }
         }
-        return new AssemblyResult(originSeen?origin:0,out.toByteArray());
+        return new AssemblyResult(originSeen?origin:0,out.toByteArray(),
+                lineSizes, lineMinCycles, lineMaxCycles, instructions);
     }
 
     private static void defineEqu(ParsedLine line, Map<String,Integer> symbols, Map<String,String> pending) {
