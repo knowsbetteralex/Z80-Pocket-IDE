@@ -22,6 +22,11 @@ public final class AssemblyResult {
         this.instructions = instructions.clone();
     }
 
+    public int[] getLineSizes() { return lineSizes.clone(); }
+    public int[] getLineMinCyclesArray() { return lineMinCycles.clone(); }
+    public int[] getLineMaxCyclesArray() { return lineMaxCycles.clone(); }
+    public boolean[] getInstructionFlags() { return instructions.clone(); }
+
     public int getOrigin() { return origin; }
     public byte[] getBytes() { return bytes; }
     public int getLineCount() { return lineSizes.length; }
