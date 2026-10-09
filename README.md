@@ -11,7 +11,10 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Live Z80 syntax highlighting for mnemonics, registers, directives, numbers, labels, strings and comments.
 - Live optional uppercase formatting for Z80 mnemonics/registers/directives without touching labels, comments or strings.
 - Built-in live DEC / HEX / BIN converter with assembler-style prefixes and a one-tap Clear action.
-- Editor line-number gutter and current-line highlighting.
+- Editor line-number gutter and current-line highlighting, with tap/drag line selection.
+- Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
+- Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
+- Compact hierarchical menu for files, library and tools; Build/Run/Save TAP remain visible.
 - Configurable auto-indent, TAB width (2/4/8), spaces-vs-tab and an on-screen TAB key.
 - One-tap document formatter.
 - Reversible label-block folding from a label to the next blank line; build/save always use the full source.
