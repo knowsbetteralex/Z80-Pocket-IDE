@@ -15,6 +15,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.OpenableColumns;
 import android.text.Editable;
 import android.text.InputType;
@@ -22,6 +24,9 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.PopupMenu;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
@@ -81,13 +86,17 @@ public class MainActivity extends Activity {
 
     private CodeEditorView editor;
     private TextView status;
+    private TextView statistics;
+    private Button clearLinesButton;
+    private Button mainMenuButton;
+    private AssemblyResult liveAnalysis;
+    private String analyzedSource;
+    private final Handler analyzeHandler = new Handler(Looper.getMainLooper());
+    private final Runnable delayedAnalyze = this::performLiveAnalysis;
     private Button runTap;
     private Button saveTap;
     private Button emulatorButton;
     private Button tabKeyButton;
-    private Button formatButton;
-    private Button foldButton;
-    private Button converterButton;
     private HorizontalScrollView tabStrip;
     private LinearLayout tabRow;
     private AppLanguage language;
@@ -139,7 +148,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.13", "для ZX Spectrum · v0.13"));
+        subtitle.setText(t("for ZX Spectrum · v0.14", "для ZX Spectrum · v0.14"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
@@ -149,11 +158,10 @@ public class MainActivity extends Activity {
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         Button languageButton = compactButton(language == AppLanguage.RU ? "RU" : "EN");
-        Button reference = compactButton(t("Ref", "Справка"));
-        Button examples = compactButton(t("Examples", "Примеры"));
+        mainMenuButton = compactButton("☰");
+        mainMenuButton.setContentDescription(t("Menu", "Меню"));
         topBar.addView(languageButton);
-        topBar.addView(reference);
-        topBar.addView(examples);
+        topBar.addView(mainMenuButton);
         root.addView(topBar);
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
@@ -167,9 +175,10 @@ public class MainActivity extends Activity {
         workspaceBar.setBackground(UiStyle.rounded(this,
                 Color.rgb(235, 243, 238), 18, Color.rgb(205, 222, 212), 1));
 
-        Button fileButton = compactButton(t("File", "Файл"));
-        fileButton.setOnClickListener(v -> showFileMenu());
-        workspaceBar.addView(fileButton);
+        Button newTabButton = compactButton("+");
+        newTabButton.setContentDescription(t("New tab", "Новая вкладка"));
+        newTabButton.setOnClickListener(v -> newTab());
+        workspaceBar.addView(newTabButton);
 
         tabStrip = new HorizontalScrollView(this);
         tabStrip.setHorizontalScrollBarEnabled(false);
@@ -205,14 +214,15 @@ public class MainActivity extends Activity {
         editorTools.setPadding(dp(2), dp(2), dp(2), dp(4));
 
         tabKeyButton = compactButton("TAB ⇥");
-        formatButton = compactButton(t("Format", "Формат"));
-        foldButton = compactButton(t("Fold", "Свернуть"));
-        converterButton = compactButton("123");
-        converterButton.setContentDescription(t("Number converter", "Системы счисления"));
         editorTools.addView(tabKeyButton);
-        editorTools.addView(formatButton);
-        editorTools.addView(foldButton);
-        editorTools.addView(converterButton);
+        TextView gestureHint = new TextView(this);
+        gestureHint.setText(t("Tap/drag line numbers to select",
+                "Выбор строк: тап/свайп по номерам"));
+        gestureHint.setTextColor(Color.rgb(88, 113, 98));
+        gestureHint.setTextSize(11);
+        gestureHint.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        editorTools.addView(gestureHint, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         root.addView(editorTools);
 
         LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
@@ -223,25 +233,8 @@ public class MainActivity extends Activity {
         SyntaxHighlighter.attach(editor);
 
         tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
-        formatButton.setOnClickListener(v -> {
-            editor.formatAllFromSettings();
-            setStatus(t("Document formatted", "Документ отформатирован"),
-                    Color.rgb(45, 80, 150));
-        });
-        converterButton.setOnClickListener(v ->
-                startActivity(new Intent(this, NumberConverterActivity.class)));
-        foldButton.setOnClickListener(v -> {
-            if (editor.toggleFoldAtCursor()) {
-                setStatus(t("Fold toggled · source is preserved",
-                                "Сворачивание переключено · исходник сохранён полностью"),
-                        Color.rgb(45, 80, 150));
-            } else {
-                Toast.makeText(this,
-                        t("Place the cursor under a label before the next blank line",
-                                "Поставьте курсор под меткой до следующей пустой строки"),
-                        Toast.LENGTH_SHORT).show();
-            }
-        });
+        editor.setOnLineSelectionChanged(this::updateStatistics);
+        editor.setOnCaretMoved(this::updateStatistics);
         refreshEditorTools();
 
         LinearLayout bottomPanel = new LinearLayout(this);
@@ -264,11 +257,23 @@ public class MainActivity extends Activity {
         infoRow.addView(status, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        emulatorButton = compactButton("");
-        updateEmulatorButton();
-        emulatorButton.setOnClickListener(v -> showEmulatorDialog());
-        infoRow.addView(emulatorButton);
         bottomPanel.addView(infoRow);
+
+        LinearLayout statsRow = new LinearLayout(this);
+        statsRow.setGravity(Gravity.CENTER_VERTICAL);
+        statistics = new TextView(this);
+        statistics.setText(t("Size/T: analyzing…", "Байты/такты: анализ…"));
+        statistics.setTextSize(12);
+        statistics.setTextColor(Color.rgb(35, 105, 66));
+        statistics.setPadding(dp(4), 0, dp(4), dp(5));
+        statsRow.addView(statistics, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        clearLinesButton = compactButton(t("Clear selection ✕", "Снять выбор ✕"));
+        clearLinesButton.setVisibility(View.GONE);
+        clearLinesButton.setOnClickListener(v -> editor.clearLineSelection());
+        statsRow.addView(clearLinesButton);
+        bottomPanel.addView(statsRow);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -290,8 +295,7 @@ public class MainActivity extends Activity {
         build.setOnClickListener(v -> buildSource());
         runTap.setOnClickListener(v -> runTapInEmulator());
         saveTap.setOnClickListener(v -> saveTapFile());
-        examples.setOnClickListener(v -> showExamples());
-        reference.setOnClickListener(v -> openReference());
+        mainMenuButton.setOnClickListener(v -> showMainMenu());
         languageButton.setOnClickListener(v -> toggleLanguage());
 
         editor.addTextChangedListener(new TextWatcher() {
@@ -311,6 +315,7 @@ public class MainActivity extends Activity {
                 doc.invalidateBuild();
                 runTap.setEnabled(false);
                 saveTap.setEnabled(false);
+                scheduleAnalysis();
                 setStatus(t("Modified · source file not saved",
                         "Изменено · исходный файл не сохранён"), Color.rgb(120, 85, 0));
                 if (!wasDirty) renderTabs();
@@ -319,6 +324,13 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         restoreWorkspace(savedInstanceState);
+        scheduleAnalysis();
+    }
+
+    @Override
+    protected void onDestroy() {
+        analyzeHandler.removeCallbacks(delayedAnalyze);
+        super.onDestroy();
     }
 
     @Override
@@ -552,6 +564,9 @@ public class MainActivity extends Activity {
         if (!hasActiveDocument()) return;
         EditorDocument doc = currentDocument();
         loadingDocument = true;
+        liveAnalysis = null;
+        analyzedSource = null;
+        analyzeHandler.removeCallbacks(delayedAnalyze);
         editor.setSourceText(doc.text);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
@@ -560,6 +575,7 @@ public class MainActivity extends Activity {
         boolean built = doc.buildIsCurrent();
         runTap.setEnabled(built);
         saveTap.setEnabled(built);
+        scheduleAnalysis();
         setStatus(doc.dirty
                         ? t("Modified · not saved", "Изменено · не сохранено")
                         : (doc.hasFile()
@@ -590,6 +606,117 @@ public class MainActivity extends Activity {
             if (doc.needsCloseConfirmation()) return true;
         }
         return false;
+    }
+
+    private void scheduleAnalysis() {
+        analyzeHandler.removeCallbacks(delayedAnalyze);
+        liveAnalysis = null;
+        analyzedSource = null;
+        if (editor != null) editor.clearInstructionMetrics();
+        updateStatistics();
+        analyzeHandler.postDelayed(delayedAnalyze, 280);
+    }
+
+    private void performLiveAnalysis() {
+        if (!hasActiveDocument() || editor == null || loadingDocument) return;
+        String source = editor.getSourceText();
+        try {
+            AssemblyResult value = new Assembler().assemble(source);
+            if (!source.equals(editor.getSourceText())) return;
+            liveAnalysis = value;
+            analyzedSource = source;
+            editor.setInstructionMetrics(value.getLineSizes(),
+                    value.getLineMinCyclesArray(), value.getLineMaxCyclesArray(),
+                    value.getInstructionFlags());
+        } catch (RuntimeException ignored) {
+            liveAnalysis = null;
+            analyzedSource = null;
+            editor.clearInstructionMetrics();
+        }
+        updateStatistics();
+    }
+
+    private void updateStatistics() {
+        if (statistics == null || editor == null) return;
+        List<Integer> picked = editor.getSelectedLines();
+        if (clearLinesButton != null)
+            clearLinesButton.setVisibility(picked.isEmpty() ? View.GONE : View.VISIBLE);
+
+        if (liveAnalysis == null || !editor.getSourceText().equals(analyzedSource)) {
+            statistics.setText(t("Size/T: — (check source)", "Байты/такты: — (проверьте код)"));
+            return;
+        }
+
+        boolean selection = picked.size() > 1;
+        int bytes = selection ? 0 : liveAnalysis.getBytes().length;
+        int min = selection ? 0 : liveAnalysis.getMinCycles();
+        int max = selection ? 0 : liveAnalysis.getMaxCycles();
+        if (selection) {
+            for (int line : picked) {
+                bytes += liveAnalysis.getLineSize(line);
+                min += liveAnalysis.getLineMinCycles(line);
+                max += liveAnalysis.getLineMaxCycles(line);
+            }
+        }
+        String label = selection
+                ? (language == AppLanguage.RU ? "Выбрано " : "Selected ") + picked.size()
+                + (language == AppLanguage.RU ? " строк" : " lines")
+                : t("Whole source", "Весь код");
+        String cycles = min == max ? String.valueOf(min) : min + "–" + max;
+        statistics.setText(label + "  ·  " + bytes + " B  ·  " + cycles + " T");
+    }
+
+    private void showMainMenu() {
+        PopupMenu popup = new PopupMenu(this, mainMenuButton);
+        Menu menu = popup.getMenu();
+
+        Menu files = menu.addSubMenu(t("Files", "Файлы"));
+        files.add(0, 1, 0, t("New tab", "Новая вкладка"));
+        files.add(0, 2, 1, t("Open .asm…", "Открыть .asm…"));
+        files.add(0, 3, 2, t("Save source", "Сохранить исходник"));
+        files.add(0, 4, 3, t("Save as…", "Сохранить как…"));
+        files.add(0, 5, 4, t("Close tab", "Закрыть вкладку"));
+
+        menu.add(0, 10, 10, t("Examples / Routines", "Примеры / Подпрограммы"));
+        menu.add(0, 11, 11, t("Z80 / Spectrum reference", "Справочник Z80 / Spectrum"));
+
+        Menu tools = menu.addSubMenu(t("Tools", "Инструменты"));
+        tools.add(0, 12, 0, t("DEC / HEX / BIN converter", "Конвертер DEC / HEX / BIN"));
+        tools.add(0, 13, 1, t("Format document", "Форматировать код"));
+        tools.add(0, 14, 2, t("Fold / unfold block", "Свернуть / развернуть блок"));
+        tools.add(0, 15, 3, t("Editor settings", "Настройки редактора"));
+        tools.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
+
+        popup.setOnMenuItemClickListener(item -> {
+            switch (item.getItemId()) {
+                case 1: newTab(); break;
+                case 2: openSourceFilePicker(); break;
+                case 3: saveDocument(activeIndex, false); break;
+                case 4: requestSaveAs(activeIndex, false); break;
+                case 5: requestCloseTab(activeIndex); break;
+                case 10: showExamples(); break;
+                case 11: openReference(); break;
+                case 12: startActivity(new Intent(this, NumberConverterActivity.class)); break;
+                case 13:
+                    editor.formatAllFromSettings();
+                    setStatus(t("Document formatted", "Документ отформатирован"),
+                            Color.rgb(45, 100, 72));
+                    scheduleAnalysis();
+                    break;
+                case 14:
+                    if (!editor.toggleFoldAtCursor()) {
+                        Toast.makeText(this, t("Place cursor under a label",
+                                "Поставьте курсор под меткой"), Toast.LENGTH_SHORT).show();
+                    }
+                    scheduleAnalysis();
+                    break;
+                case 15: showEditorSettings(); break;
+                case 16: showEmulatorDialog(); break;
+                default: return false;
+            }
+            return true;
+        });
+        popup.show();
     }
 
     private void showFileMenu() {
@@ -631,12 +758,8 @@ public class MainActivity extends Activity {
         if (editor == null) return;
         editor.refreshPreferences();
         EditorPreferences.Snapshot prefs = editor.getEditorPreferences();
-        if (tabKeyButton != null) {
+        if (tabKeyButton != null)
             tabKeyButton.setVisibility(prefs.showTabButton ? View.VISIBLE : View.GONE);
-        }
-        if (foldButton != null) {
-            foldButton.setVisibility(prefs.folding ? View.VISIBLE : View.GONE);
-        }
     }
 
     private void showTabMenu(int index) {
@@ -974,6 +1097,12 @@ public class MainActivity extends Activity {
             doc.lastTap = new TapWriter().programTap(
                     tapProgramName(doc.title), result.getOrigin(), result.getBytes());
             doc.lastBuiltSource = doc.text;
+            liveAnalysis = result;
+            analyzedSource = doc.text;
+            editor.setInstructionMetrics(result.getLineSizes(),
+                    result.getLineMinCyclesArray(), result.getLineMaxCyclesArray(),
+                    result.getInstructionFlags());
+            updateStatistics();
             runTap.setEnabled(true);
             saveTap.setEnabled(true);
 
