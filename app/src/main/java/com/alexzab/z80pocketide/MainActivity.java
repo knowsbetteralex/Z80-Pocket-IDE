@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.database.Cursor;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -64,6 +65,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
@@ -91,6 +94,8 @@ public class MainActivity extends Activity {
     private Button mainMenuButton;
     private AssemblyResult liveAnalysis;
     private String analyzedSource;
+    private String analysisError;
+    private static final Pattern ERROR_LINE = Pattern.compile("^line (\\d+):");
     private final Handler analyzeHandler = new Handler(Looper.getMainLooper());
     private final Runnable delayedAnalyze = this::performLiveAnalysis;
     private Button runTap;
@@ -126,12 +131,27 @@ public class MainActivity extends Activity {
             getWindow().setDecorFitsSystemWindows(false);
             root.setOnApplyWindowInsetsListener((v, insets) -> {
                 int top = insets.getInsets(WindowInsets.Type.systemBars()).top;
-                int bottom = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
+                int barBottom = insets.getInsets(WindowInsets.Type.systemBars()).bottom;
+                int imeBottom = insets.getInsets(WindowInsets.Type.ime()).bottom;
+                int bottom = Math.max(barBottom, imeBottom);
                 v.setPadding(side, vertical + top, side, vertical + bottom);
+                if (editor != null) {
+                    editor.setImeVisible(insets.isVisible(WindowInsets.Type.ime()));
+                    editor.post(editor::ensureCaretVisible);
+                }
                 return insets;
             });
         } else {
             root.setPadding(side, vertical, side, vertical);
+            // adjustResize on API 23-29 shrinks the visible window directly.
+            root.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+                if (editor == null) return;
+                Rect frame = new Rect();
+                root.getWindowVisibleDisplayFrame(frame);
+                boolean keyboard = root.getRootView().getHeight() - frame.bottom > dp(140);
+                editor.setImeVisible(keyboard);
+                if (keyboard) editor.post(editor::ensureCaretVisible);
+            });
         }
 
         LinearLayout topBar = new LinearLayout(this);
@@ -566,6 +586,7 @@ public class MainActivity extends Activity {
         loadingDocument = true;
         liveAnalysis = null;
         analyzedSource = null;
+        analysisError = null;
         analyzeHandler.removeCallbacks(delayedAnalyze);
         editor.setSourceText(doc.text);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
@@ -612,7 +633,11 @@ public class MainActivity extends Activity {
         analyzeHandler.removeCallbacks(delayedAnalyze);
         liveAnalysis = null;
         analyzedSource = null;
-        if (editor != null) editor.clearInstructionMetrics();
+        analysisError = null;
+        if (editor != null) {
+            editor.clearInstructionMetrics();
+            SyntaxHighlighter.setErrorLine(editor, 0);
+        }
         updateStatistics();
         analyzeHandler.postDelayed(delayedAnalyze, 280);
     }
@@ -625,13 +650,18 @@ public class MainActivity extends Activity {
             if (!source.equals(editor.getSourceText())) return;
             liveAnalysis = value;
             analyzedSource = source;
+            analysisError = null;
+            SyntaxHighlighter.setErrorLine(editor, 0);
             editor.setInstructionMetrics(value.getLineSizes(),
                     value.getLineMinCyclesArray(), value.getLineMaxCyclesArray(),
                     value.getInstructionFlags());
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException exception) {
             liveAnalysis = null;
             analyzedSource = null;
+            analysisError = Texts.localizeAssemblerError(language, exception.getMessage());
             editor.clearInstructionMetrics();
+            SyntaxHighlighter.setErrorLine(editor,
+                    editor.isFolded() ? 0 : diagnosticLine(exception.getMessage()));
         }
         updateStatistics();
     }
@@ -642,6 +672,12 @@ public class MainActivity extends Activity {
         if (clearLinesButton != null)
             clearLinesButton.setVisibility(picked.isEmpty() ? View.GONE : View.VISIBLE);
 
+        if (analysisError != null) {
+            statistics.setText("⚠ " + analysisError);
+            statistics.setTextColor(Color.rgb(183, 48, 58));
+            return;
+        }
+        statistics.setTextColor(Color.rgb(35, 105, 66));
         if (liveAnalysis == null || !editor.getSourceText().equals(analyzedSource)) {
             statistics.setText(t("Size/T: — (check source)", "Байты/такты: — (проверьте код)"));
             return;
@@ -666,6 +702,14 @@ public class MainActivity extends Activity {
         statistics.setText(label + "  ·  " + bytes + " B  ·  " + cycles + " T");
     }
 
+    private int diagnosticLine(String message) {
+        if (message == null) return 0;
+        Matcher matcher = ERROR_LINE.matcher(message);
+        if (!matcher.find()) return 0;
+        try { return Integer.parseInt(matcher.group(1)); }
+        catch (NumberFormatException ignored) { return 0; }
+    }
+
     private void showMainMenu() {
         PopupMenu popup = new PopupMenu(this, mainMenuButton);
         Menu menu = popup.getMenu();
@@ -686,6 +730,7 @@ public class MainActivity extends Activity {
         tools.add(0, 14, 2, t("Fold / unfold block", "Свернуть / развернуть блок"));
         tools.add(0, 15, 3, t("Editor settings", "Настройки редактора"));
         tools.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
+        tools.add(0, 17, 5, t("UPPERCASE entire source", "ВЕСЬ КОД → ЗАГЛАВНЫМИ"));
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -712,6 +757,17 @@ public class MainActivity extends Activity {
                     break;
                 case 15: showEditorSettings(); break;
                 case 16: showEmulatorDialog(); break;
+                case 17:
+                    if (editor.uppercaseEntireDocument()) {
+                        scheduleAnalysis();
+                        setStatus(t("Uppercased all text (including strings/comments)",
+                                        "Весь текст заглавными (включая строки и комментарии)"),
+                                Color.rgb(45, 100, 72));
+                    } else {
+                        setStatus(t("Already uppercase", "Текст уже заглавными"),
+                                Color.rgb(45, 100, 72));
+                    }
+                    break;
                 default: return false;
             }
             return true;
@@ -1099,6 +1155,8 @@ public class MainActivity extends Activity {
             doc.lastBuiltSource = doc.text;
             liveAnalysis = result;
             analyzedSource = doc.text;
+            analysisError = null;
+            SyntaxHighlighter.setErrorLine(editor, 0);
             editor.setInstructionMetrics(result.getLineSizes(),
                     result.getLineMinCyclesArray(), result.getLineMaxCyclesArray(),
                     result.getInstructionFlags());
@@ -1118,6 +1176,9 @@ public class MainActivity extends Activity {
             return true;
         } catch (RuntimeException ex) {
             String raw = ex.getMessage();
+            analysisError = Texts.localizeAssemblerError(language, raw);
+            SyntaxHighlighter.setErrorLine(editor, editor.isFolded() ? 0 : diagnosticLine(raw));
+            updateStatistics();
             String detail = Texts.localizeAssemblerError(language, raw);
             String message = t("Build error · ", "Ошибка сборки · ") + detail;
             setStatus(message, Color.rgb(180, 30, 30));
