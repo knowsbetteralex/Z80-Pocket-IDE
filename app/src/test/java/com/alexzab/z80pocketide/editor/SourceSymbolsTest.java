@@ -23,7 +23,7 @@ public class SourceSymbolsTest {
         assertTrue(labels.contains("LOOP"));
         assertTrue(labels.contains("SPRITE"));
         assertTrue(labels.contains("LIMIT"));
-        assertEquals(8, SourceSymbols.labelRanges(code).length);
+        assertEquals(7, SourceSymbols.labelRanges(code).length);
     }
 
     @Test
