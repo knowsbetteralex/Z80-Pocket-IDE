@@ -2,13 +2,17 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.9)
+## Current development build (v0.15)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
 - English / Russian language switch with the selected language persisted between launches.
 - Localized interface, statuses, notifications, examples and Z80 reference.
 - Live Z80 syntax highlighting for mnemonics, registers, directives, numbers, labels, strings and comments.
+- Recognize defined label references, including forward references, inside instruction operands; skip comments and string literals.
+- Red underline for the offending source line after a failed live assembler check.
+- Optional uppercase-all typing mode and explicit uppercase-entire-source menu command (including labels, comments and string data).
+- Keyboard-aware editor resizing and caret-follow scrolling on Android 6+.
 - Live optional uppercase formatting for Z80 mnemonics/registers/directives without touching labels, comments or strings.
 - Built-in live DEC / HEX / BIN converter with assembler-style prefixes and a one-tap Clear action.
 - Editor line-number gutter and current-line highlighting, with tap/drag line selection.
