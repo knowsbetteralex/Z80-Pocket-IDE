@@ -24,6 +24,10 @@ public final class EditorSettingsDialog {
 
         CheckBox upper = check(activity, t(language, "Uppercase Z80 keywords while typing",
                 "Ключевые слова Z80 заглавными при наборе"), current.autoUppercase);
+        CheckBox allUpper = check(activity, t(language,
+                "UPPERCASE ALL text while typing (including strings/comments)",
+                "ВЕСЬ текст заглавными при наборе (включая строки/комментарии)"),
+                current.allUppercase);
         CheckBox indent = check(activity, t(language, "Automatic indentation",
                 "Автоматические отступы"), current.autoIndent);
         CheckBox spaces = check(activity, t(language, "Use spaces instead of TAB character",
@@ -34,6 +38,7 @@ public final class EditorSettingsDialog {
                 "Разрешить сворачивание блоков под метками"), current.folding);
 
         box.addView(upper);
+        box.addView(allUpper);
         box.addView(indent);
         box.addView(spaces);
 
@@ -66,7 +71,7 @@ public final class EditorSettingsDialog {
                     int checked = widths.getCheckedRadioButtonId();
                     int tabSize = checked == 2 || checked == 8 ? checked : 4;
                     EditorPreferences.set(activity, new EditorPreferences.Snapshot(
-                            upper.isChecked(), indent.isChecked(), tabSize,
+                            upper.isChecked(), allUpper.isChecked(), indent.isChecked(), tabSize,
                             spaces.isChecked(), tabButton.isChecked(), folding.isChecked()));
                     if (onChanged != null) onChanged.run();
                 })
