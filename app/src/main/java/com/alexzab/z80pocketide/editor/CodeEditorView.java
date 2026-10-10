@@ -19,6 +19,7 @@ import android.widget.EditText;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -70,6 +71,7 @@ public class CodeEditorView extends EditText {
     private boolean panning;
     private boolean scaling;
     private boolean nativeSelectionGesture;
+    private boolean imeVisible;
     private float fontSp;
 
     private EditorPreferences.Snapshot editorPreferences;
@@ -134,12 +136,15 @@ public class CodeEditorView extends EditText {
                 boolean newline = changeCount == 1 && changeStart >= 0
                         && changeStart < s.length() && s.charAt(changeStart) == '\n';
 
+                if (editorPreferences.allUppercase && changeCount > 0) {
+                    uppercaseInsertedSegment(s);
+                }
                 if (newline && editorPreferences.autoIndent) {
-                    applyNewLineIndent(s, cursor);
+                    applyNewLineIndent(s, getSelectionStart());
                     return;
                 }
-                if (editorPreferences.autoUppercase) {
-                    uppercaseCurrentLine(s, cursor);
+                if (!editorPreferences.allUppercase && editorPreferences.autoUppercase) {
+                    uppercaseCurrentLine(s, getSelectionStart());
                 }
             }
         });
@@ -258,6 +263,73 @@ public class CodeEditorView extends EditText {
         if (layout == null) return 0;
         int y = Math.round(event.getY() + getScrollY() - getTotalPaddingTop());
         return layout.getLineForVertical(Math.max(0, y));
+    }
+
+    /** Explicit command: uppercase the complete real source including labels and strings. */
+    public boolean uppercaseEntireDocument() {
+        String source = getSourceText();
+        String upper = source.toUpperCase(Locale.ROOT);
+        if (upper.equals(source)) return false;
+        int cursor = Math.max(0, getSelectionStart());
+        int oldScrollX = getScrollX();
+        int oldScrollY = getScrollY();
+        clearLineSelection();
+        foldedBlocks.clear();
+        autoFormatting = true;
+        setText(upper);
+        setSelection(Math.min(cursor, length()));
+        autoFormatting = false;
+        scrollTo(oldScrollX, oldScrollY);
+        return true;
+    }
+
+    private void uppercaseInsertedSegment(Editable text) {
+        int start = Math.max(0, Math.min(changeStart, text.length()));
+        int end = Math.max(start, Math.min(start + changeCount, text.length()));
+        if (end <= start) return;
+        String original = text.subSequence(start, end).toString();
+        String upper = original.toUpperCase(Locale.ROOT);
+        if (original.equals(upper)) return;
+        int caret = getSelectionStart();
+        autoFormatting = true;
+        text.replace(start, end, upper);
+        if (caret >= 0) {
+            int delta = upper.length() - original.length();
+            setSelection(Math.max(0, Math.min(text.length(),
+                    caret <= start ? caret : caret >= end ? caret + delta : start + upper.length())));
+        }
+        autoFormatting = false;
+    }
+
+    /** The keyboard changes the actual visible editor viewport, not the source. */
+    public void setImeVisible(boolean visible) {
+        if (imeVisible == visible) return;
+        imeVisible = visible;
+        if (visible) post(this::ensureCaretVisible);
+    }
+
+    /** Bring the caret into the resized editor viewport, preserving horizontal pan. */
+    public void ensureCaretVisible() {
+        if (!imeVisible || !hasFocus() || panning || scaling || gutterTouched) return;
+        Layout layout = getLayout();
+        if (layout == null || getHeight() <= 0) return;
+        int offset = Math.max(0, Math.min(getSelectionStart(), length()));
+        int line = layout.getLineForOffset(offset);
+        int top = layout.getLineTop(line) + getTotalPaddingTop();
+        int bottom = layout.getLineBottom(line) + getTotalPaddingTop();
+        int visibleTop = getScrollY() + getCompoundPaddingTop();
+        int visibleBottom = getScrollY() + getHeight() - getCompoundPaddingBottom() - dp(8);
+        int newY = getScrollY();
+        if (bottom > visibleBottom) newY += bottom - visibleBottom;
+        else if (top < visibleTop) newY -= visibleTop - top;
+
+        float caretX = layout.getPrimaryHorizontal(offset) + getCompoundPaddingLeft();
+        int newX = getScrollX();
+        int left = getScrollX() + getCompoundPaddingLeft();
+        int right = getScrollX() + getWidth() - getCompoundPaddingRight() - dp(10);
+        if (caretX > right) newX += Math.round(caretX - right);
+        else if (caretX < left) newX -= Math.round(left - caretX);
+        panTo(newX, newY);
     }
 
     public void insertTabFromSettings() {
@@ -523,6 +595,8 @@ public class CodeEditorView extends EditText {
         super.onSelectionChanged(selStart, selEnd);
         invalidate();
         if (onCaretMoved != null) post(onCaretMoved);
+        if (imeVisible && hasFocus() && !panning && !scaling && !gutterTouched)
+            post(this::ensureCaretVisible);
     }
 
     @Override
