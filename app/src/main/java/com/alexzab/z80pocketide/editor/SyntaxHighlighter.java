@@ -123,7 +123,9 @@ public final class SyntaxHighlighter {
     private static final class ErrorUnderlineSpan extends CharacterStyle {
         @Override
         public void updateDrawState(TextPaint paint) {
-            paint.setUnderlineText(Color.rgb(219, 48, 57), 2.3f);
+            paint.underlineColor = Color.rgb(219, 48, 57);
+            paint.underlineThickness = 2.3f;
+            paint.setUnderlineText(true);
         }
     }
 
