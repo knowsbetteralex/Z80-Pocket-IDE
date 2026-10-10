@@ -168,7 +168,7 @@ public class MainActivity extends Activity {
         title.setTextColor(Color.rgb(25, 25, 25));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.14", "для ZX Spectrum · v0.14"));
+        subtitle.setText(t("for ZX Spectrum · v0.15", "для ZX Spectrum · v0.15"));
         subtitle.setTextSize(12);
         subtitle.setTextColor(Color.rgb(100, 100, 100));
 
