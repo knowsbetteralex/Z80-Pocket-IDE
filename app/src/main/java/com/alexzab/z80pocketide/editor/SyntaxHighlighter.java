@@ -7,6 +7,8 @@ import android.text.Spanned;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
+import android.text.style.CharacterStyle;
+import android.text.TextPaint;
 import android.widget.EditText;
 
 import java.util.regex.Matcher;
@@ -75,6 +77,54 @@ public final class SyntaxHighlighter {
         paint(text, P_LABEL_EQU, LABEL, true, 1);
         paint(text, P_STRING, STRING, false, 0);
         paint(text, P_COMMENT, COMMENT, false, 0);
+
+        // Known labels in operands (including forward references) share the
+        // same turquoise styling as declarations, never inside comments/strings.
+        for (int[] range : SourceSymbols.labelRanges(text.toString())) {
+            if (range[0] < 0 || range[1] > text.length() || range[0] >= range[1]) continue;
+            text.setSpan(new ForegroundColorSpan(LABEL), range[0], range[1],
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            text.setSpan(new StyleSpan(Typeface.BOLD), range[0], range[1],
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+    }
+
+    /** Red underline for an assembler diagnostic, without replacing the syntax colours. */
+    public static void setErrorLine(EditText editor, int oneBasedLine) {
+        Editable text = editor.getText();
+        ErrorUnderlineSpan[] existing = text.getSpans(0, text.length(), ErrorUnderlineSpan.class);
+        for (ErrorUnderlineSpan span : existing) text.removeSpan(span);
+        if (oneBasedLine < 1 || text.length() == 0) return;
+
+        String source = text.toString();
+        int start = 0;
+        for (int line = 1; line < oneBasedLine; line++) {
+            int next = source.indexOf('\n', start);
+            if (next < 0) return;
+            start = next + 1;
+        }
+        int end = source.indexOf('\n', start);
+        if (end < 0) end = source.length();
+        String visible = SourceSymbols.maskLiterals(source.substring(start, end));
+        int relativeStart = 0;
+        while (relativeStart < visible.length()
+                && Character.isWhitespace(visible.charAt(relativeStart))) relativeStart++;
+        // Underline code through the last operand, not comments or trailing spaces.
+        int relativeEnd = visible.length();
+        while (relativeEnd > relativeStart
+                && Character.isWhitespace(visible.charAt(relativeEnd - 1))) relativeEnd--;
+        if (relativeEnd > relativeStart) {
+            text.setSpan(new ErrorUnderlineSpan(),
+                    start + relativeStart, start + relativeEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+    }
+
+    private static final class ErrorUnderlineSpan extends CharacterStyle {
+        @Override
+        public void updateDrawState(TextPaint paint) {
+            paint.setUnderlineText(Color.rgb(219, 48, 57), 2.3f);
+        }
     }
 
     private static void paint(Editable text, Pattern pattern, int color, boolean bold, int group) {
