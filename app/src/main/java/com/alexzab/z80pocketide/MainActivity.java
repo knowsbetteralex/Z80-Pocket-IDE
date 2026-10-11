@@ -109,6 +109,7 @@ public class MainActivity extends Activity {
     private TextView statusExpandIcon;
     private TextView detailedStatus;
     private TextView diagnosticsView;
+    private ScrollView diagnosticScroll;
     private boolean detailsExpanded;
     private String statusMessage = "";
     private int statusColor = Color.DKGRAY;
@@ -290,14 +291,14 @@ public class MainActivity extends Activity {
         detailedStatus.setTextColor(Color.rgb(78, 99, 86));
         statusDetails.addView(detailedStatus);
 
-        ScrollView errorScroll = new ScrollView(this);
+        diagnosticScroll = new ScrollView(this);
         diagnosticsView = new TextView(this);
         diagnosticsView.setTextSize(12);
         diagnosticsView.setTextColor(Color.rgb(170, 48, 58));
         diagnosticsView.setTextIsSelectable(true);
         diagnosticsView.setPadding(0, dp(4), 0, dp(4));
-        errorScroll.addView(diagnosticsView);
-        statusDetails.addView(errorScroll, new LinearLayout.LayoutParams(
+        diagnosticScroll.addView(diagnosticsView);
+        statusDetails.addView(diagnosticScroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(94)));
 
         LinearLayout statsRow = new LinearLayout(this);
@@ -490,6 +491,24 @@ public class MainActivity extends Activity {
 
     private String t(String en, String ru) {
         return Texts.pick(language, en, ru);
+    }
+
+    private Button headerButton(String glyph, String description, boolean primary) {
+        Button button = new Button(this);
+        button.setText(glyph);
+        button.setContentDescription(description);
+        button.setTextSize(glyph.length() > 2 ? 12 : 18);
+        button.setMinWidth(0);
+        button.setMinimumWidth(0);
+        button.setMinHeight(0);
+        button.setMinimumHeight(0);
+        button.setPadding(0, 0, 0, 0);
+        if (primary) UiStyle.styleGreenButton(button);
+        else UiStyle.styleSoftGreenButton(button);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(40), dp(42));
+        params.setMargins(dp(1), 0, dp(1), 0);
+        button.setLayoutParams(params);
+        return button;
     }
 
     private Button compactButton(String text) {
@@ -725,6 +744,9 @@ public class MainActivity extends Activity {
         files.add(0, 3, 2, t("Save source", "Сохранить исходник"));
         files.add(0, 4, 3, t("Save as…", "Сохранить как…"));
         files.add(0, 5, 4, t("Close tab", "Закрыть вкладку"));
+        files.add(0, 20, 6, t("Build source", "Собрать"));
+        files.add(0, 21, 7, t("Save .tap", "Сохранить .tap"));
+        files.add(0, 22, 8, t("Build and run", "Собрать и запустить"));
 
         menu.add(0, 10, 10, t("Examples / Routines", "Примеры / Подпрограммы"));
         menu.add(0, 11, 11, t("Z80 / Spectrum reference", "Справочник Z80 / Spectrum"));
@@ -736,6 +758,7 @@ public class MainActivity extends Activity {
         tools.add(0, 15, 3, t("Editor settings", "Настройки редактора"));
         tools.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
         tools.add(0, 17, 5, t("UPPERCASE entire source", "ВЕСЬ КОД → ЗАГЛАВНЫМИ"));
+        tools.add(0, 18, 6, t("Clear line selection", "Снять выделение строк"));
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -744,6 +767,9 @@ public class MainActivity extends Activity {
                 case 3: saveDocument(activeIndex, false); break;
                 case 4: requestSaveAs(activeIndex, false); break;
                 case 5: requestCloseTab(activeIndex); break;
+                case 20: buildSource(); break;
+                case 21: saveTapFile(); break;
+                case 22: runTapInEmulator(); break;
                 case 10: showExamples(); break;
                 case 11: openReference(); break;
                 case 12: startActivity(new Intent(this, NumberConverterActivity.class)); break;
@@ -762,6 +788,7 @@ public class MainActivity extends Activity {
                     break;
                 case 15: showEditorSettings(); break;
                 case 16: showEmulatorDialog(); break;
+                case 18: editor.clearLineSelection(); break;
                 case 17:
                     if (editor.uppercaseEntireDocument()) {
                         scheduleAnalysis();
@@ -819,8 +846,8 @@ public class MainActivity extends Activity {
         if (editor == null) return;
         editor.refreshPreferences();
         EditorPreferences.Snapshot prefs = editor.getEditorPreferences();
-        if (tabKeyButton != null)
-            tabKeyButton.setVisibility(prefs.showTabButton ? View.VISIBLE : View.GONE);
+        // TAB is a permanent top-bar shortcut even if older preferences hid it.
+        if (tabKeyButton != null) tabKeyButton.setVisibility(View.VISIBLE);
     }
 
     private void showTabMenu(int index) {
@@ -1149,7 +1176,6 @@ public class MainActivity extends Activity {
         if (!hasActiveDocument()) return false;
         EditorDocument doc = currentDocument();
         setStatus(t("Building…", "Сборка…"), Color.DKGRAY);
-        runTap.setEnabled(false);
         saveTap.setEnabled(false);
         doc.invalidateBuild();
 
@@ -1180,8 +1206,10 @@ public class MainActivity extends Activity {
             Toast.makeText(this, t("Build OK", "Сборка успешна"), Toast.LENGTH_SHORT).show();
             return true;
         } catch (RuntimeException ex) {
+            runTap.setEnabled(true);
             String raw = ex.getMessage();
             analysisError = Texts.localizeAssemblerError(language, raw);
+            analysisIssues = AssemblyDiagnostics.collect(doc.text, 8);
             SyntaxHighlighter.setErrorLine(editor, editor.isFolded() ? 0 : diagnosticLine(raw));
             updateStatistics();
             String detail = Texts.localizeAssemblerError(language, raw);
