@@ -32,8 +32,6 @@ public final class EditorSettingsDialog {
                 "Автоматические отступы"), current.autoIndent);
         CheckBox spaces = check(activity, t(language, "Use spaces instead of TAB character",
                 "Использовать пробелы вместо символа TAB"), current.useSpaces);
-        CheckBox tabButton = check(activity, t(language, "Show TAB button above editor",
-                "Показывать кнопку TAB над редактором"), current.showTabButton);
         CheckBox folding = check(activity, t(language, "Enable label block folding",
                 "Разрешить сворачивание блоков под метками"), current.folding);
 
@@ -61,7 +59,6 @@ public final class EditorSettingsDialog {
                     LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         }
         box.addView(widths);
-        box.addView(tabButton);
         box.addView(folding);
 
         new AlertDialog.Builder(activity)
@@ -72,7 +69,7 @@ public final class EditorSettingsDialog {
                     int tabSize = checked == 2 || checked == 8 ? checked : 4;
                     EditorPreferences.set(activity, new EditorPreferences.Snapshot(
                             upper.isChecked(), allUpper.isChecked(), indent.isChecked(), tabSize,
-                            spaces.isChecked(), tabButton.isChecked(), folding.isChecked()));
+                            spaces.isChecked(), true, folding.isChecked()));
                     if (onChanged != null) onChanged.run();
                 })
                 .setNegativeButton(t(language, "Cancel", "Отмена"), null)
