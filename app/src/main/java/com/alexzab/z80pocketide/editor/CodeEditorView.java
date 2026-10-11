@@ -61,6 +61,8 @@ public class CodeEditorView extends EditText {
     private boolean gutterDragging;
     private boolean gutterTouched;
     private boolean foldGutterTouch;
+    private boolean clearSelectionGutterTouch;
+    private final Paint clearSelectionPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int foldLine = -1;
     private final Paint foldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int gutterWidth;
@@ -109,6 +111,9 @@ public class CodeEditorView extends EditText {
         foldPaint.setTextAlign(Paint.Align.LEFT);
         foldPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         foldPaint.setColor(Color.rgb(35, 116, 71));
+        clearSelectionPaint.setColor(Color.rgb(48, 126, 85));
+        clearSelectionPaint.setTextAlign(Paint.Align.CENTER);
+        clearSelectionPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         lineNumberPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
         currentLinePaint.setColor(Color.rgb(236, 247, 240));
         selectedLinePaint.setColor(Color.rgb(213, 234, 224));
@@ -626,6 +631,20 @@ public class CodeEditorView extends EditText {
             }
         }
 
+        if (!selectedLines.isEmpty()) {
+            // Pinned clear-selection action at the bottom of the number gutter.
+            // It never changes editor text, current caret or folded blocks.
+            float cx = sx + gutterWidth / 2f;
+            float cy = sy + getHeight() - dp(21);
+            clearSelectionPaint.setColor(Color.rgb(48, 126, 85));
+            canvas.drawRoundRect(sx + dp(4), cy - dp(16),
+                    sx + gutterWidth - dp(4), cy + dp(16),
+                    dp(10), dp(10), clearSelectionPaint);
+            clearSelectionPaint.setTextSize(dp(22));
+            clearSelectionPaint.setColor(Color.WHITE);
+            canvas.drawText("×", cx, cy + dp(7), clearSelectionPaint);
+        }
+
         if (!isFolded() && currentLine >= 0 && isInstruction != null
                 && currentLine < isInstruction.length && isInstruction[currentLine]) {
             String duration = instructionMinCycles[currentLine] == instructionMaxCycles[currentLine]
@@ -661,6 +680,22 @@ public class CodeEditorView extends EditText {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN
+                && !selectedLines.isEmpty() && event.getX() <= gutterWidth
+                && event.getY() >= getHeight() - dp(42)) {
+            clearSelectionGutterTouch = true;
+            if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
+            return true;
+        }
+        if (clearSelectionGutterTouch) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (action == MotionEvent.ACTION_UP && event.getX() <= gutterWidth
+                        && event.getY() >= getHeight() - dp(42)) clearLineSelection();
+                clearSelectionGutterTouch = false;
+                if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
+            }
+            return true;
+        }
         if (action == MotionEvent.ACTION_DOWN
                 && event.getX() <= gutterWidth && getLayout() != null) {
             int row = gestureLine(event);
