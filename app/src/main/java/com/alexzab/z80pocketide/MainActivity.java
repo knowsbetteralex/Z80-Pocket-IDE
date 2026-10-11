@@ -251,65 +251,78 @@ public class MainActivity extends Activity {
         editor.setOnCaretMoved(this::updateStatistics);
         refreshEditorTools();
 
+        // One compact status bar, expandable for diagnostics and byte/T totals.
         LinearLayout bottomPanel = new LinearLayout(this);
         bottomPanel.setOrientation(LinearLayout.VERTICAL);
-        bottomPanel.setPadding(dp(10), dp(7), dp(10), dp(5));
+        bottomPanel.setPadding(dp(7), dp(3), dp(7), dp(3));
         bottomPanel.setBackground(UiStyle.rounded(this,
-                Color.rgb(240, 247, 243), 20, Color.rgb(205, 222, 212), 1));
-        if (Build.VERSION.SDK_INT >= 21) bottomPanel.setElevation(dp(4));
+                Color.rgb(229, 241, 234), 13, Color.rgb(192, 216, 201), 1));
 
-        LinearLayout infoRow = new LinearLayout(this);
-        infoRow.setOrientation(LinearLayout.HORIZONTAL);
-        infoRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout compactStatus = new LinearLayout(this);
+        compactStatus.setOrientation(LinearLayout.HORIZONTAL);
+        compactStatus.setGravity(Gravity.CENTER_VERTICAL);
+        compactStatus.setMinimumHeight(dp(31));
 
         status = new TextView(this);
-        status.setText(t("Tabs ready · File opens and saves .asm sources",
-                "Вкладки готовы · Файл открывает и сохраняет исходники .asm"));
-        status.setTextSize(13);
-        status.setTextColor(Color.rgb(90, 90, 90));
-        status.setPadding(dp(4), dp(3), dp(4), dp(5));
-        infoRow.addView(status, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        status.setTextSize(12);
+        status.setSingleLine(true);
+        status.setEllipsize(TextUtils.TruncateAt.END);
+        status.setGravity(Gravity.CENTER_VERTICAL);
+        status.setPadding(dp(6), 0, dp(2), 0);
+        compactStatus.addView(status, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        bottomPanel.addView(infoRow);
+        statusExpandIcon = new TextView(this);
+        statusExpandIcon.setText("⌄");
+        statusExpandIcon.setTextSize(19);
+        statusExpandIcon.setTextColor(Color.rgb(36, 100, 65));
+        statusExpandIcon.setGravity(Gravity.CENTER);
+        compactStatus.addView(statusExpandIcon, new LinearLayout.LayoutParams(dp(38), dp(31)));
+        bottomPanel.addView(compactStatus);
+
+        statusDetails = new LinearLayout(this);
+        statusDetails.setOrientation(LinearLayout.VERTICAL);
+        statusDetails.setPadding(dp(8), dp(5), dp(8), dp(8));
+        statusDetails.setVisibility(View.GONE);
+
+        detailedStatus = new TextView(this);
+        detailedStatus.setTextSize(12);
+        detailedStatus.setTextColor(Color.rgb(78, 99, 86));
+        statusDetails.addView(detailedStatus);
+
+        ScrollView errorScroll = new ScrollView(this);
+        diagnosticsView = new TextView(this);
+        diagnosticsView.setTextSize(12);
+        diagnosticsView.setTextColor(Color.rgb(170, 48, 58));
+        diagnosticsView.setTextIsSelectable(true);
+        diagnosticsView.setPadding(0, dp(4), 0, dp(4));
+        errorScroll.addView(diagnosticsView);
+        statusDetails.addView(errorScroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(94)));
 
         LinearLayout statsRow = new LinearLayout(this);
         statsRow.setGravity(Gravity.CENTER_VERTICAL);
         statistics = new TextView(this);
-        statistics.setText(t("Size/T: analyzing…", "Байты/такты: анализ…"));
         statistics.setTextSize(12);
         statistics.setTextColor(Color.rgb(35, 105, 66));
-        statistics.setPadding(dp(4), 0, dp(4), dp(5));
         statsRow.addView(statistics, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        clearLinesButton = compactButton(t("Clear selection ✕", "Снять выбор ✕"));
+        clearLinesButton = compactButton(t("Clear selection", "Снять выделение"));
         clearLinesButton.setVisibility(View.GONE);
         clearLinesButton.setOnClickListener(v -> editor.clearLineSelection());
         statsRow.addView(clearLinesButton);
-        bottomPanel.addView(statsRow);
+        statusDetails.addView(statsRow);
 
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setGravity(Gravity.CENTER);
-
-        Button build = actionButton(t("Build", "Собрать"));
-        runTap = actionButton(t("Run", "Запуск"));
-        saveTap = actionButton(t("Save .tap", "Сохранить .tap"));
-
-        runTap.setEnabled(false);
-        saveTap.setEnabled(false);
-
-        actions.addView(build, weightedButtonParams());
-        actions.addView(runTap, weightedButtonParams());
-        actions.addView(saveTap, weightedButtonParams());
-        bottomPanel.addView(actions);
+        bottomPanel.addView(statusDetails);
         root.addView(bottomPanel);
+        compactStatus.setOnClickListener(v -> setStatusDetailsExpanded(!detailsExpanded));
 
-        build.setOnClickListener(v -> buildSource());
-        runTap.setOnClickListener(v -> runTapInEmulator());
-        saveTap.setOnClickListener(v -> saveTapFile());
-
+        // TAP saving is now under File; Run on the top panel builds automatically.
+        saveTap = new Button(this);
+        saveTap.setEnabled(false);
+        runTap.setEnabled(true);
+        setStatus(t("Ready · tap for details", "Готово · нажмите для подробностей"),
+                Color.rgb(64, 98, 77));
 
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -326,7 +339,6 @@ public class MainActivity extends Activity {
                 doc.text = next;
                 doc.dirty = true;
                 doc.invalidateBuild();
-                runTap.setEnabled(false);
                 saveTap.setEnabled(false);
                 scheduleAnalysis();
                 setStatus(t("Modified · source file not saved",
