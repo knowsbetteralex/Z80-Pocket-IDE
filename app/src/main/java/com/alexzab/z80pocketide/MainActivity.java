@@ -19,6 +19,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.OpenableColumns;
+import android.provider.DocumentsContract;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -50,6 +51,7 @@ import com.alexzab.z80pocketide.examples.ExamplePrograms;
 import com.alexzab.z80pocketide.i18n.AppLanguage;
 import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.Texts;
+import com.alexzab.z80pocketide.source.SourceFileNames;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
@@ -181,6 +183,10 @@ public class MainActivity extends Activity {
 
         mainMenuButton = headerButton("☰", t("Menu", "Меню"), false);
         runTap = headerButton("▶", t("Build and run TAP", "Собрать и запустить TAP"), true);
+        Button saveSourceButton = headerButton("", t("Save source", "Сохранить исходник"), false);
+        saveSourceButton.setCompoundDrawablesWithIntrinsicBounds(
+                android.R.drawable.ic_menu_save, 0, 0, 0);
+        saveSourceButton.setGravity(Gravity.CENTER);
         Button referenceButton = headerButton("▤", t("Reference", "Справочник"), false);
         Button converterButton = headerButton("123", t("DEC / HEX / BIN", "Конвертер DEC / HEX / BIN"), false);
         tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
@@ -188,6 +194,7 @@ public class MainActivity extends Activity {
                 t("Switch language", "Переключить язык"), false);
         topBar.addView(mainMenuButton);
         topBar.addView(runTap);
+        topBar.addView(saveSourceButton);
         topBar.addView(referenceButton);
         topBar.addView(converterButton);
         topBar.addView(tabKeyButton);
@@ -201,6 +208,7 @@ public class MainActivity extends Activity {
         tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
         runTap.setOnClickListener(v -> runTapInEmulator());
+        saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
         root.addView(stripe, new LinearLayout.LayoutParams(
@@ -505,7 +513,7 @@ public class MainActivity extends Activity {
         button.setPadding(0, 0, 0, 0);
         if (primary) UiStyle.styleGreenButton(button);
         else UiStyle.styleSoftGreenButton(button);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(40), dp(42));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(35), dp(42));
         params.setMargins(dp(1), 0, dp(1), 0);
         button.setLayoutParams(params);
         return button;
@@ -618,7 +626,8 @@ public class MainActivity extends Activity {
         editor.post(() -> editor.scrollTo(doc.scrollX, doc.scrollY));
 
         boolean built = doc.buildIsCurrent();
-        runTap.setEnabled(built);
+        // Run always builds stale or never-built sources; only Save TAP depends on Build.
+        runTap.setEnabled(true);
         saveTap.setEnabled(built);
         scheduleAnalysis();
         setStatus(doc.dirty
@@ -911,7 +920,8 @@ public class MainActivity extends Activity {
 
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/plain");
+        // text/plain makes some document providers append a second .txt extension.
+        intent.setType("text/x-asm");
         intent.putExtra(Intent.EXTRA_TITLE, ensureAsmName(documents.get(index).title));
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
@@ -1071,9 +1081,22 @@ public class MainActivity extends Activity {
     }
 
     private String ensureAsmName(String title) {
-        if (title == null || title.trim().isEmpty()) return "program.asm";
-        String clean = title.trim();
-        return clean.toLowerCase(Locale.ROOT).endsWith(".asm") ? clean : clean + ".asm";
+        return SourceFileNames.suggestedName(title);
+    }
+
+    private Uri correctCreatedAsmUri(Uri uri) {
+        String name = displayName(uri);
+        if (!SourceFileNames.hasUnwantedTextSuffix(name)
+                || !DocumentsContract.isDocumentUri(this, uri)) return uri;
+        try {
+            Uri renamed = DocumentsContract.renameDocument(
+                    getContentResolver(), uri, SourceFileNames.suggestedName(name));
+            return renamed == null ? uri : renamed;
+        } catch (Exception ignored) {
+            // Not all cloud/document providers allow renames. Keep the valid URI
+            // rather than break source saving, and show the real name in status.
+            return uri;
+        }
     }
 
     private void toggleLanguage() {
@@ -1379,12 +1402,20 @@ public class MainActivity extends Activity {
                 takePersistablePermission(uri, data);
                 EditorDocument doc = documents.get(index);
                 writeSource(uri, doc.text);
-                doc.uriString = uri.toString();
-                String name = displayName(uri);
+                // The system picker is allowed to alter names. Correct legacy
+                // .asm.txt if its provider supports renameDocument.
+                Uri actualUri = correctCreatedAsmUri(uri);
+                if (!actualUri.equals(uri)) takePersistablePermission(actualUri, data);
+                doc.uriString = actualUri.toString();
+                String name = displayName(actualUri);
                 if (name != null && !name.trim().isEmpty()) doc.title = name;
                 doc.dirty = false;
                 renderTabs();
-                setStatus(t("Saved · ", "Сохранено · ") + doc.title, Color.rgb(0, 110, 45));
+                boolean doubleExtension = SourceFileNames.hasUnwantedTextSuffix(name);
+                setStatus((doubleExtension
+                        ? t("Saved, but file provider kept .asm.txt · ", "Сохранено, но провайдер оставил .asm.txt · ")
+                        : t("Saved · ", "Сохранено · ")) + doc.title,
+                        doubleExtension ? Color.rgb(160, 100, 22) : Color.rgb(0, 110, 45));
                 Toast.makeText(this, t("Source saved", "Исходник сохранён"), Toast.LENGTH_SHORT).show();
                 if (closeAfter) closeTabImmediately(index);
             } catch (Exception ex) {
