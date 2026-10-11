@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.16)
+## Current development build (v0.16.1)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -18,7 +18,7 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Editor line-number gutter and current-line highlighting, with tap/drag line selection.
 - Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
 - Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
-- Compact header controls: menu, build-and-run, reference, number converter, TAB and RU/EN.
+- Compact header controls: menu, build-and-run, save ASM, reference, number converter, TAB and RU/EN.
 - New / Open / Save / Save As / Close / Build / Save TAP actions live under File.
 - Single slim status row expands on tap into diagnostics and byte/T-state statistics.
 - Best-effort multiple assembler errors in a scrollable diagnostics panel.
@@ -86,3 +86,10 @@ gradle assembleDebug
 ```
 
 The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
+
+## v0.16.1 fixes
+
+- Save ASM from the top-bar diskette shortcut; first save opens Android's file picker.
+- Run is active when an unsaved/never-built source tab opens; it auto-builds before launching the emulator.
+- A green × at the bottom of the line-number gutter clears selected lines without affecting the cursor or code.
+- Creating ASM files uses assembly-source MIME instead of text/plain to avoid .asm.txt; tries Android document-provider rename when necessary, and reports providers that refuse renaming.
