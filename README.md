@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.15)
+## Current development build (v0.16)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -18,10 +18,13 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Editor line-number gutter and current-line highlighting, with tap/drag line selection.
 - Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
 - Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
-- Compact hierarchical menu for files, library and tools; Build/Run/Save TAP remain visible.
+- Compact header controls: menu, build-and-run, reference, number converter, TAB and RU/EN.
+- New / Open / Save / Save As / Close / Build / Save TAP actions live under File.
+- Single slim status row expands on tap into diagnostics and byte/T-state statistics.
+- Best-effort multiple assembler errors in a scrollable diagnostics panel.
 - Configurable auto-indent, TAB width (2/4/8), spaces-vs-tab and an on-screen TAB key.
 - One-tap document formatter.
-- Reversible label-block folding from a label to the next blank line; build/save always use the full source.
+- Fold/unfold chevrons on label lines within the number gutter, separate from tap/drag line selection. Builds and saves use the full source.
 - Touch-oriented code editor: tap moves the caret, one-finger drag pans the code canvas, pinch changes and remembers font size.
 - Searchable built-in Z80 reference with syntax, opcode patterns, T-states, flags and descriptions.
 - Reference screen now has separate Z80 / ZX 48K / ROM / I/O tabs.
@@ -53,7 +56,7 @@ The opcode implementation is based on the documented Z80 instruction set. Undocu
 
 ## Source tabs and files
 
-Use **File** next to the tab strip to create a new tab, open an existing source, save, save under a new name, or close the active tab. A `●` before the tab title means that the source has unsaved changes. The small `×` closes a tab; modified tabs show a Save / Don't save / Cancel confirmation.
+Use **☰ → Files** to create a new tab, open an existing source, save, save under a new name, or close the active tab. A `●` before the tab title means that the source has unsaved changes. The small `×` closes a tab; modified tabs show a Save / Don't save / Cancel confirmation.
 
 Opening an example creates a separate, initially clean tab. Once an example is edited it becomes dirty like any other source and can be saved as a regular `.asm` file.
 
