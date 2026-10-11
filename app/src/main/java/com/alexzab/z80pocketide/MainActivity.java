@@ -21,6 +21,7 @@ import android.os.Looper;
 import android.provider.OpenableColumns;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
@@ -28,6 +29,7 @@ import android.view.WindowInsets;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.PopupMenu;
+import android.widget.ScrollView;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
@@ -36,6 +38,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.alexzab.z80pocketide.assembler.Assembler;
+import com.alexzab.z80pocketide.assembler.AssemblyDiagnostics;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
 import com.alexzab.z80pocketide.editor.EditorDocument;
@@ -102,6 +105,14 @@ public class MainActivity extends Activity {
     private Button saveTap;
     private Button emulatorButton;
     private Button tabKeyButton;
+    private LinearLayout statusDetails;
+    private TextView statusExpandIcon;
+    private TextView detailedStatus;
+    private TextView diagnosticsView;
+    private boolean detailsExpanded;
+    private String statusMessage = "";
+    private int statusColor = Color.DKGRAY;
+    private List<AssemblyDiagnostics.Issue> analysisIssues = new ArrayList<>();
     private HorizontalScrollView tabStrip;
     private LinearLayout tabRow;
     private AppLanguage language;
@@ -159,30 +170,36 @@ public class MainActivity extends Activity {
         topBar.setGravity(Gravity.CENTER_VERTICAL);
         topBar.setPadding(dp(4), 0, dp(4), dp(4));
 
-        LinearLayout titleBlock = new LinearLayout(this);
-        titleBlock.setOrientation(LinearLayout.VERTICAL);
-
         TextView title = new TextView(this);
-        title.setText("Z80 Pocket IDE");
-        title.setTextSize(20);
-        title.setTextColor(Color.rgb(25, 25, 25));
-
-        TextView subtitle = new TextView(this);
-        subtitle.setText(t("for ZX Spectrum · v0.15", "для ZX Spectrum · v0.15"));
-        subtitle.setTextSize(12);
-        subtitle.setTextColor(Color.rgb(100, 100, 100));
-
-        titleBlock.addView(title);
-        titleBlock.addView(subtitle);
-        topBar.addView(titleBlock, new LinearLayout.LayoutParams(
+        title.setText("Z80");
+        title.setTextSize(17);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setTextColor(Color.rgb(29, 80, 51));
+        topBar.addView(title, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button languageButton = compactButton(language == AppLanguage.RU ? "RU" : "EN");
-        mainMenuButton = compactButton("☰");
-        mainMenuButton.setContentDescription(t("Menu", "Меню"));
-        topBar.addView(languageButton);
+        mainMenuButton = headerButton("☰", t("Menu", "Меню"), false);
+        runTap = headerButton("▶", t("Build and run TAP", "Собрать и запустить TAP"), true);
+        Button referenceButton = headerButton("▤", t("Reference", "Справочник"), false);
+        Button converterButton = headerButton("123", t("DEC / HEX / BIN", "Конвертер DEC / HEX / BIN"), false);
+        tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
+        Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
+                t("Switch language", "Переключить язык"), false);
         topBar.addView(mainMenuButton);
+        topBar.addView(runTap);
+        topBar.addView(referenceButton);
+        topBar.addView(converterButton);
+        topBar.addView(tabKeyButton);
+        topBar.addView(languageButton);
         root.addView(topBar);
+
+        referenceButton.setOnClickListener(v -> openReference());
+        converterButton.setOnClickListener(v ->
+                startActivity(new Intent(this, NumberConverterActivity.class)));
+        languageButton.setOnClickListener(v -> toggleLanguage());
+        tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
+        mainMenuButton.setOnClickListener(v -> showMainMenu());
+        runTap.setOnClickListener(v -> runTapInEmulator());
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
         root.addView(stripe, new LinearLayout.LayoutParams(
@@ -194,11 +211,6 @@ public class MainActivity extends Activity {
         workspaceBar.setPadding(dp(4), dp(4), dp(4), dp(4));
         workspaceBar.setBackground(UiStyle.rounded(this,
                 Color.rgb(235, 243, 238), 18, Color.rgb(205, 222, 212), 1));
-
-        Button newTabButton = compactButton("+");
-        newTabButton.setContentDescription(t("New tab", "Новая вкладка"));
-        newTabButton.setOnClickListener(v -> newTab());
-        workspaceBar.addView(newTabButton);
 
         tabStrip = new HorizontalScrollView(this);
         tabStrip.setHorizontalScrollBarEnabled(false);
@@ -228,23 +240,6 @@ public class MainActivity extends Activity {
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editor.setHorizontallyScrolling(true);
 
-        LinearLayout editorTools = new LinearLayout(this);
-        editorTools.setOrientation(LinearLayout.HORIZONTAL);
-        editorTools.setGravity(Gravity.CENTER_VERTICAL);
-        editorTools.setPadding(dp(2), dp(2), dp(2), dp(4));
-
-        tabKeyButton = compactButton("TAB ⇥");
-        editorTools.addView(tabKeyButton);
-        TextView gestureHint = new TextView(this);
-        gestureHint.setText(t("Tap/drag line numbers to select",
-                "Выбор строк: тап/свайп по номерам"));
-        gestureHint.setTextColor(Color.rgb(88, 113, 98));
-        gestureHint.setTextSize(11);
-        gestureHint.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        editorTools.addView(gestureHint, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        root.addView(editorTools);
-
         LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         editorParams.setMargins(0, 0, 0, dp(5));
@@ -252,7 +247,6 @@ public class MainActivity extends Activity {
 
         SyntaxHighlighter.attach(editor);
 
-        tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
         editor.setOnLineSelectionChanged(this::updateStatistics);
         editor.setOnCaretMoved(this::updateStatistics);
         refreshEditorTools();
@@ -315,8 +309,7 @@ public class MainActivity extends Activity {
         build.setOnClickListener(v -> buildSource());
         runTap.setOnClickListener(v -> runTapInEmulator());
         saveTap.setOnClickListener(v -> saveTapFile());
-        mainMenuButton.setOnClickListener(v -> showMainMenu());
-        languageButton.setOnClickListener(v -> toggleLanguage());
+
 
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
