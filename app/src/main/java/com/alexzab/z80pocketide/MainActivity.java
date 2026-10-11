@@ -658,6 +658,7 @@ public class MainActivity extends Activity {
         liveAnalysis = null;
         analyzedSource = null;
         analysisError = null;
+        analysisIssues.clear();
         if (editor != null) {
             editor.clearInstructionMetrics();
             SyntaxHighlighter.setErrorLine(editor, 0);
@@ -675,6 +676,7 @@ public class MainActivity extends Activity {
             liveAnalysis = value;
             analyzedSource = source;
             analysisError = null;
+            analysisIssues.clear();
             SyntaxHighlighter.setErrorLine(editor, 0);
             editor.setInstructionMetrics(value.getLineSizes(),
                     value.getLineMinCyclesArray(), value.getLineMaxCyclesArray(),
@@ -683,11 +685,16 @@ public class MainActivity extends Activity {
             liveAnalysis = null;
             analyzedSource = null;
             analysisError = Texts.localizeAssemblerError(language, exception.getMessage());
+            analysisIssues = AssemblyDiagnostics.collect(source, 8);
+            if (analysisIssues.isEmpty())
+                analysisIssues.add(new AssemblyDiagnostics.Issue(0,
+                        exception.getMessage() == null ? "Assembler error" : exception.getMessage()));
             editor.clearInstructionMetrics();
             SyntaxHighlighter.setErrorLine(editor,
                     editor.isFolded() ? 0 : diagnosticLine(exception.getMessage()));
         }
         updateStatistics();
+        refreshStatusPanel();
     }
 
     private void updateStatistics() {
@@ -699,11 +706,13 @@ public class MainActivity extends Activity {
         if (analysisError != null) {
             statistics.setText("⚠ " + analysisError);
             statistics.setTextColor(Color.rgb(183, 48, 58));
+            refreshStatusPanel();
             return;
         }
         statistics.setTextColor(Color.rgb(35, 105, 66));
         if (liveAnalysis == null || !editor.getSourceText().equals(analyzedSource)) {
             statistics.setText(t("Size/T: — (check source)", "Байты/такты: — (проверьте код)"));
+            refreshStatusPanel();
             return;
         }
 
@@ -723,7 +732,13 @@ public class MainActivity extends Activity {
                 + (language == AppLanguage.RU ? " строк" : " lines")
                 : t("Whole source", "Весь код");
         String cycles = min == max ? String.valueOf(min) : min + "–" + max;
-        statistics.setText(label + "  ·  " + bytes + " B  ·  " + cycles + " T");
+        if (editor.isFolded() && selection) {
+            statistics.setText(t("Selection analysis unavailable while folded",
+                    "Расчёт выбранных строк недоступен при свёрнутом коде"));
+        } else {
+            statistics.setText(label + "  ·  " + bytes + " B  ·  " + cycles + " T");
+        }
+        refreshStatusPanel();
     }
 
     private int diagnosticLine(String message) {
@@ -1187,6 +1202,7 @@ public class MainActivity extends Activity {
             liveAnalysis = result;
             analyzedSource = doc.text;
             analysisError = null;
+            analysisIssues.clear();
             SyntaxHighlighter.setErrorLine(editor, 0);
             editor.setInstructionMetrics(result.getLineSizes(),
                     result.getLineMinCyclesArray(), result.getLineMaxCyclesArray(),
@@ -1210,6 +1226,8 @@ public class MainActivity extends Activity {
             String raw = ex.getMessage();
             analysisError = Texts.localizeAssemblerError(language, raw);
             analysisIssues = AssemblyDiagnostics.collect(doc.text, 8);
+            if (analysisIssues.isEmpty())
+                analysisIssues.add(new AssemblyDiagnostics.Issue(0, raw == null ? "Error" : raw));
             SyntaxHighlighter.setErrorLine(editor, editor.isFolded() ? 0 : diagnosticLine(raw));
             updateStatistics();
             String detail = Texts.localizeAssemblerError(language, raw);
@@ -1403,8 +1421,52 @@ public class MainActivity extends Activity {
     }
 
     private void setStatus(String message, int color) {
-        status.setText(message);
-        status.setTextColor(color);
+        statusMessage = message;
+        statusColor = color;
+        refreshStatusPanel();
+    }
+
+    private void setStatusDetailsExpanded(boolean expanded) {
+        detailsExpanded = expanded;
+        if (statusDetails != null)
+            statusDetails.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        if (statusExpandIcon != null)
+            statusExpandIcon.setText(expanded ? "⌃" : "⌄");
+        refreshStatusPanel();
+    }
+
+    private void refreshStatusPanel() {
+        if (status == null) return;
+        int n = analysisIssues == null ? 0 : analysisIssues.size();
+        if (n > 0) {
+            String brief = language == AppLanguage.RU ? " ошибок" : " errors";
+            status.setText("⚠ " + n + brief + " · " +
+                    Texts.localizeAssemblerError(language, analysisIssues.get(0).message));
+            status.setTextColor(Color.rgb(174, 43, 53));
+        } else {
+            status.setText(statusMessage);
+            status.setTextColor(statusColor);
+        }
+        if (detailedStatus != null) {
+            detailedStatus.setText(statusMessage);
+            detailedStatus.setTextColor(statusColor);
+        }
+        if (diagnosticsView != null) {
+            if (n > 0) {
+                StringBuilder items = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    AssemblyDiagnostics.Issue issue = analysisIssues.get(i);
+                    if (i > 0) items.append('\n');
+                    items.append("• ")
+                            .append(Texts.localizeAssemblerError(language, issue.message));
+                }
+                diagnosticsView.setText(items.toString());
+                if (diagnosticScroll != null) diagnosticScroll.setVisibility(View.VISIBLE);
+            } else {
+                diagnosticsView.setText(t("No assembler errors", "Ошибок ассемблера нет"));
+                if (diagnosticScroll != null) diagnosticScroll.setVisibility(View.GONE);
+            }
+        }
     }
 
     private void hideKeyboard() {
