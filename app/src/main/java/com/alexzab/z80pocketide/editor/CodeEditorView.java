@@ -60,6 +60,9 @@ public class CodeEditorView extends EditText {
     private int gutterLastLine = -1;
     private boolean gutterDragging;
     private boolean gutterTouched;
+    private boolean foldGutterTouch;
+    private int foldLine = -1;
+    private final Paint foldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int gutterWidth;
 
     private float downX;
@@ -103,6 +106,9 @@ public class CodeEditorView extends EditText {
         gutterWidth = dp(46);
         gutterPaint.setColor(Color.rgb(242, 245, 243));
         lineNumberPaint.setTextAlign(Paint.Align.RIGHT);
+        foldPaint.setTextAlign(Paint.Align.LEFT);
+        foldPaint.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        foldPaint.setColor(Color.rgb(35, 116, 71));
         lineNumberPaint.setTypeface(android.graphics.Typeface.MONOSPACE);
         currentLinePaint.setColor(Color.rgb(236, 247, 240));
         selectedLinePaint.setColor(Color.rgb(213, 234, 224));
@@ -514,6 +520,48 @@ public class CodeEditorView extends EditText {
         return i < 0 ? text.length() : i;
     }
 
+    /** A fold button belongs to a label on a visible editor row. */
+    private boolean isFoldableLine(int row) {
+        Layout layout = getLayout();
+        if (layout == null || row < 0 || row >= layout.getLineCount()
+                || editorPreferences == null || !editorPreferences.folding) return false;
+        String content = getText().toString();
+        int start = layout.getLineStart(row);
+        int end = lineEnd(content, start);
+        if (!LABEL_ONLY.matcher(content.substring(start, end).trim()).matches()) return false;
+        if (end >= content.length()) return false;
+        int bodyStart = end + 1;
+        int bodyEnd = findNextBlankLineStart(content, bodyStart);
+        return bodyEnd > bodyStart && !content.substring(bodyStart, bodyEnd).trim().isEmpty();
+    }
+
+    private boolean isFoldedLine(int row) {
+        Layout layout = getLayout();
+        if (layout == null || !isFoldableLine(row)) return false;
+        String visible = getText().toString();
+        int bodyStart = lineEnd(visible, layout.getLineStart(row)) + 1;
+        for (String marker : foldedBlocks.keySet())
+            if (visible.startsWith(marker, bodyStart)) return true;
+        return false;
+    }
+
+    /** Toggle the label's block without requiring the text cursor to be moved manually. */
+    public boolean toggleFoldAtLine(int row) {
+        if (!isFoldableLine(row)) return false;
+        Layout layout = getLayout();
+        if (layout == null) return false;
+        String visible = getText().toString();
+        int start = layout.getLineStart(row);
+        int bodyStart = lineEnd(visible, start) + 1;
+        int target = isFoldedLine(row) ? bodyStart : start;
+        int original = Math.max(0, getSelectionStart());
+        setSelection(Math.min(target, length()));
+        boolean changed = toggleFoldAtCursor();
+        if (changed) setSelection(Math.min(original, length()));
+        invalidate();
+        return changed;
+    }
+
     public boolean isFolded() { return !foldedBlocks.isEmpty(); }
 
     private int countVisibleLines(String text) {
@@ -570,7 +618,12 @@ public class CodeEditorView extends EditText {
                     ? Color.rgb(47, 125, 88) : Color.rgb(125, 147, 133));
             lineNumberPaint.setFakeBoldText(i == currentLine || selectedLines.contains(i));
             canvas.drawText(String.valueOf(i + 1),
-                    sx + gutterWidth - dp(8), baseline, lineNumberPaint);
+                    sx + gutterWidth - dp(7), baseline, lineNumberPaint);
+            if (isFoldableLine(i)) {
+                foldPaint.setTextSize(dp(15));
+                canvas.drawText(isFoldedLine(i) ? "▸" : "▾",
+                        sx + dp(5), baseline, foldPaint);
+            }
         }
 
         if (!isFolded() && currentLine >= 0 && isInstruction != null
@@ -610,26 +663,34 @@ public class CodeEditorView extends EditText {
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN
                 && event.getX() <= gutterWidth && getLayout() != null) {
-            // Multiple-line gutter selection never enters native cursor-drag mode.
-            if (isFolded()) unfoldAll();
+            int row = gestureLine(event);
+            foldGutterTouch = event.getX() <= dp(25) && isFoldableLine(row);
+            foldLine = row;
             gutterTouched = true;
             gutterDragging = false;
-            selectGutterLine(gestureLine(event), false);
+            if (!foldGutterTouch) selectGutterLine(row, false);
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
             return true;
         }
         if (gutterTouched) {
             if (action == MotionEvent.ACTION_MOVE) {
-                int line = gestureLine(event);
-                if (line != gutterLastLine) {
-                    gutterDragging = true;
-                    selectGutterLine(line, true);
+                if (!foldGutterTouch) {
+                    int line = gestureLine(event);
+                    if (line != gutterLastLine) {
+                        gutterDragging = true;
+                        selectGutterLine(line, true);
+                    }
                 }
                 return true;
             }
             if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (action == MotionEvent.ACTION_UP && foldGutterTouch
+                        && gestureLine(event) == foldLine)
+                    toggleFoldAtLine(foldLine);
                 gutterTouched = false;
                 gutterDragging = false;
+                foldGutterTouch = false;
+                foldLine = -1;
                 if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
                 return true;
             }
