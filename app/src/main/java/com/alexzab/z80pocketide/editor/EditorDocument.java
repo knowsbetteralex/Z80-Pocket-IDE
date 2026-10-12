@@ -9,6 +9,7 @@ public final class EditorDocument {
     public int cursor;
     public int scrollX;
     public int scrollY;
+    public final UndoHistory history = new UndoHistory();
 
     // Build artifacts are kept per tab while the activity is alive.
     public String lastBuiltSource;
@@ -19,6 +20,8 @@ public final class EditorDocument {
         this.text = text == null ? "" : text;
         this.uriString = uriString;
         this.dirty = dirty;
+        if (dirty) history.markUnsaved();
+        else history.markSaved();
     }
 
     public boolean hasFile() {
