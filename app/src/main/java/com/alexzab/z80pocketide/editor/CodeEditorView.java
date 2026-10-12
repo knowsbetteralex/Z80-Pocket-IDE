@@ -195,6 +195,11 @@ public class CodeEditorView extends EditText {
         editorPreferences = EditorPreferences.get(getContext());
     }
 
+    /** Visual folds are not source edits and must not invalidate Build/Save state. */
+    public boolean isPresentationChange() {
+        return presentationChange;
+    }
+
     public EditorPreferences.Snapshot getEditorPreferences() {
         return editorPreferences;
     }
