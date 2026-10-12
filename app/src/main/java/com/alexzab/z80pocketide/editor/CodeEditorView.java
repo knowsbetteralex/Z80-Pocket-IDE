@@ -224,6 +224,8 @@ public class CodeEditorView extends EditText {
         if (onHistoryChanged != null) onHistoryChanged.run();
     }
 
+    public boolean isReplayingHistory() { return replayingHistory; }
+
     public boolean undoSourceEdit() {
         return replayHistory(true);
     }
