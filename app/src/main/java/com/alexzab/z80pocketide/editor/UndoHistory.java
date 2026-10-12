@@ -45,20 +45,24 @@ public final class UndoHistory {
     private final List<Group> groups = new ArrayList<>();
     private int position; // groups[0..position) are applied
     private int savePosition; // -1 means saved state is no longer reachable
+    private boolean separateNext;
 
     public boolean canUndo() { return position > 0; }
     public boolean canRedo() { return position < groups.size(); }
     public boolean isAtSavePoint() { return savePosition >= 0 && position == savePosition; }
-    public void markSaved() { savePosition = position; }
+    public void markSaved() { savePosition = position; separateNext = true; }
+    public void markUnsaved() { savePosition = -1; }
+    public void separateNext() { separateNext = true; }
 
     public void clear() {
         groups.clear();
         position = 0;
         savePosition = 0;
+        separateNext = true;
     }
 
     public void record(int start, String before, String after, int cursorBefore,
-                       int cursorAfter, long now) {
+                       int cursorAfter, long now, boolean automatic) {
         if (before.equals(after)) return;
         // Never merge typing with the last applied step after an Undo.
         boolean afterUndo = position < groups.size();
@@ -78,7 +82,9 @@ public final class UndoHistory {
         boolean lastSmallChange = active != null && !active.changes.isEmpty()
                 && active.changes.get(active.changes.size() - 1).before.length() <= 1
                 && active.changes.get(active.changes.size() - 1).after.length() <= 1;
-        boolean append = !afterUndo && recent && adjacent && smallChange && lastSmallChange;
+        boolean append = !separateNext && !afterUndo && recent
+                && (automatic || (adjacent && smallChange && lastSmallChange));
+        separateNext = false;
         if (!append) {
             active = new Group(cursorBefore, cursorAfter, now, start);
             groups.add(active);
@@ -100,12 +106,14 @@ public final class UndoHistory {
     /** A returned group is applied in reverse order for undo. */
     public Group takeUndo() {
         if (!canUndo()) return null;
+        separateNext = true;
         return groups.get(--position);
     }
 
     /** A returned group is applied in forward order for redo. */
     public Group takeRedo() {
         if (!canRedo()) return null;
+        separateNext = true;
         return groups.get(position++);
     }
 }
