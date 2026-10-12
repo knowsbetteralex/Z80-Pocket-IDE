@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.16.2)
+## Current development build (v0.17.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -18,7 +18,7 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Editor line-number gutter and current-line highlighting, with tap/drag line selection.
 - Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
 - Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
-- Compact header controls: build-and-run, green vector save icon, ? reference, number converter, TAB, RU/EN and rightmost menu. Editor settings appear as the last top-level menu item.
+- Compact header controls: build-and-run, centered green diskette, Undo/Redo, ? reference, number converter, TAB, RU/EN and rightmost menu. Editor settings appear as the last top-level menu item.
 - New / Open / Save / Save As / Close / Build / Save TAP actions live under File.
 - Single slim status row expands on tap into diagnostics and byte/T-state statistics.
 - Best-effort multiple assembler errors in a scrollable diagnostics panel.
@@ -100,3 +100,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Automatic assembler validation starts 720 ms after typing pauses, runs on a background worker, and ignores stale results after edits or tab switches.
 - Editing no longer snapshots entire source on each keystroke. Source buffers are captured before saving, building, switching tabs and preserving Activity state.
 - Reversible gutter folds do not mark a source as edited or restart background analysis.
+
+## v0.17.0 undo and redo
+
+- Dedicated Undo and Redo buttons on the top toolbar, disabled when unavailable.
+- Incremental per-document edit history, including automatic keyword capitalization and whole-document formatting.
+- Fast adjacent keystrokes and Backspace actions group into a single undoable change. New edits after Undo clear redo history.
+- Independent history for each source tab. The Save/Save As operation records an undo checkpoint, letting undo back to the saved state clear the dirty marker.
+- Source fold/unfold does not create undo entries; image-centered save button fixes left alignment.
+- Undo history is kept during tab switching; restarting the Activity currently initializes a new history.
