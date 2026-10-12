@@ -82,6 +82,9 @@ public class CodeEditorView extends EditText {
     private EditorPreferences.Snapshot editorPreferences;
     private boolean autoFormatting;
     private boolean presentationChange;
+    private boolean replayingHistory;
+    private UndoHistory undoHistory;
+    private Runnable onHistoryChanged;
     private int changeStart;
     private int changeBefore;
     private int changeCount;
@@ -140,7 +143,8 @@ public class CodeEditorView extends EditText {
 
             @Override
             public void afterTextChanged(Editable s) {
-                if (autoFormatting || presentationChange || editorPreferences == null) return;
+                if (autoFormatting || presentationChange || replayingHistory
+                        || editorPreferences == null) return;
                 int cursor = getSelectionStart();
                 if (cursor < 0) return;
 
@@ -158,6 +162,29 @@ public class CodeEditorView extends EditText {
                     uppercaseCurrentLine(s, getSelectionStart());
                 }
             }
+        });
+
+        addTextChangedListener(new TextWatcher() {
+            private String removed = "";
+            private int beforeCursor;
+
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                if (undoHistory == null || replayingHistory || presentationChange) return;
+                removed = s.subSequence(start, start + count).toString();
+                beforeCursor = getSelectionStart();
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (undoHistory == null || replayingHistory || presentationChange) return;
+                String inserted = s.subSequence(start, start + count).toString();
+                undoHistory.record(start, removed, inserted, beforeCursor, start + count,
+                        android.os.SystemClock.uptimeMillis(), autoFormatting);
+                if (onHistoryChanged != null) onHistoryChanged.run();
+            }
+
+            @Override public void afterTextChanged(Editable s) {}
         });
 
         scaleDetector = new ScaleGestureDetector(context,
@@ -189,6 +216,48 @@ public class CodeEditorView extends EditText {
                         post(CodeEditorView.this::clampScrollPosition);
                     }
                 });
+    }
+
+    public void setUndoHistory(UndoHistory history, Runnable changeListener) {
+        undoHistory = history;
+        onHistoryChanged = changeListener;
+        if (onHistoryChanged != null) onHistoryChanged.run();
+    }
+
+    public boolean undoSourceEdit() {
+        return replayHistory(true);
+    }
+
+    public boolean redoSourceEdit() {
+        return replayHistory(false);
+    }
+
+    private boolean replayHistory(boolean undo) {
+        if (undoHistory == null) return false;
+        // Unfold visual placeholders first, so edit offsets refer to real ASM.
+        if (isFolded()) unfoldAll();
+        UndoHistory.Group group = undo ? undoHistory.takeUndo() : undoHistory.takeRedo();
+        if (group == null) return false;
+        replayingHistory = true;
+        try {
+            Editable content = getText();
+            if (undo) {
+                for (int i = group.changes.size() - 1; i >= 0; i--) {
+                    UndoHistory.Change edit = group.changes.get(i);
+                    content.replace(edit.start, edit.start + edit.after.length(), edit.before);
+                }
+                setSelection(Math.max(0, Math.min(group.cursorBefore, content.length())));
+            } else {
+                for (UndoHistory.Change edit : group.changes) {
+                    content.replace(edit.start, edit.start + edit.before.length(), edit.after);
+                }
+                setSelection(Math.max(0, Math.min(group.getCursorAfter(), content.length())));
+            }
+        } finally {
+            replayingHistory = false;
+        }
+        if (onHistoryChanged != null) onHistoryChanged.run();
+        return true;
     }
 
     public void refreshPreferences() {
@@ -283,6 +352,7 @@ public class CodeEditorView extends EditText {
 
     /** Explicit command: uppercase the complete real source including labels and strings. */
     public boolean uppercaseEntireDocument() {
+        if (undoHistory != null) undoHistory.separateNext();
         String source = getSourceText();
         String upper = source.toUpperCase(Locale.ROOT);
         if (upper.equals(source)) return false;
@@ -349,6 +419,7 @@ public class CodeEditorView extends EditText {
     }
 
     public void insertTabFromSettings() {
+        if (undoHistory != null) undoHistory.separateNext();
         refreshPreferences();
         String unit = SourceFormatter.indentUnit(
                 editorPreferences.tabSize, editorPreferences.useSpaces);
@@ -359,6 +430,7 @@ public class CodeEditorView extends EditText {
     }
 
     public void formatAllFromSettings() {
+        if (undoHistory != null) undoHistory.separateNext();
         refreshPreferences();
         String source = getSourceText();
         int oldCursor = Math.max(0, getSelectionStart());
