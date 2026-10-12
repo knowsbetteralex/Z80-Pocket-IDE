@@ -185,20 +185,20 @@ public class MainActivity extends Activity {
         runTap = headerButton("▶", t("Build and run TAP", "Собрать и запустить TAP"), true);
         Button saveSourceButton = headerButton("", t("Save source", "Сохранить исходник"), false);
         saveSourceButton.setCompoundDrawablesWithIntrinsicBounds(
-                android.R.drawable.ic_menu_save, 0, 0, 0);
+                R.drawable.ic_header_save, 0, 0, 0);
         saveSourceButton.setGravity(Gravity.CENTER);
-        Button referenceButton = headerButton("▤", t("Reference", "Справочник"), false);
+        Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
         Button converterButton = headerButton("123", t("DEC / HEX / BIN", "Конвертер DEC / HEX / BIN"), false);
         tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
         Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
                 t("Switch language", "Переключить язык"), false);
-        topBar.addView(mainMenuButton);
         topBar.addView(runTap);
         topBar.addView(saveSourceButton);
         topBar.addView(referenceButton);
         topBar.addView(converterButton);
         topBar.addView(tabKeyButton);
         topBar.addView(languageButton);
+        topBar.addView(mainMenuButton);
         root.addView(topBar);
 
         referenceButton.setOnClickListener(v -> openReference());
@@ -779,10 +779,11 @@ public class MainActivity extends Activity {
         tools.add(0, 12, 0, t("DEC / HEX / BIN converter", "Конвертер DEC / HEX / BIN"));
         tools.add(0, 13, 1, t("Format document", "Форматировать код"));
         tools.add(0, 14, 2, t("Fold / unfold block", "Свернуть / развернуть блок"));
-        tools.add(0, 15, 3, t("Editor settings", "Настройки редактора"));
-        tools.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
+        tools.add(0, 16, 3, t("Choose TAP app", "Выбрать эмулятор TAP"));
         tools.add(0, 17, 5, t("UPPERCASE entire source", "ВЕСЬ КОД → ЗАГЛАВНЫМИ"));
         tools.add(0, 18, 6, t("Clear line selection", "Снять выделение строк"));
+
+        menu.add(0, 15, 100, t("Editor settings", "Настройки редактора"));
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
