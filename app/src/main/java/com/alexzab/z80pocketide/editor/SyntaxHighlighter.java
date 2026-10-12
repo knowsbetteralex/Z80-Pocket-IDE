@@ -2,6 +2,8 @@ package com.alexzab.z80pocketide.editor;
 
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.Spanned;
 import android.text.TextWatcher;
@@ -40,27 +42,27 @@ public final class SyntaxHighlighter {
 
     private SyntaxHighlighter() {}
 
-    public static void attach(EditText editor) {
-        apply(editor.getText());
-        editor.addTextChangedListener(new TextWatcher() {
-            private boolean busy;
+    private static final long SYNTAX_IDLE_MS = 550;
 
+    /**
+     * Debounce full-file highlighting. Do not repaint on every character or
+     * reapply selection after styling: the latter can interrupt fast deletes.
+     */
+    public static void attach(EditText editor) {
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final Runnable repaint = () -> {
+            if (editor.getWindowToken() != null) apply(editor.getText());
+        };
+        editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
 
             @Override public void afterTextChanged(Editable s) {
-                if (busy) return;
-                busy = true;
-                int start = editor.getSelectionStart();
-                int end = editor.getSelectionEnd();
-                apply(s);
-                int length = s.length();
-                if (start >= 0 && end >= 0) {
-                    editor.setSelection(Math.min(start, length), Math.min(end, length));
-                }
-                busy = false;
+                handler.removeCallbacks(repaint);
+                handler.postDelayed(repaint, SYNTAX_IDLE_MS);
             }
         });
+        // The initial document is loaded after attachment and triggers a refresh.
     }
 
     public static void apply(Editable text) {
