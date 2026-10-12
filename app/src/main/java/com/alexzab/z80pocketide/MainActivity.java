@@ -34,6 +34,8 @@ import android.widget.ScrollView;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -116,6 +118,8 @@ public class MainActivity extends Activity {
     private int resultRevision = -1;
     private final Runnable delayedAnalyze = this::performLiveAnalysis;
     private Button runTap;
+    private Button undoButton;
+    private Button redoButton;
     private Button saveTap;
     private Button emulatorButton;
     private Button tabKeyButton;
@@ -195,10 +199,20 @@ public class MainActivity extends Activity {
 
         mainMenuButton = headerButton("☰", t("Menu", "Меню"), false);
         runTap = headerButton("▶", t("Build and run TAP", "Собрать и запустить TAP"), true);
-        Button saveSourceButton = headerButton("", t("Save source", "Сохранить исходник"), false);
-        saveSourceButton.setCompoundDrawablesWithIntrinsicBounds(
-                R.drawable.ic_header_save, 0, 0, 0);
-        saveSourceButton.setGravity(Gravity.CENTER);
+        ImageButton saveSourceButton = new ImageButton(this);
+        saveSourceButton.setContentDescription(t("Save source", "Сохранить исходник"));
+        saveSourceButton.setImageResource(R.drawable.ic_header_save);
+        saveSourceButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        saveSourceButton.setPadding(dp(7), dp(7), dp(7), dp(7));
+        saveSourceButton.setBackground(UiStyle.ripple(this,
+                0xFFE3F1E8, 14, 0xFFB8D7C5));
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(dp(34), dp(42));
+        saveParams.setMargins(dp(1), 0, dp(1), 0);
+        saveSourceButton.setLayoutParams(saveParams);
+        undoButton = headerButton("↶", t("Undo", "Отменить"), false);
+        redoButton = headerButton("↷", t("Redo", "Повторить"), false);
+        undoButton.setEnabled(false);
+        redoButton.setEnabled(false);
         Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
         Button converterButton = headerButton("123", t("DEC / HEX / BIN", "Конвертер DEC / HEX / BIN"), false);
         tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
@@ -206,6 +220,8 @@ public class MainActivity extends Activity {
                 t("Switch language", "Переключить язык"), false);
         topBar.addView(runTap);
         topBar.addView(saveSourceButton);
+        topBar.addView(undoButton);
+        topBar.addView(redoButton);
         topBar.addView(referenceButton);
         topBar.addView(converterButton);
         topBar.addView(tabKeyButton);
@@ -221,6 +237,8 @@ public class MainActivity extends Activity {
         mainMenuButton.setOnClickListener(v -> showMainMenu());
         runTap.setOnClickListener(v -> runTapInEmulator());
         saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
+        undoButton.setOnClickListener(v -> undoOrRedo(true));
+        redoButton.setOnClickListener(v -> undoOrRedo(false));
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
         root.addView(stripe, new LinearLayout.LayoutParams(
@@ -352,19 +370,20 @@ public class MainActivity extends Activity {
             @Override
             public void afterTextChanged(Editable s) {
                 if (loadingDocument || !hasActiveDocument()
-                        || editor.isPresentationChange()) return;
+                        || editor.isPresentationChange()
+                        || editor.isReplayingHistory()) return;
                 EditorDocument doc = currentDocument();
                 // Avoid copying/rechecking the entire source on every keystroke.
                 // captureCurrentDocument() persists the actual buffer before
                 // tab changes, saving, building and Activity state persistence.
                 boolean wasDirty = doc.dirty;
-                doc.dirty = true;
+                doc.dirty = !doc.history.isAtSavePoint();
                 doc.invalidateBuild();
                 saveTap.setEnabled(false);
                 scheduleAnalysis();
                 setStatus(t("Modified · source file not saved",
                         "Изменено · исходный файл не сохранён"), Color.rgb(120, 85, 0));
-                if (!wasDirty) renderTabs();
+                if (wasDirty != doc.dirty) renderTabs();
             }
         });
 
@@ -528,7 +547,7 @@ public class MainActivity extends Activity {
         button.setPadding(0, 0, 0, 0);
         if (primary) UiStyle.styleGreenButton(button);
         else UiStyle.styleSoftGreenButton(button);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(35), dp(42));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(34), dp(42));
         params.setMargins(dp(1), 0, dp(1), 0);
         button.setLayoutParams(params);
         return button;
@@ -636,6 +655,7 @@ public class MainActivity extends Activity {
         analysisError = null;
         analyzeHandler.removeCallbacks(delayedAnalyze);
         editor.setSourceText(doc.text);
+        editor.setUndoHistory(doc.history, this::updateUndoRedoButtons);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
         editor.post(() -> editor.scrollTo(doc.scrollX, doc.scrollY));
@@ -651,6 +671,29 @@ public class MainActivity extends Activity {
                             ? t("File · ", "Файл · ") + doc.title
                             : t("Tab · ", "Вкладка · ") + doc.title),
                 doc.dirty ? Color.rgb(120, 85, 0) : Color.rgb(90, 90, 90));
+    }
+
+    private void updateUndoRedoButtons() {
+        if (undoButton == null || redoButton == null) return;
+        boolean active = hasActiveDocument();
+        undoButton.setEnabled(active && currentDocument().history.canUndo());
+        redoButton.setEnabled(active && currentDocument().history.canRedo());
+    }
+
+    private void undoOrRedo(boolean undo) {
+        if (!hasActiveDocument() || editor == null) return;
+        EditorDocument doc = currentDocument();
+        boolean wasDirty = doc.dirty;
+        boolean changed = undo ? editor.undoSourceEdit() : editor.redoSourceEdit();
+        if (!changed) return;
+        doc.dirty = !doc.history.isAtSavePoint();
+        doc.invalidateBuild();
+        saveTap.setEnabled(false);
+        if (wasDirty != doc.dirty) renderTabs();
+        scheduleAnalysis();
+        updateUndoRedoButtons();
+        setStatus(undo ? t("Undo", "Изменение отменено")
+                : t("Redo", "Изменение повторено"), Color.rgb(45, 100, 72));
     }
 
     private void captureCurrentDocument() {
@@ -982,7 +1025,9 @@ public class MainActivity extends Activity {
 
         try {
             writeSource(Uri.parse(doc.uriString), doc.text);
+            doc.history.markSaved();
             doc.dirty = false;
+            updateUndoRedoButtons();
             renderTabs();
             setStatus(t("Saved · ", "Сохранено · ") + doc.title, Color.rgb(0, 110, 45));
             Toast.makeText(this, t("Source saved", "Исходник сохранён"), Toast.LENGTH_SHORT).show();
@@ -1452,7 +1497,9 @@ public class MainActivity extends Activity {
                 doc.uriString = actualUri.toString();
                 String name = displayName(actualUri);
                 if (name != null && !name.trim().isEmpty()) doc.title = name;
+                doc.history.markSaved();
                 doc.dirty = false;
+                updateUndoRedoButtons();
                 renderTabs();
                 boolean doubleExtension = SourceFileNames.hasUnwantedTextSuffix(name);
                 setStatus((doubleExtension
