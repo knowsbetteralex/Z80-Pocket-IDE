@@ -70,6 +70,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -101,7 +104,16 @@ public class MainActivity extends Activity {
     private String analyzedSource;
     private String analysisError;
     private static final Pattern ERROR_LINE = Pattern.compile("^line (\\d+):");
+    private static final long ANALYSIS_IDLE_MS = 720;
     private final Handler analyzeHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService analysisExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "z80-source-analysis");
+        t.setDaemon(true);
+        return t;
+    });
+    private Future<?> runningAnalysis;
+    private volatile int analysisRevision;
+    private int resultRevision = -1;
     private final Runnable delayedAnalyze = this::performLiveAnalysis;
     private Button runTap;
     private Button saveTap;
@@ -339,13 +351,13 @@ public class MainActivity extends Activity {
 
             @Override
             public void afterTextChanged(Editable s) {
-                if (loadingDocument || !hasActiveDocument()) return;
+                if (loadingDocument || !hasActiveDocument()
+                        || editor.isPresentationChange()) return;
                 EditorDocument doc = currentDocument();
-                String next = editor.getSourceText();
-                if (next.equals(doc.text)) return;
-
+                // Avoid copying/rechecking the entire source on every keystroke.
+                // captureCurrentDocument() persists the actual buffer before
+                // tab changes, saving, building and Activity state persistence.
                 boolean wasDirty = doc.dirty;
-                doc.text = next;
                 doc.dirty = true;
                 doc.invalidateBuild();
                 saveTap.setEnabled(false);
@@ -363,7 +375,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        ++analysisRevision;
         analyzeHandler.removeCallbacks(delayedAnalyze);
+        if (runningAnalysis != null) runningAnalysis.cancel(true);
+        analysisExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -663,7 +678,10 @@ public class MainActivity extends Activity {
     }
 
     private void scheduleAnalysis() {
+        ++analysisRevision;
+        resultRevision = -1;
         analyzeHandler.removeCallbacks(delayedAnalyze);
+        if (runningAnalysis != null) runningAnalysis.cancel(true);
         liveAnalysis = null;
         analyzedSource = null;
         analysisError = null;
@@ -673,37 +691,60 @@ public class MainActivity extends Activity {
             SyntaxHighlighter.setErrorLine(editor, 0);
         }
         updateStatistics();
-        analyzeHandler.postDelayed(delayedAnalyze, 280);
+        analyzeHandler.postDelayed(delayedAnalyze, ANALYSIS_IDLE_MS);
     }
 
+    /** Snapshot only after the user stops typing; execute all parsing off the UI thread. */
     private void performLiveAnalysis() {
         if (!hasActiveDocument() || editor == null || loadingDocument) return;
-        String source = editor.getSourceText();
-        try {
-            AssemblyResult value = new Assembler().assemble(source);
-            if (!source.equals(editor.getSourceText())) return;
-            liveAnalysis = value;
-            analyzedSource = source;
-            analysisError = null;
-            analysisIssues.clear();
-            SyntaxHighlighter.setErrorLine(editor, 0);
-            editor.setInstructionMetrics(value.getLineSizes(),
-                    value.getLineMinCyclesArray(), value.getLineMaxCyclesArray(),
-                    value.getInstructionFlags());
-        } catch (RuntimeException exception) {
-            liveAnalysis = null;
-            analyzedSource = null;
-            analysisError = Texts.localizeAssemblerError(language, exception.getMessage());
-            analysisIssues = AssemblyDiagnostics.collect(source, 8);
-            if (analysisIssues.isEmpty())
-                analysisIssues.add(new AssemblyDiagnostics.Issue(0,
-                        exception.getMessage() == null ? "Assembler error" : exception.getMessage()));
-            editor.clearInstructionMetrics();
-            SyntaxHighlighter.setErrorLine(editor,
-                    editor.isFolded() ? 0 : diagnosticLine(exception.getMessage()));
-        }
-        updateStatistics();
-        refreshStatusPanel();
+        final int revision = analysisRevision;
+        final int tabIndex = activeIndex;
+        final EditorDocument tab = currentDocument();
+        final String source = editor.getSourceText();
+
+        runningAnalysis = analysisExecutor.submit(() -> {
+            if (Thread.currentThread().isInterrupted() || revision != analysisRevision) return;
+            AssemblyResult result = null;
+            String error = null;
+            List<AssemblyDiagnostics.Issue> issues = new ArrayList<>();
+            try {
+                result = new Assembler().assemble(source);
+            } catch (RuntimeException ex) {
+                error = ex.getMessage() == null ? "Assembler error" : ex.getMessage();
+                if (revision == analysisRevision && !Thread.currentThread().isInterrupted()) {
+                    issues = AssemblyDiagnostics.collect(source, 8);
+                    if (issues.isEmpty()) issues.add(new AssemblyDiagnostics.Issue(0, error));
+                }
+            }
+
+            final AssemblyResult finished = result;
+            final String finishedError = error;
+            final List<AssemblyDiagnostics.Issue> found = issues;
+            analyzeHandler.post(() -> {
+                if (isFinishing() || isDestroyed()
+                        || revision != analysisRevision
+                        || !hasActiveDocument() || activeIndex != tabIndex
+                        || currentDocument() != tab || loadingDocument) return;
+
+                liveAnalysis = finished;
+                resultRevision = revision;
+                analyzedSource = finished == null ? null : source;
+                analysisError = finishedError == null
+                        ? null : Texts.localizeAssemblerError(language, finishedError);
+                analysisIssues = found;
+                SyntaxHighlighter.setErrorLine(editor,
+                        finishedError == null || editor.isFolded()
+                                ? 0 : diagnosticLine(finishedError));
+                if (finished == null) {
+                    editor.clearInstructionMetrics();
+                } else {
+                    editor.setInstructionMetrics(finished.getLineSizes(),
+                            finished.getLineMinCyclesArray(), finished.getLineMaxCyclesArray(),
+                            finished.getInstructionFlags());
+                }
+                updateStatistics();
+            });
+        });
     }
 
     private void updateStatistics() {
@@ -719,7 +760,7 @@ public class MainActivity extends Activity {
             return;
         }
         statistics.setTextColor(Color.rgb(35, 105, 66));
-        if (liveAnalysis == null || !editor.getSourceText().equals(analyzedSource)) {
+        if (liveAnalysis == null || resultRevision != analysisRevision) {
             statistics.setText(t("Size/T: — (check source)", "Байты/такты: — (проверьте код)"));
             refreshStatusPanel();
             return;
@@ -1224,6 +1265,7 @@ public class MainActivity extends Activity {
                     tapProgramName(doc.title), result.getOrigin(), result.getBytes());
             doc.lastBuiltSource = doc.text;
             liveAnalysis = result;
+            resultRevision = analysisRevision;
             analyzedSource = doc.text;
             analysisError = null;
             analysisIssues.clear();
