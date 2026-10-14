@@ -75,7 +75,7 @@ public final class ToolsActivity extends Activity {
         title.setTextSize(21);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setPadding(dp(12),0,0,0);
-        header.addView(title,new LinearLayout.LayoutParams(0,LayoutParams.WRAP_CONTENT,1f));
+        header.addView(title,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f));
         root.addView(header);
         back.setOnClickListener(v->finish());
 
