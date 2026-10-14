@@ -7,21 +7,25 @@ import android.graphics.Paint;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+
 import com.alexzab.z80pocketide.ui.UiStyle;
 
-/** Pinch-zoomable pixel grid; paint with one finger or use Hand mode to pan. */
+/**
+ * A one-finger stroke paints or erases depending on the starting pixel.
+ * Two fingers always transform the viewport: move to pan and pinch to zoom.
+ */
 public final class SpriteCanvasView extends View {
-    private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint lines = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final ScaleGestureDetector pinch;
+    private final Paint pixels = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint grid = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final ScaleGestureDetector scaleDetector;
     private SpriteData data;
-    private SpriteData.Mode brushMode = SpriteData.Mode.INK;
-    private int brushColor = 15;
-    private boolean handMode;
-    private float cell = 14f, originX = 16f, originY = 16f;
-    private float lastTouchX, lastTouchY;
-    private int lastDotX = -1, lastDotY = -1;
-    private boolean pinching;
+    private float cell = 14f;
+    private float originX;
+    private float originY;
+    private float focusX, focusY;
+    private int previousPixelX = -1, previousPixelY = -1;
+    private boolean strokeFills;
+    private boolean transforming;
     private Runnable onChange;
 
     public SpriteCanvasView(Context context, SpriteData initial) {
@@ -29,14 +33,15 @@ public final class SpriteCanvasView extends View {
         data = initial;
         setBackground(UiStyle.rounded(context, Color.WHITE, 18, 0xFFCBDDD1, 1));
         setMinimumHeight(Math.round(dp(270)));
-        pinch = new ScaleGestureDetector(context,
+        scaleDetector = new ScaleGestureDetector(context,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                    @Override public boolean onScaleBegin(ScaleGestureDetector d) {
-                        pinching = true;
+                    @Override public boolean onScaleBegin(ScaleGestureDetector detector) {
+                        transforming = true;
                         return true;
                     }
-                    @Override public boolean onScale(ScaleGestureDetector d) {
-                        zoomAt(d.getScaleFactor(), d.getFocusX(), d.getFocusY());
+                    @Override public boolean onScale(ScaleGestureDetector detector) {
+                        zoomAt(detector.getScaleFactor(),
+                                detector.getFocusX(), detector.getFocusY());
                         return true;
                     }
                 });
@@ -44,136 +49,186 @@ public final class SpriteCanvasView extends View {
 
     public void setModel(SpriteData model) {
         data = model;
-        resetView();
-        invalidate();
-    }
-
-    public void setBrush(SpriteData.Mode mode, int color, boolean hand) {
-        brushMode = mode;
-        brushColor = color;
-        handMode = hand;
+        fitHeight();
     }
 
     public void setOnChange(Runnable callback) { onChange = callback; }
 
-    public void resetView() {
-        if (data == null || getWidth() <= 0) return;
-        cell = Math.max(3f, Math.min(24f,
-                Math.min((getWidth() - dp(20f)) / data.width(),
-                        (getHeight() - dp(20f)) / data.height())));
+    /** Fit to the entire available height, even if the resulting width exceeds the viewport. */
+    public void fitHeight() {
+        if (data == null || getHeight() <= 0 || getWidth() <= 0) {
+            post(this::fitIfReady);
+            return;
+        }
+        cell = Math.max(2.5f, (getHeight() - 2f * dp(10)) / data.height());
         originX = (getWidth() - data.width() * cell) / 2f;
         originY = (getHeight() - data.height() * cell) / 2f;
         invalidate();
     }
 
-    public void zoom(float factor) { zoomAt(factor, getWidth()/2f, getHeight()/2f); }
+    private void fitIfReady() {
+        if (getWidth() > 0 && getHeight() > 0) fitHeight();
+    }
 
-    private void zoomAt(float factor, float fx, float fy) {
-        float next = Math.max(3f, Math.min(80f, cell * factor));
-        originX = fx - (fx - originX) * next / cell;
-        originY = fy - (fy - originY) * next / cell;
+    private void zoomAt(float factor, float centerX, float centerY) {
+        if (Float.isNaN(factor) || factor <= 0f) return;
+        float next = Math.max(2.5f, Math.min(240f, cell * factor));
+        originX = centerX - (centerX - originX) * (next / cell);
+        originY = centerY - (centerY - originY) * (next / cell);
         cell = next;
         invalidate();
     }
 
-    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        super.onSizeChanged(w, h, oldw, oldh);
-        if (oldw == 0 || oldh == 0) resetView();
+    @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
+        super.onSizeChanged(width, height, oldWidth, oldHeight);
+        if (oldWidth == 0 || oldHeight == 0) fitHeight();
     }
 
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (data == null) return;
+
         canvas.save();
         canvas.clipRect(0, 0, getWidth(), getHeight());
-        for (int y = 0; y < data.height(); y++) {
-            for (int x = 0; x < data.width(); x++) {
-                float left = originX + x * cell, top = originY + y * cell;
-                if (left + cell < 0 || top + cell < 0 || left > getWidth() || top > getHeight()) continue;
-                fill.setColor(data.displayedColor(x, y));
-                canvas.drawRect(left, top, left + cell + .25f, top + cell + .25f, fill);
+        int startX = Math.max(0, (int)Math.floor(-originX / cell));
+        int endX = Math.min(data.width(), (int)Math.ceil((getWidth() - originX) / cell));
+        int startY = Math.max(0, (int)Math.floor(-originY / cell));
+        int endY = Math.min(data.height(), (int)Math.ceil((getHeight() - originY) / cell));
+
+        for (int y = startY; y < endY; y++) {
+            float top = originY + y * cell;
+            for (int x = startX; x < endX; x++) {
+                float left = originX + x * cell;
+                pixels.setColor(data.displayedColor(x, y));
+                canvas.drawRect(left, top, left + cell + .3f, top + cell + .3f, pixels);
             }
         }
-        float w = data.width() * cell, h = data.height() * cell;
-        if (cell > 6) {
-            lines.setStyle(Paint.Style.STROKE);
-            lines.setStrokeWidth(.65f);
-            lines.setColor(0x55808080);
-            for (int x = 1; x < data.width(); x++) {
-                float xx = originX + x * cell;
-                if (xx >= 0 && xx <= getWidth())
-                    canvas.drawLine(xx, originY, xx, originY + h, lines);
-            }
-            for (int y = 1; y < data.height(); y++) {
-                float yy = originY + y * cell;
-                if (yy >= 0 && yy <= getHeight())
-                    canvas.drawLine(originX, yy, originX + w, yy, lines);
-            }
+
+        float spriteW = data.width() * cell, spriteH = data.height() * cell;
+        // Draw grid AFTER all pixels, including filled ones, for equal contrast.
+        grid.setStyle(Paint.Style.STROKE);
+        grid.setStrokeWidth(dp(1.35f));
+        grid.setColor(0xAF858E88);
+        for (int x = Math.max(0,startX); x <= endX; x++) {
+            float px = originX + x * cell;
+            canvas.drawLine(px, originY, px, originY + spriteH, grid);
         }
-        lines.setColor(0xFF426C51);
-        lines.setStrokeWidth(dp(1.6f));
+        for (int y = Math.max(0,startY); y <= endY; y++) {
+            float py = originY + y * cell;
+            canvas.drawLine(originX, py, originX + spriteW, py, grid);
+        }
+
+        // 8x8 cell edges thicker; semi-transparent on INK and PAPER alike.
+        grid.setStrokeWidth(dp(2.3f));
+        grid.setColor(0xC17A9F88);
         for (int x = 0; x <= data.cellsX(); x++) {
-            float xx = originX + x * 8 * cell;
-            canvas.drawLine(xx, originY, xx, originY + h, lines);
+            float px = originX + x * 8 * cell;
+            canvas.drawLine(px, originY, px, originY + spriteH, grid);
         }
         for (int y = 0; y <= data.cellsY(); y++) {
-            float yy = originY + y * 8 * cell;
-            canvas.drawLine(originX, yy, originX + w, yy, lines);
+            float py = originY + y * 8 * cell;
+            canvas.drawLine(originX, py, originX + spriteW, py, grid);
         }
-        lines.setStyle(Paint.Style.FILL);
+        grid.setStyle(Paint.Style.FILL);
         canvas.restore();
     }
 
     @Override public boolean onTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
-        pinch.onTouchEvent(event);
+        // The detector handles zoom; two-pointer centroid motion handles panning.
+        scaleDetector.onTouchEvent(event);
+
         if (action == MotionEvent.ACTION_DOWN) {
-            pinching = false;
-            lastTouchX = event.getX(); lastTouchY = event.getY();
-            lastDotX = lastDotY = -1;
+            transforming = false;
+            previousPixelX = previousPixelY = -1;
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
-            if (!handMode) drawAt(event.getX(), event.getY());
+            int x = xPixel(event.getX()), y = yPixel(event.getY());
+            if (valid(x,y)) {
+                strokeFills = !data.getPixel(x,y);
+                strokeTo(x,y);
+            }
             return true;
         }
+
         if (action == MotionEvent.ACTION_POINTER_DOWN) {
-            pinching = true;
+            transforming = true;
+            previousPixelX = previousPixelY = -1;
+            focusX = averageX(event);
+            focusY = averageY(event);
             return true;
         }
+
         if (action == MotionEvent.ACTION_MOVE) {
-            if (pinching || event.getPointerCount() > 1 || pinch.isInProgress()) return true;
-            if (handMode) {
-                originX += event.getX() - lastTouchX;
-                originY += event.getY() - lastTouchY;
-                invalidate();
-            } else drawAt(event.getX(), event.getY());
-            lastTouchX = event.getX();
-            lastTouchY = event.getY();
+            if (event.getPointerCount() >= 2) {
+                float midX = averageX(event), midY = averageY(event);
+                if (transforming) {
+                    originX += midX - focusX;
+                    originY += midY - focusY;
+                    invalidate();
+                }
+                focusX = midX;
+                focusY = midY;
+                return true;
+            }
+            // Never accidentally draw when lifting one finger out of a pinch.
+            if (!transforming) {
+                int x = xPixel(event.getX()), y = yPixel(event.getY());
+                if (valid(x,y)) strokeTo(x,y);
+                else previousPixelX = previousPixelY = -1;
+            }
             return true;
         }
+
+        if (action == MotionEvent.ACTION_POINTER_UP) {
+            transforming = true;
+            return true;
+        }
+
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-            pinching = false;
-            lastDotX = lastDotY = -1;
+            if (action == MotionEvent.ACTION_UP) performClick();
+            previousPixelX = previousPixelY = -1;
+            transforming = false;
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(false);
             return true;
         }
         return true;
     }
 
-    private void drawAt(float px, float py) {
-        int x = (int)Math.floor((px - originX) / cell);
-        int y = (int)Math.floor((py - originY) / cell);
-        if (x < 0 || y < 0 || x >= data.width() || y >= data.height()) return;
-        if (lastDotX == x && lastDotY == y) return;
-        // Draw a continuous line even when the finger crosses pixels quickly.
-        int sx = lastDotX < 0 ? x : lastDotX;
-        int sy = lastDotY < 0 ? y : lastDotY;
-        int count = Math.max(Math.abs(x-sx), Math.abs(y-sy));
-        for (int i = 0; i <= count; i++) {
-            int xx = count == 0 ? x : sx + (x-sx)*i/count;
-            int yy = count == 0 ? y : sy + (y-sy)*i/count;
-            data.paint(xx, yy, brushColor, brushMode);
+    @Override public boolean performClick() {
+        super.performClick();
+        return true;
+    }
+
+    private float averageX(MotionEvent event) {
+        float value = 0f;
+        for (int i = 0; i < event.getPointerCount(); i++) value += event.getX(i);
+        return value / event.getPointerCount();
+    }
+
+    private float averageY(MotionEvent event) {
+        float value = 0f;
+        for (int i = 0; i < event.getPointerCount(); i++) value += event.getY(i);
+        return value / event.getPointerCount();
+    }
+
+    private int xPixel(float x) { return (int)Math.floor((x - originX) / cell); }
+    private int yPixel(float y) { return (int)Math.floor((y - originY) / cell); }
+    private boolean valid(int x, int y) {
+        return x >= 0 && y >= 0 && x < data.width() && y < data.height();
+    }
+
+    private void strokeTo(int x, int y) {
+        if (previousPixelX == x && previousPixelY == y) return;
+        int fromX = previousPixelX < 0 ? x : previousPixelX;
+        int fromY = previousPixelY < 0 ? y : previousPixelY;
+        int steps = Math.max(Math.abs(x - fromX), Math.abs(y - fromY));
+        for (int i = 0; i <= steps; i++) {
+            int xx = steps == 0 ? x : fromX + (x - fromX) * i / steps;
+            int yy = steps == 0 ? y : fromY + (y - fromY) * i / steps;
+            data.setPixel(xx, yy, strokeFills);
         }
-        lastDotX = x; lastDotY = y;
+        previousPixelX = x;
+        previousPixelY = y;
         invalidate();
         if (onChange != null) onChange.run();
     }
