@@ -10,6 +10,10 @@ public final class SpriteData {
     private final int width, height, cellsX, cellsY;
     private final boolean[][] dots;
     private final int[][] attributes;
+    // Whole-sprite palette. Hardware has one BRIGHT bit shared by INK and PAPER.
+    private int inkColor = 7;
+    private int paperColor = 0;
+    private boolean bright;
 
     public SpriteData(int width, int height) {
         if (width < 8 || width > 64 || (width & 7) != 0
@@ -29,6 +33,46 @@ public final class SpriteData {
     public int height() { return height; }
     public int cellsX() { return cellsX; }
     public int cellsY() { return cellsY; }
+
+
+    /** Global INK/PAPER changes recolor existing pixels immediately, without changing bitmap. */
+    public void setInkColor(int paletteIndex) {
+        checkColor(paletteIndex);
+        inkColor = paletteIndex & 7;
+        bright = (paletteIndex & 8) != 0;
+        recolorAll();
+    }
+
+    public void setPaperColor(int paletteIndex) {
+        checkColor(paletteIndex);
+        paperColor = paletteIndex & 7;
+        bright = (paletteIndex & 8) != 0;
+        recolorAll();
+    }
+
+    public int getInkColor() { return inkColor | (bright ? 8 : 0); }
+    public int getPaperColor() { return paperColor | (bright ? 8 : 0); }
+
+    private void checkColor(int color) {
+        if (color < 0 || color > 15)
+            throw new IllegalArgumentException("Spectrum color: 0..15");
+    }
+
+    private void recolorAll() {
+        int attribute = (bright ? 0x40 : 0) | (paperColor << 3) | inkColor;
+        for (int y = 0; y < cellsY; y++)
+            for (int x = 0; x < cellsX; x++) attributes[y][x] = attribute;
+    }
+
+    public void setPixel(int x, int y, boolean filled) {
+        if (x < 0 || y < 0 || x >= width || y >= height) return;
+        dots[y][x] = filled;
+    }
+
+    public void clearPixels() {
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++) dots[y][x] = false;
+    }
 
     public boolean getPixel(int x, int y) { return dots[y][x]; }
 
@@ -113,9 +157,10 @@ public final class SpriteData {
     }
 
     public void clear() {
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++) dots[y][x] = false;
-        for (int y = 0; y < cellsY; y++)
-            for (int x = 0; x < cellsX; x++) attributes[y][x] = 0x07;
+        clearPixels();
+        inkColor = 7;
+        paperColor = 0;
+        bright = false;
+        recolorAll();
     }
 }
