@@ -32,6 +32,45 @@ public final class SpriteDataTest {
         assertEquals(4,s.attributeBytes().length);
     }
 
+    @Test public void recoloursEveryCellButKeepsBitmapUntouched() {
+        SpriteData s = new SpriteData(16, 16);
+        s.setPixel(0, 0, true);
+        s.setPixel(15, 15, true);
+        s.setInkColor(10); // bright red; BRIGHT is shared across INK/PAPER.
+        for (int row = 0; row < 2; row++)
+            for (int col = 0; col < 2; col++)
+                assertEquals(0x42, s.attribute(col, row));
+        assertEquals(SpriteData.palette(10), s.displayedColor(0, 0));
+        assertEquals(SpriteData.palette(8), s.displayedColor(2, 2));
+        s.setPaperColor(13); // bright cyan; now all attributes should be 0x6A.
+        for (int attr : s.attributeBytes()) assertEquals(0x6A, attr);
+        assertEquals(SpriteData.palette(13), s.displayedColor(1, 0));
+        assertEquals(SpriteData.palette(10), s.displayedColor(0, 0));
+        assertTrue(s.getPixel(0, 0));
+        assertTrue(s.getPixel(15, 15));
+        assertTrue(s.dbAttributes(false).contains("$6A"));
+        s.setPaperColor(5); // normal cyan dims INK too because BRIGHT is shared.
+        for (int attr : s.attributeBytes()) assertEquals(0x2A, attr);
+        assertEquals(SpriteData.palette(2), s.displayedColor(0, 0));
+    }
+
+    @Test public void strokeEraseAndClearOnlyPixelsKeepsColours() {
+        SpriteData s = new SpriteData(16, 8);
+        s.setInkColor(15);
+        s.setPaperColor(8);
+        s.setPixel(1, 2, true);
+        s.setPixel(7, 2, true);
+        assertEquals(0x40 | 0x07, s.attribute(0,0));
+        s.setPixel(1, 2, false);
+        assertFalse(s.getPixel(1, 2));
+        assertTrue(s.getPixel(7, 2));
+        s.clearPixels();
+        assertFalse(s.getPixel(7, 2));
+        assertEquals(0x47, s.attribute(0, 0));
+        assertEquals(8, s.getPaperColor());
+        assertEquals(15, s.getInkColor());
+    }
+
     @Test(expected=IllegalArgumentException.class)
     public void widthMustBeMultipleOfEight(){new SpriteData(13,16);}
 }
