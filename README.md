@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.17.0)
+## Current development build (v0.18.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -109,3 +109,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Independent history for each source tab. The Save/Save As operation records an undo checkpoint, letting undo back to the saved state clear the dirty marker.
 - Source fold/unfold does not create undo entries; image-centered save button fixes left alignment.
 - Undo history is kept during tab switching; restarting the Activity currently initializes a new history.
+
+## v0.18.0 Spectrum workshop
+
+- Wrench icon opens one **Tools** screen with tabs: Number converter / Screen addresses / Sprite painter.
+- DEC / HEX / BIN converter remains available with live bidirectional updates and Clear.
+- Screen-address calculator supports linked third (0..2), character row within third (0..7), pixel line (0..7), byte column (0..31), attribute row (0..23), bitmap/attribute addresses in editable HEX and BIN. Bit groups `010 TT LLL RRR CCCCC` are colored by field.
+- Sprite painter: independent 8..64 pixel width/height in 8-pixel increments, pinch zoom, +/- zoom and fit, draw/pan/erase/paper modes, 16 Spectrum palette swatches. Enforces per-8×8 INK/PAPER/BRIGHT attributes.
+- Sprite bitmap and attribute bytes are previewed and can be inserted into the current editor at the cursor, in HEX (`DB $xx`) or BIN (`DB %xxxxxxxx`) format. Normal editor Undo works after insertion.
+- Sprite bitmap export is row-major (a portable sprite format), not interleaved screen RAM order; attributes export in character-cell order.
