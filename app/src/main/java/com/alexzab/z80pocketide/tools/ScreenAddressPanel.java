@@ -21,7 +21,8 @@ public final class ScreenAddressPanel extends LinearLayout {
     private static final int C_ROW = 0xFF9B4AA8;
     private static final int C_COL = 0xFF2869B0;
     private final boolean ru;
-    private final EditText row, pixelLine, column, third;
+    private final EditText row, pixelLine, column;
+    private final TextView third;
     private final EditText attrRow, attrCol, pixelHex, pixelBinary, attrHex, attrBinary;
     private final TextView status;
     private ScreenAddress current = new ScreenAddress(0, 0, 0, 0);
@@ -35,13 +36,13 @@ public final class ScreenAddressPanel extends LinearLayout {
 
         addView(heading(t("Bitmap: 010 TT LLL RRR CCCCC",
                 "Экран: 010 TT LLL RRR CCCCC"), 17, C_THIRD));
-        addView(description(t("Row is 0–7 inside the selected third. Column is a byte (8 pixels).",
-                "Строка 0–7 внутри трети. Столбец — байт (8 пикселей).")));
+        addView(description(t("Row is 0–23 across the entire screen; third is calculated. Column is a byte (8 pixels).",
+                "Строка 0–23 по всему экрану; треть вычисляется автоматически. Столбец — байт (8 пикселей).")));
 
         LinearLayout coords = card();
         LinearLayout one = horizontal();
-        third = field(one, t("Third TT", "Треть TT"), "0", C_THIRD, true);
-        row = field(one, t("Row RRR", "Строка RRR"), "0", C_ROW, true);
+        third = readOnlyField(one, t("Third TT · automatic", "Треть TT · автоматически"), C_THIRD);
+        row = field(one, t("Char row 0–23", "Строка 0–23"), "0", C_ROW, true);
         coords.addView(one);
         LinearLayout two = horizontal();
         pixelLine = field(two, t("Pixel line LLL", "Пикс. линия LLL"), "0", C_LINE, true);
@@ -79,7 +80,6 @@ public final class ScreenAddressPanel extends LinearLayout {
         status.setTextColor(0xFF977143);
         addView(status);
 
-        watchCoordinate(third, 0);
         watchCoordinate(row, 1);
         watchCoordinate(pixelLine, 2);
         watchCoordinate(column, 3);
@@ -97,8 +97,7 @@ public final class ScreenAddressPanel extends LinearLayout {
         watch(field, raw -> {
             int value = Integer.parseInt(raw);
             switch (component) {
-                case 0: return new ScreenAddress(value, current.row, current.pixelLine, current.column);
-                case 1: return new ScreenAddress(current.third, value, current.pixelLine, current.column);
+                case 1: return ScreenAddress.fromAttributeCoordinates(value, current.column, current.pixelLine);
                 case 2: return new ScreenAddress(current.third, current.row, value, current.column);
                 default: return new ScreenAddress(current.third, current.row, current.pixelLine, value);
             }
@@ -143,8 +142,8 @@ public final class ScreenAddressPanel extends LinearLayout {
     private void apply(ScreenAddress next, EditText excluded) {
         current = next;
         updating = true;
-        setField(third, String.valueOf(current.third), excluded);
-        setField(row, String.valueOf(current.row), excluded);
+        third.setText(String.valueOf(current.third));
+        setField(row, String.valueOf(current.characterRow()), excluded);
         setField(pixelLine, String.valueOf(current.pixelLine), excluded);
         setField(column, String.valueOf(current.column), excluded);
         setField(attrRow, String.valueOf(current.characterRow()), excluded);
@@ -197,6 +196,25 @@ public final class ScreenAddressPanel extends LinearLayout {
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(HORIZONTAL);
         return row;
+    }
+
+    private TextView readOnlyField(LinearLayout row, String label, int color) {
+        LinearLayout section = new LinearLayout(getContext());
+        section.setOrientation(VERTICAL);
+        section.addView(heading(label, 12, color));
+        TextView value = new TextView(getContext());
+        value.setText("0");
+        value.setGravity(Gravity.CENTER_VERTICAL);
+        value.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        value.setTextSize(19);
+        value.setTextColor(color);
+        value.setPadding(dp(14), 0, dp(10), 0);
+        value.setBackground(UiStyle.rounded(getContext(), 0xFFE5F1E9, 12, 0xFFB6D5C1, 1));
+        section.addView(value, new LayoutParams(LayoutParams.MATCH_PARENT, dp(48)));
+        LayoutParams params = new LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f);
+        params.setMargins(dp(3), 0, dp(3), dp(5));
+        row.addView(section, params);
+        return value;
     }
 
     private EditText field(LinearLayout row, String label, String hint, int color, boolean numeric) {
