@@ -83,6 +83,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_EXAMPLE = 1002;
     private static final int REQUEST_OPEN_SOURCE = 1003;
     private static final int REQUEST_SAVE_SOURCE_AS = 1004;
+    private static final int REQUEST_TOOLS = 1005;
 
     private static final String STATE_TITLES = "tab_titles";
     private static final String STATE_TEXTS = "tab_texts";
@@ -214,7 +215,15 @@ public class MainActivity extends Activity {
         undoButton.setEnabled(false);
         redoButton.setEnabled(false);
         Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
-        Button converterButton = headerButton("123", t("DEC / HEX / BIN", "Конвертер DEC / HEX / BIN"), false);
+        ImageButton converterButton = new ImageButton(this);
+        converterButton.setContentDescription(t("Tools", "Инструменты"));
+        converterButton.setImageResource(R.drawable.ic_header_tools);
+        converterButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        converterButton.setPadding(dp(7), dp(7), dp(7), dp(7));
+        converterButton.setBackground(UiStyle.ripple(this, 0xFFE3F1E8, 14, 0xFFB8D7C5));
+        LinearLayout.LayoutParams workshopParams = new LinearLayout.LayoutParams(dp(34), dp(42));
+        workshopParams.setMargins(dp(1), 0, dp(1), 0);
+        converterButton.setLayoutParams(workshopParams);
         tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
         Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
                 t("Switch language", "Переключить язык"), false);
@@ -230,8 +239,7 @@ public class MainActivity extends Activity {
         root.addView(topBar);
 
         referenceButton.setOnClickListener(v -> openReference());
-        converterButton.setOnClickListener(v ->
-                startActivity(new Intent(this, NumberConverterActivity.class)));
+        converterButton.setOnClickListener(v -> openTools());
         languageButton.setOnClickListener(v -> toggleLanguage());
         tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
@@ -860,7 +868,7 @@ public class MainActivity extends Activity {
         menu.add(0, 11, 11, t("Z80 / Spectrum reference", "Справочник Z80 / Spectrum"));
 
         Menu tools = menu.addSubMenu(t("Tools", "Инструменты"));
-        tools.add(0, 12, 0, t("DEC / HEX / BIN converter", "Конвертер DEC / HEX / BIN"));
+        tools.add(0, 12, 0, t("Number / Address / Sprite tools", "Калькулятор / Адреса / Спрайты"));
         tools.add(0, 13, 1, t("Format document", "Форматировать код"));
         tools.add(0, 14, 2, t("Fold / unfold block", "Свернуть / развернуть блок"));
         tools.add(0, 16, 3, t("Choose TAP app", "Выбрать эмулятор TAP"));
@@ -881,7 +889,7 @@ public class MainActivity extends Activity {
                 case 22: runTapInEmulator(); break;
                 case 10: showExamples(); break;
                 case 11: openReference(); break;
-                case 12: startActivity(new Intent(this, NumberConverterActivity.class)); break;
+                case 12: openTools(); break;
                 case 13:
                     editor.formatAllFromSettings();
                     setStatus(t("Document formatted", "Документ отформатирован"),
@@ -1268,6 +1276,29 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void openTools() {
+        startActivityForResult(new Intent(this, ToolsActivity.class), REQUEST_TOOLS);
+    }
+
+    private void insertToolSource(String source) {
+        if (source == null || source.isEmpty() || editor == null || !hasActiveDocument()) return;
+        // An insertion must use the real expanded text, not the visual fold markers.
+        if (editor.isFolded()) editor.unfoldAll();
+        android.text.Editable text = editor.getText();
+        int a = Math.max(0, Math.min(editor.getSelectionStart(), text.length()));
+        int b = Math.max(0, Math.min(editor.getSelectionEnd(), text.length()));
+        int start = Math.min(a, b), end = Math.max(a, b);
+
+        String before = start > 0 && text.charAt(start - 1) != '\n' ? "\n" : "";
+        String after = end < text.length() && text.charAt(end) != '\n' ? "\n" : "";
+        String inserted = before + source + after;
+        text.replace(start, end, inserted);
+        editor.setSelection(Math.min(text.length(), start + before.length() + source.length()));
+        editor.requestFocus();
+        setStatus(t("DB data inserted at cursor", "DB вставлены в позицию курсора"),
+                Color.rgb(35, 119, 68));
+    }
+
     private void openReference() {
         Intent intent = new Intent(this, ReferenceActivity.class);
         String word = wordAtCursor();
@@ -1452,6 +1483,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_TOOLS) {
+            if (resultCode == RESULT_OK && data != null)
+                insertToolSource(data.getStringExtra(ToolsActivity.EXTRA_INSERT_SOURCE));
+            return;
+        }
 
         if (requestCode == REQUEST_EXAMPLE) {
             if (resultCode == RESULT_OK && data != null) {
