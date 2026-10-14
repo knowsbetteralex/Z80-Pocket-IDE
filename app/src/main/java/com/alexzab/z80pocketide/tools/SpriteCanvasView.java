@@ -7,6 +7,7 @@ import android.graphics.Paint;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import com.alexzab.z80pocketide.ui.UiStyle;
 
 /** Pinch-zoomable pixel grid; paint with one finger or use Hand mode to pan. */
 public final class SpriteCanvasView extends View {
@@ -27,7 +28,7 @@ public final class SpriteCanvasView extends View {
         super(context);
         data = initial;
         setBackground(UiStyle.rounded(context, Color.WHITE, 18, 0xFFCBDDD1, 1));
-        setMinimumHeight(dp(270));
+        setMinimumHeight(Math.round(dp(270)));
         pinch = new ScaleGestureDetector(context,
                 new ScaleGestureDetector.SimpleOnScaleGestureListener() {
                     @Override public boolean onScaleBegin(ScaleGestureDetector d) {
