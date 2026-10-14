@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.18.0)
+## Current development build (v0.18.1)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -114,7 +114,15 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 
 - Wrench icon opens one **Tools** screen with tabs: Number converter / Screen addresses / Sprite painter.
 - DEC / HEX / BIN converter remains available with live bidirectional updates and Clear.
-- Screen-address calculator supports linked third (0..2), character row within third (0..7), pixel line (0..7), byte column (0..31), attribute row (0..23), bitmap/attribute addresses in editable HEX and BIN. Bit groups `010 TT LLL RRR CCCCC` are colored by field.
-- Sprite painter: independent 8..64 pixel width/height in 8-pixel increments, pinch zoom, +/- zoom and fit, draw/pan/erase/paper modes, 16 Spectrum palette swatches. Enforces per-8×8 INK/PAPER/BRIGHT attributes.
+- Screen-address calculator shows a read-only, derived third (0..2). Its editable character row is now global (0..23), with pixel line (0..7), byte column (0..31), attribute row (0..23), and bitmap/attribute HEX and BIN addresses linked both ways. Bit groups `010 TT LLL RRR CCCCC` are colored by field.
+- Sprite painter: 8..64 px sizes in steps of 8, one-finger tap to fill/erase and drag strokes, two-finger zoom and pan, Fit to Height (sprite may extend outside the canvas), and separate globally applied INK/PAPER palette choices. Uses one shared hardware BRIGHT bit per 8x8 tile; changing normal/bright shade affects both colours.
 - Sprite bitmap and attribute bytes are previewed and can be inserted into the current editor at the cursor, in HEX (`DB $xx`) or BIN (`DB %xxxxxxxx`) format. Normal editor Undo works after insertion.
 - Sprite bitmap export is row-major (a portable sprite format), not interleaved screen RAM order; attributes export in character-cell order.
+
+## v0.18.1 drawing and address UX
+
+- The third (TT) is informational and non-editable. Editing the global character row 0..23 or any screen/attribute address recomputes the third.
+- One finger draws with INK on empty pixels and erases on filled pixels; dragging applies the initial draw/erase action continuously.
+- INK and PAPER are selected separately from the 16-colour Spectrum palette. Choosing a colour instantly recolours all existing drawn pixels or their paper background without changing bitmap bits. The hardware BRIGHT flag is shared.
+- Pan and zoom are two-finger gestures only; Fit scales to the maximum usable canvas height even when width overflows. The thicker semi-transparent pixel/cell grid remains visible on painted regions.
+- Clearing pixels preserves current INK/PAPER colours. Binary and HEX DB export remains unchanged.
