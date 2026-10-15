@@ -713,6 +713,7 @@ public class MainActivity extends Activity {
         runTap.setEnabled(true);
         saveTap.setEnabled(built);
         scheduleAnalysis();
+        scheduleSearchRefresh();
         setStatus(doc.dirty
                         ? t("Modified · not saved", "Изменено · не сохранено")
                         : (doc.hasFile()
@@ -888,6 +889,126 @@ public class MainActivity extends Activity {
         if (!matcher.find()) return 0;
         try { return Integer.parseInt(matcher.group(1)); }
         catch (NumberFormatException ignored) { return 0; }
+    }
+
+    /** Opens find/replace below the tab strip without obscuring source code. */
+    private void showSearchPanel() {
+        if (searchPanel == null || editor == null) return;
+        boolean opening = searchPanel.getVisibility() != View.VISIBLE;
+        if (editor.isFolded()) editor.unfoldAll();
+        if (opening) {
+            int a = Math.max(0, editor.getSelectionStart());
+            int b = Math.max(0, editor.getSelectionEnd());
+            String selected = editor.getText().subSequence(
+                    Math.min(a, b), Math.max(a, b)).toString();
+            searchPanel.setVisibility(View.VISIBLE);
+            if (!selected.isEmpty() && selected.length() <= 100
+                    && selected.indexOf('\n') < 0) searchPanel.setQuery(selected);
+        }
+        refreshSearchMatches();
+        searchPanel.focusQuery();
+    }
+
+    private void hideSearchPanel() {
+        analyzeHandler.removeCallbacks(delayedSearch);
+        if (searchPanel != null) searchPanel.setVisibility(View.GONE);
+        searchMatches.clear();
+        searchMatchIndex = -1;
+        if (editor != null) editor.highlightSearchMatches(null, -1);
+        editor.requestFocus();
+        hideKeyboard();
+    }
+
+    private void scheduleSearchRefresh() {
+        analyzeHandler.removeCallbacks(delayedSearch);
+        if (searchPanel != null && searchPanel.getVisibility() == View.VISIBLE)
+            analyzeHandler.postDelayed(delayedSearch, 160);
+    }
+
+    private void refreshSearchMatches() {
+        if (searchPanel == null || searchPanel.getVisibility() != View.VISIBLE
+                || editor == null) return;
+        if (editor.isFolded()) editor.unfoldAll();
+        searchMatches.clear();
+        searchMatches.addAll(SourceSearch.findAll(editor.getText().toString(),
+                searchPanel.getQuery(), searchPanel.isCaseSensitive()));
+        int selectedStart = editor.getSelectionStart();
+        int selectedEnd = editor.getSelectionEnd();
+        searchMatchIndex = -1;
+        for (int i = 0; i < searchMatches.size(); i++) {
+            SourceSearch.Match match = searchMatches.get(i);
+            if (match.start == selectedStart && match.end == selectedEnd) {
+                searchMatchIndex = i;
+                break;
+            }
+        }
+        updateSearchHighlights();
+    }
+
+    private void updateSearchHighlights() {
+        if (searchPanel == null || editor == null) return;
+        editor.highlightSearchMatches(searchMatches, searchMatchIndex);
+        searchPanel.updateCount(searchMatches.size(), searchMatchIndex);
+    }
+
+    private void jumpSearch(boolean next) {
+        if (searchPanel == null || searchPanel.getVisibility() != View.VISIBLE) return;
+        refreshSearchMatches();
+        if (searchMatches.isEmpty()) {
+            setStatus(t("No matches", "Совпадений нет"), Color.rgb(145, 76, 43));
+            return;
+        }
+        int cursor = next ? editor.getSelectionEnd() : editor.getSelectionStart();
+        int index = next ? SourceSearch.next(searchMatches, cursor)
+                : SourceSearch.previous(searchMatches, cursor);
+        focusSearchResult(index);
+    }
+
+    private void focusSearchResult(int index) {
+        if (index < 0 || index >= searchMatches.size()) return;
+        searchMatchIndex = index;
+        SourceSearch.Match match = searchMatches.get(index);
+        editor.revealSourceMatch(match.start, match.end);
+        updateSearchHighlights();
+    }
+
+    private void replaceSearchMatch() {
+        if (searchPanel == null || searchPanel.getVisibility() != View.VISIBLE) return;
+        refreshSearchMatches();
+        if (searchMatches.isEmpty()) return;
+        int index = searchMatchIndex >= 0 ? searchMatchIndex
+                : SourceSearch.next(searchMatches, editor.getSelectionStart());
+        SourceSearch.Match match = searchMatches.get(index);
+        String replacement = searchPanel.getReplacement();
+        editor.replaceFromSearch(match.start, match.end, replacement);
+        // Find the following occurrence after the inserted text, wrapping to start.
+        refreshSearchMatches();
+        if (!searchMatches.isEmpty()) {
+            int following = SourceSearch.next(searchMatches,
+                    match.start + replacement.length());
+            focusSearchResult(following);
+        }
+        setStatus(t("Replaced one occurrence", "Заменено одно совпадение"),
+                Color.rgb(37, 110, 72));
+    }
+
+    private void replaceAllSearchMatches() {
+        if (searchPanel == null || searchPanel.getVisibility() != View.VISIBLE) return;
+        refreshSearchMatches();
+        int count = searchMatches.size();
+        if (count == 0) {
+            setStatus(t("No matches to replace", "Нет совпадений для замены"),
+                    Color.rgb(145, 76, 43));
+            return;
+        }
+        String source = editor.getText().toString();
+        String changed = SourceSearch.replaceAll(source, searchMatches,
+                searchPanel.getReplacement());
+        if (!changed.equals(source))
+            editor.replaceFromSearch(0, source.length(), changed);
+        refreshSearchMatches();
+        setStatus((language == AppLanguage.RU ? "Заменено: " : "Replaced: ") + count,
+                Color.rgb(37, 110, 72));
     }
 
     private void showMainMenu() {
