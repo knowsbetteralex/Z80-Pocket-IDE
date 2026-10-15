@@ -8,6 +8,8 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.text.Editable;
 import android.text.Layout;
+import android.text.Spanned;
+import android.text.style.BackgroundColorSpan;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.util.TypedValue;
@@ -216,6 +218,71 @@ public class CodeEditorView extends EditText {
                         post(CodeEditorView.this::clampScrollPosition);
                     }
                 });
+    }
+
+    private static final class SearchHighlight extends BackgroundColorSpan {
+        SearchHighlight(boolean current) {
+            super(current ? 0xFFFFAB5C : 0xFFFFE9A6);
+        }
+    }
+
+    /** Highlight literal find matches. Styling spans do not enter Undo history. */
+    public void highlightSearchMatches(List<SourceSearch.Match> matches, int active) {
+        Editable text = getText();
+        SearchHighlight[] previous =
+                text.getSpans(0, text.length(), SearchHighlight.class);
+        for (SearchHighlight span : previous) text.removeSpan(span);
+        if (matches == null || isFolded()) return;
+        // Avoid hundreds of expensive spans in huge source files.
+        for (int i = 0; i < Math.min(matches.size(), 500); i++) {
+            SourceSearch.Match match = matches.get(i);
+            if (match.start >= 0 && match.end <= text.length() && match.end > match.start)
+                text.setSpan(new SearchHighlight(i == active),
+                        match.start, match.end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        invalidate();
+    }
+
+    /** Move the selection and reveal a match even if the search field owns focus. */
+    public void revealSourceMatch(int start, int end) {
+        if (isFolded()) unfoldAll();
+        int from = Math.max(0, Math.min(start, length()));
+        int to = Math.max(from, Math.min(end, length()));
+        setSelection(from, to);
+        post(() -> {
+            Layout layout = getLayout();
+            if (layout == null || getHeight() == 0) return;
+            int line = layout.getLineForOffset(from);
+            int top = layout.getLineTop(line) + getTotalPaddingTop();
+            int bottom = layout.getLineBottom(line) + getTotalPaddingTop();
+            int y = getScrollY();
+            if (top < y + dp(6)) y = top - dp(6);
+            else if (bottom > y + getHeight() - dp(12))
+                y = bottom - getHeight() + dp(12);
+            int x = getScrollX();
+            float position = layout.getPrimaryHorizontal(from) + getCompoundPaddingLeft();
+            if (position < x + getCompoundPaddingLeft())
+                x = Math.round(position - getCompoundPaddingLeft());
+            else if (position > x + getWidth() - dp(20))
+                x = Math.round(position - getWidth() + dp(20));
+            panTo(x, y);
+        });
+    }
+
+    /** A find/replace edit is one Undo step, not merged into typing. */
+    public void replaceFromSearch(int start, int end, String replacement) {
+        if (isFolded()) unfoldAll();
+        if (undoHistory != null) undoHistory.separateNext();
+        autoFormatting = true;
+        try {
+            Editable content = getText();
+            int a = Math.max(0, Math.min(start, content.length()));
+            int b = Math.max(a, Math.min(end, content.length()));
+            content.replace(a, b, replacement);
+            setSelection(Math.min(content.length(), a + replacement.length()));
+        } finally {
+            autoFormatting = false;
+        }
     }
 
     public void setUndoHistory(UndoHistory history, Runnable changeListener) {
