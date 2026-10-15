@@ -44,6 +44,8 @@ import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyDiagnostics;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
+import com.alexzab.z80pocketide.editor.SourceSearch;
+import com.alexzab.z80pocketide.editor.SearchReplacePanel;
 import com.alexzab.z80pocketide.editor.EditorDocument;
 import com.alexzab.z80pocketide.editor.EditorPreferences;
 import com.alexzab.z80pocketide.editor.EditorSettingsDialog;
@@ -134,6 +136,10 @@ public class MainActivity extends Activity {
     private int statusColor = Color.DKGRAY;
     private List<AssemblyDiagnostics.Issue> analysisIssues = new ArrayList<>();
     private HorizontalScrollView tabStrip;
+    private SearchReplacePanel searchPanel;
+    private final List<SourceSearch.Match> searchMatches = new ArrayList<>();
+    private int searchMatchIndex = -1;
+    private final Runnable delayedSearch = this::refreshSearchMatches;
     private LinearLayout tabRow;
     private AppLanguage language;
 
@@ -190,13 +196,15 @@ public class MainActivity extends Activity {
         topBar.setGravity(Gravity.CENTER_VERTICAL);
         topBar.setPadding(dp(4), 0, dp(4), dp(4));
 
-        TextView title = new TextView(this);
-        title.setText("Z80");
-        title.setTextSize(17);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        title.setTextColor(Color.rgb(29, 80, 51));
-        topBar.addView(title, new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        // Quick actions scroll on narrow phones; the main menu stays pinned at right.
+        HorizontalScrollView quickScroll = new HorizontalScrollView(this);
+        quickScroll.setHorizontalScrollBarEnabled(false);
+        quickScroll.setFillViewport(false);
+        LinearLayout quickActions = new LinearLayout(this);
+        quickActions.setOrientation(LinearLayout.HORIZONTAL);
+        quickActions.setGravity(Gravity.CENTER_VERTICAL);
+        quickScroll.addView(quickActions);
+        topBar.addView(quickScroll, new LinearLayout.LayoutParams(0, dp(43), 1f));
 
         mainMenuButton = headerButton("☰", t("Menu", "Меню"), false);
         runTap = headerButton("▶", t("Build and run TAP", "Собрать и запустить TAP"), true);
@@ -210,6 +218,15 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(dp(34), dp(42));
         saveParams.setMargins(dp(1), 0, dp(1), 0);
         saveSourceButton.setLayoutParams(saveParams);
+        ImageButton openSourceButton = new ImageButton(this);
+        openSourceButton.setContentDescription(t("Open .asm", "Открыть .asm"));
+        openSourceButton.setImageResource(R.drawable.ic_header_open);
+        openSourceButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        openSourceButton.setPadding(dp(7), dp(7), dp(7), dp(7));
+        openSourceButton.setBackground(UiStyle.ripple(this, 0xFFE3F1E8, 14, 0xFFB8D7C5));
+        LinearLayout.LayoutParams openParams = new LinearLayout.LayoutParams(dp(34), dp(42));
+        openParams.setMargins(dp(1), 0, dp(1), 0);
+        openSourceButton.setLayoutParams(openParams);
         undoButton = headerButton("↶", t("Undo", "Отменить"), false);
         redoButton = headerButton("↷", t("Redo", "Повторить"), false);
         undoButton.setEnabled(false);
@@ -227,14 +244,15 @@ public class MainActivity extends Activity {
         tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
         Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
                 t("Switch language", "Переключить язык"), false);
-        topBar.addView(runTap);
-        topBar.addView(saveSourceButton);
-        topBar.addView(undoButton);
-        topBar.addView(redoButton);
-        topBar.addView(referenceButton);
-        topBar.addView(converterButton);
-        topBar.addView(tabKeyButton);
-        topBar.addView(languageButton);
+        quickActions.addView(runTap);
+        quickActions.addView(openSourceButton);
+        quickActions.addView(saveSourceButton);
+        quickActions.addView(undoButton);
+        quickActions.addView(redoButton);
+        quickActions.addView(referenceButton);
+        quickActions.addView(converterButton);
+        quickActions.addView(tabKeyButton);
+        quickActions.addView(languageButton);
         topBar.addView(mainMenuButton);
         root.addView(topBar);
 
@@ -245,6 +263,7 @@ public class MainActivity extends Activity {
         mainMenuButton.setOnClickListener(v -> showMainMenu());
         runTap.setOnClickListener(v -> runTapInEmulator());
         saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
+        openSourceButton.setOnClickListener(v -> openSourceFilePicker());
         undoButton.setOnClickListener(v -> undoOrRedo(true));
         redoButton.setOnClickListener(v -> undoOrRedo(false));
 
@@ -274,6 +293,21 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         workspaceParams.setMargins(0, dp(5), 0, dp(4));
         root.addView(workspaceBar, workspaceParams);
+
+        searchPanel = new SearchReplacePanel(this, language == AppLanguage.RU,
+                new SearchReplacePanel.Actions() {
+                    @Override public void onQueryChanged() { scheduleSearchRefresh(); }
+                    @Override public void onNext() { jumpSearch(true); }
+                    @Override public void onPrevious() { jumpSearch(false); }
+                    @Override public void onReplace() { replaceSearchMatch(); }
+                    @Override public void onReplaceAll() { replaceAllSearchMatches(); }
+                    @Override public void onClose() { hideSearchPanel(); }
+                });
+        searchPanel.setVisibility(View.GONE);
+        LinearLayout.LayoutParams findParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        findParams.setMargins(0, 0, 0, dp(5));
+        root.addView(searchPanel, findParams);
 
         editor = new CodeEditorView(this);
         editor.setGravity(Gravity.TOP | Gravity.START);
@@ -389,6 +423,7 @@ public class MainActivity extends Activity {
                 doc.invalidateBuild();
                 saveTap.setEnabled(false);
                 scheduleAnalysis();
+                scheduleSearchRefresh();
                 setStatus(t("Modified · source file not saved",
                         "Изменено · исходный файл не сохранён"), Color.rgb(120, 85, 0));
                 if (wasDirty != doc.dirty) renderTabs();
@@ -404,6 +439,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         ++analysisRevision;
         analyzeHandler.removeCallbacks(delayedAnalyze);
+        analyzeHandler.removeCallbacks(delayedSearch);
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
         super.onDestroy();
@@ -452,6 +488,10 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (searchPanel != null && searchPanel.getVisibility() == View.VISIBLE) {
+            hideSearchPanel();
+            return;
+        }
         if (!hasDocumentsNeedingSave()) {
             super.onBackPressed();
             return;
@@ -867,13 +907,12 @@ public class MainActivity extends Activity {
         menu.add(0, 10, 10, t("Examples / Routines", "Примеры / Подпрограммы"));
         menu.add(0, 11, 11, t("Z80 / Spectrum reference", "Справочник Z80 / Spectrum"));
 
-        Menu tools = menu.addSubMenu(t("Tools", "Инструменты"));
-        tools.add(0, 12, 0, t("Number / Address / Sprite tools", "Калькулятор / Адреса / Спрайты"));
-        tools.add(0, 13, 1, t("Format document", "Форматировать код"));
-        tools.add(0, 14, 2, t("Fold / unfold block", "Свернуть / развернуть блок"));
-        tools.add(0, 16, 3, t("Choose TAP app", "Выбрать эмулятор TAP"));
-        tools.add(0, 17, 5, t("UPPERCASE entire source", "ВЕСЬ КОД → ЗАГЛАВНЫМИ"));
-        tools.add(0, 18, 6, t("Clear line selection", "Снять выделение строк"));
+        Menu edit = menu.addSubMenu(t("Edit", "Правка"));
+        edit.add(0, 23, 0, t("Find / Replace…", "Найти / Заменить…"));
+        edit.add(0, 13, 1, t("Format document", "Форматировать код"));
+        edit.add(0, 17, 2, t("UPPERCASE entire source", "ВЕСЬ КОД → ЗАГЛАВНЫМИ"));
+        edit.add(0, 12, 3, t("Number / Address / Sprite tools", "Калькулятор / Адреса / Спрайты"));
+        edit.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
 
         menu.add(0, 15, 100, t("Editor settings", "Настройки редактора"));
 
@@ -890,22 +929,15 @@ public class MainActivity extends Activity {
                 case 10: showExamples(); break;
                 case 11: openReference(); break;
                 case 12: openTools(); break;
+                case 23: showSearchPanel(); break;
                 case 13:
                     editor.formatAllFromSettings();
                     setStatus(t("Document formatted", "Документ отформатирован"),
                             Color.rgb(45, 100, 72));
                     scheduleAnalysis();
                     break;
-                case 14:
-                    if (!editor.toggleFoldAtCursor()) {
-                        Toast.makeText(this, t("Place cursor under a label",
-                                "Поставьте курсор под меткой"), Toast.LENGTH_SHORT).show();
-                    }
-                    scheduleAnalysis();
-                    break;
                 case 15: showEditorSettings(); break;
                 case 16: showEmulatorDialog(); break;
-                case 18: editor.clearLineSelection(); break;
                 case 17:
                     if (editor.uppercaseEntireDocument()) {
                         scheduleAnalysis();
