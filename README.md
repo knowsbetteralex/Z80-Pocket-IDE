@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.18.1)
+## Current development build (v0.19.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -18,7 +18,7 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Editor line-number gutter and current-line highlighting, with tap/drag line selection.
 - Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
 - Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
-- Compact header controls: build-and-run, centered green diskette, Undo/Redo, ? reference, number converter, TAB, RU/EN and rightmost menu. Editor settings appear as the last top-level menu item.
+- Compact top bar with Run, Open ASM folder, Save, Undo/Redo, ? reference, wrench workshop, TAB and RU/EN. Quick actions scroll horizontally on narrow phones; the rightmost main-menu button stays pinned. Editor settings appear as the last top-level menu item.
 - New / Open / Save / Save As / Close / Build / Save TAP actions live under File.
 - Single slim status row expands on tap into diagnostics and byte/T-state statistics.
 - Best-effort multiple assembler errors in a scrollable diagnostics panel.
@@ -126,3 +126,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - INK and PAPER are selected separately from the 16-colour Spectrum palette. Choosing a colour instantly recolours all existing drawn pixels or their paper background without changing bitmap bits. The hardware BRIGHT flag is shared.
 - Pan and zoom are two-finger gestures only; Fit scales to the maximum usable canvas height even when width overflows. The thicker semi-transparent pixel/cell grid remains visible on painted regions.
 - Clearing pixels preserves current INK/PAPER colours. Binary and HEX DB export remains unchanged.
+
+## v0.19.0 editor Find / Replace
+
+- File Open is now a green folder icon on the toolbar, alongside the centered Save diskette.
+- Top-level menu includes **Edit / Правка** (formerly Tools): Find / Replace, formatting, uppercase source, Spectrum workshop and TAP emulator choice. Folding and Clear Selection commands are removed from this submenu; their gutter controls remain.
+- **Edit → Find / Replace** opens a small find-and-replace panel beneath tabs. Search uses literal text with wrap-around previous/next navigation, match counter and optional case sensitivity.
+- All matching occurrences are highlighted in source (capped at 500 visible highlights for large files); the active match is emphasized and scrolled into view.
+- Replace one and Replace All support empty replacement strings; both respect current-case setting, with Replace All recorded as one Undo step.
+- Visual folds are expanded when starting a search so offsets match actual assembler source; closing search removes highlights.
