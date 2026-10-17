@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.19.0)
+## Current development build (v0.20.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -135,3 +135,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - All matching occurrences are highlighted in source (capped at 500 visible highlights for large files); the active match is emphasized and scrolled into view.
 - Replace one and Replace All support empty replacement strings; both respect current-case setting, with Replace All recorded as one Undo step.
 - Visual folds are expanded when starting a search so offsets match actual assembler source; closing search removes highlights.
+
+## v0.20.0 durable workspace and Undo recovery
+
+- Reopen the exact set of tabs, active tab, file URI, cursor and scroll position after force-close, normal exit or Android process recreation.
+- Every open tab keeps a private on-device draft copy of its source, including files with no saved .asm path. Autosave occurs after about 650 ms idle; onPause flushes synchronously. Drafts never silently overwrite original ASM files.
+- Autosave writes a versioned CRC-checked snapshot through Android AtomicFile to internal `noBackupFilesDir`, so interrupted writes preserve the previous complete snapshot.
+- The last **100 grouped edits per tab** are serialized, including both Undo and Redo branches, the position in history and the last explicit Save checkpoint. Normal typing is not delayed by immediate disk I/O.
+- Intentional tab closure removes the tab from next launch; closing the whole application keeps dirty drafts. The exit prompt explains that these drafts are locally recoverable.
+- Session files are kept only in the app's private device storage (not exported or included in Android cloud backups); clearing app data or uninstalling the app deletes them. A process killed before the current debounced autosave or lifecycle flush may still lose the last fraction of a second of edits.
