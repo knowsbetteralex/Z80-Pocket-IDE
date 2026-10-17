@@ -18,6 +18,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.AtomicFile;
+import android.util.Log;
 import android.provider.OpenableColumns;
 import android.provider.DocumentsContract;
 import android.text.Editable;
@@ -49,6 +51,8 @@ import com.alexzab.z80pocketide.editor.SearchReplacePanel;
 import com.alexzab.z80pocketide.editor.EditorDocument;
 import com.alexzab.z80pocketide.editor.EditorPreferences;
 import com.alexzab.z80pocketide.editor.EditorSettingsDialog;
+import com.alexzab.z80pocketide.editor.UndoHistory;
+import com.alexzab.z80pocketide.editor.WorkspaceStore;
 import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
 import com.alexzab.z80pocketide.emulator.EmulatorSettings;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
@@ -61,6 +65,12 @@ import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -68,6 +78,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -99,6 +110,19 @@ public class MainActivity extends Activity {
     private static final String STATE_PENDING_CLOSE = "pending_close";
 
     private final List<EditorDocument> documents = new ArrayList<>();
+    private static final String WORKSPACE_FILE = "workspace-session.bin";
+    private static final long WORKSPACE_IDLE_MS = 650L;
+    private final Handler workspaceHandler = new Handler(Looper.getMainLooper());
+    private final Object workspaceWriteLock = new Object();
+    private final ExecutorService workspaceWriter =
+            Executors.newSingleThreadExecutor(r -> {
+                Thread thread = new Thread(r, "z80-workspace-autosave");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private final AtomicLong workspaceRevision = new AtomicLong();
+    private final Runnable delayedWorkspaceSave = this::saveWorkspaceAsync;
+    private AtomicFile workspaceFile;
 
     private CodeEditorView editor;
     private TextView status;
@@ -154,6 +178,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         language = LanguageSettings.get(this);
+        workspaceFile = new AtomicFile(new File(getNoBackupFilesDir(), WORKSPACE_FILE));
 
         getWindow().setStatusBarColor(Color.rgb(250, 250, 250));
         getWindow().setNavigationBarColor(Color.rgb(250, 250, 250));
@@ -427,12 +452,14 @@ public class MainActivity extends Activity {
                 setStatus(t("Modified · source file not saved",
                         "Изменено · исходный файл не сохранён"), Color.rgb(120, 85, 0));
                 if (wasDirty != doc.dirty) renderTabs();
+                scheduleWorkspaceSave();
             }
         });
 
         setContentView(root);
         restoreWorkspace(savedInstanceState);
         scheduleAnalysis();
+        scheduleWorkspaceSave();
     }
 
     @Override
@@ -440,6 +467,8 @@ public class MainActivity extends Activity {
         ++analysisRevision;
         analyzeHandler.removeCallbacks(delayedAnalyze);
         analyzeHandler.removeCallbacks(delayedSearch);
+        workspaceHandler.removeCallbacks(delayedWorkspaceSave);
+        workspaceWriter.shutdown();
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
         super.onDestroy();
@@ -447,7 +476,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
-        captureCurrentDocument();
+        // System may kill our process after onPause. Flush synchronously here;
+        // normal typing saves are debounced and use the background writer.
+        flushWorkspaceNow();
         super.onPause();
     }
 
@@ -498,15 +529,24 @@ public class MainActivity extends Activity {
         }
         new AlertDialog.Builder(this)
                 .setTitle(t("Unsaved tabs", "Несохранённые вкладки"))
-                .setMessage(t("Some source tabs are not saved. Exit without saving them?",
-                        "Некоторые вкладки не сохранены. Выйти без сохранения?"))
-                .setPositiveButton(t("Exit", "Выйти"), (d, w) -> MainActivity.super.onBackPressed())
+                .setMessage(t("Changes are not saved to ASM files, but local drafts and Undo history will be restored next time. Exit?",
+                        "Изменения не записаны в файлы ASM, но локальные черновики и Undo восстановятся при следующем запуске. Выйти?"))
+                .setPositiveButton(t("Exit", "Выйти"), (d, w) -> {
+                    flushWorkspaceNow();
+                    MainActivity.super.onBackPressed();
+                })
                 .setNegativeButton(t("Cancel", "Отмена"), null)
                 .show();
     }
 
     private void restoreWorkspace(Bundle state) {
         documents.clear();
+        if (restorePersistedWorkspace()) {
+            updateUntitledCounter();
+            renderTabs();
+            loadActiveDocument();
+            return;
+        }
         if (state != null) {
             ArrayList<String> titles = state.getStringArrayList(STATE_TITLES);
             ArrayList<String> texts = state.getStringArrayList(STATE_TEXTS);
@@ -714,6 +754,7 @@ public class MainActivity extends Activity {
         saveTap.setEnabled(built);
         scheduleAnalysis();
         scheduleSearchRefresh();
+        scheduleWorkspaceSave();
         setStatus(doc.dirty
                         ? t("Modified · not saved", "Изменено · не сохранено")
                         : (doc.hasFile()
@@ -741,6 +782,7 @@ public class MainActivity extends Activity {
         if (wasDirty != doc.dirty) renderTabs();
         scheduleAnalysis();
         updateUndoRedoButtons();
+        scheduleWorkspaceSave();
         setStatus(undo ? t("Undo", "Изменение отменено")
                 : t("Redo", "Изменение повторено"), Color.rgb(45, 100, 72));
     }
@@ -1188,6 +1230,7 @@ public class MainActivity extends Activity {
             writeSource(Uri.parse(doc.uriString), doc.text);
             doc.history.markSaved();
             doc.dirty = false;
+            scheduleWorkspaceSave();
             updateUndoRedoButtons();
             renderTabs();
             setStatus(t("Saved · ", "Сохранено · ") + doc.title, Color.rgb(0, 110, 45));
@@ -1359,6 +1402,7 @@ public class MainActivity extends Activity {
         }
 
         LanguageSettings.set(this, next);
+        flushWorkspaceNow();
         recreate();
     }
 
@@ -1689,6 +1733,7 @@ public class MainActivity extends Activity {
                 if (name != null && !name.trim().isEmpty()) doc.title = name;
                 doc.history.markSaved();
                 doc.dirty = false;
+                scheduleWorkspaceSave();
                 updateUndoRedoButtons();
                 renderTabs();
                 boolean doubleExtension = SourceFileNames.hasUnwantedTextSuffix(name);
