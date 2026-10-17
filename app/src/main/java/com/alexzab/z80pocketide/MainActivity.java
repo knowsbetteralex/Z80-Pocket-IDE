@@ -667,7 +667,10 @@ public class MainActivity extends Activity {
     }
 
     private boolean restorePersistedWorkspace() {
-        if (workspaceFile == null || !workspaceFile.getBaseFile().exists()) return false;
+        if (workspaceFile == null) return false;
+        // Android AtomicFile may have a recoverable .bak after interrupted write.
+        File base = workspaceFile.getBaseFile();
+        if (!base.exists() && !new File(base.getPath() + ".bak").exists()) return false;
         try (FileInputStream stream = workspaceFile.openRead();
              ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[8192];
