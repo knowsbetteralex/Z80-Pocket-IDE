@@ -583,6 +583,130 @@ public class MainActivity extends Activity {
         loadActiveDocument();
     }
 
+    /**
+     * Snapshot runs on the UI thread so EditText / UndoHistory are not accessed
+     * concurrently. The immutable source strings and history bytes are then
+     * encoded and atomically written on a worker thread.
+     */
+    private WorkspaceStore.Session snapshotWorkspace() throws IOException {
+        captureCurrentDocument();
+        WorkspaceStore.Session session = new WorkspaceStore.Session();
+        if (documents.isEmpty()) throw new IOException("No open source tabs");
+        session.activeIndex = Math.max(0, Math.min(activeIndex, documents.size() - 1));
+        for (EditorDocument doc : documents) {
+            WorkspaceStore.Tab tab = new WorkspaceStore.Tab();
+            tab.title = doc.title;
+            tab.source = doc.text;
+            tab.uri = doc.uriString == null ? "" : doc.uriString;
+            tab.dirty = doc.dirty;
+            tab.cursor = doc.cursor;
+            tab.scrollX = doc.scrollX;
+            tab.scrollY = doc.scrollY;
+            ByteArrayOutputStream undoBytes = new ByteArrayOutputStream();
+            DataOutputStream historyStream = new DataOutputStream(undoBytes);
+            doc.history.writeTo(historyStream);
+            historyStream.flush();
+            tab.history = undoBytes.toByteArray();
+            session.tabs.add(tab);
+        }
+        return session;
+    }
+
+    private void scheduleWorkspaceSave() {
+        if (workspaceFile == null || documents.isEmpty()) return;
+        workspaceRevision.incrementAndGet();
+        workspaceHandler.removeCallbacks(delayedWorkspaceSave);
+        workspaceHandler.postDelayed(delayedWorkspaceSave, WORKSPACE_IDLE_MS);
+    }
+
+    private void saveWorkspaceAsync() {
+        if (workspaceWriter.isShutdown()) return;
+        final long revision = workspaceRevision.get();
+        final WorkspaceStore.Session snapshot;
+        try {
+            snapshot = snapshotWorkspace();
+        } catch (IOException exception) {
+            Log.e("Z80Workspace", "Cannot snapshot editor state", exception);
+            return;
+        }
+        workspaceWriter.execute(() -> saveWorkspaceSnapshot(snapshot, revision));
+    }
+
+    private void flushWorkspaceNow() {
+        workspaceHandler.removeCallbacks(delayedWorkspaceSave);
+        long revision = workspaceRevision.incrementAndGet();
+        try {
+            saveWorkspaceSnapshot(snapshotWorkspace(), revision);
+        } catch (IOException exception) {
+            Log.e("Z80Workspace", "Cannot flush workspace", exception);
+        }
+    }
+
+    private void saveWorkspaceSnapshot(WorkspaceStore.Session session, long revision) {
+        if (workspaceFile == null) return;
+        try {
+            byte[] bytes = WorkspaceStore.encode(session);
+            synchronized (workspaceWriteLock) {
+                // A delayed worker must never overwrite a newer onPause snapshot.
+                if (revision != workspaceRevision.get()) return;
+                FileOutputStream stream = null;
+                try {
+                    stream = workspaceFile.startWrite();
+                    stream.write(bytes);
+                    stream.flush();
+                    stream.getFD().sync();
+                    workspaceFile.finishWrite(stream);
+                } catch (IOException failure) {
+                    if (stream != null) workspaceFile.failWrite(stream);
+                    throw failure;
+                }
+            }
+        } catch (IOException exception) {
+            Log.e("Z80Workspace", "Autosave failed; previous snapshot remains intact", exception);
+        }
+    }
+
+    private boolean restorePersistedWorkspace() {
+        if (workspaceFile == null || !workspaceFile.getBaseFile().exists()) return false;
+        try (FileInputStream stream = workspaceFile.openRead();
+             ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = stream.read(buffer)) != -1) {
+                if (bytes.size() + count > 48 * 1024 * 1024 + 8)
+                    throw new IOException("Workspace file exceeds size limit");
+                bytes.write(buffer, 0, count);
+            }
+            WorkspaceStore.Session session = WorkspaceStore.decode(bytes.toByteArray());
+            List<EditorDocument> loaded = new ArrayList<>();
+            for (WorkspaceStore.Tab tab : session.tabs) {
+                EditorDocument doc = new EditorDocument(tab.title, tab.source,
+                        tab.uri.isEmpty() ? null : tab.uri, tab.dirty);
+                doc.cursor = Math.max(0, Math.min(tab.cursor, tab.source.length()));
+                doc.scrollX = Math.max(0, tab.scrollX);
+                doc.scrollY = Math.max(0, tab.scrollY);
+                try (DataInputStream input =
+                             new DataInputStream(new ByteArrayInputStream(tab.history))) {
+                    doc.history.copyFrom(UndoHistory.readFrom(input));
+                } catch (IOException historyFailure) {
+                    // Recover actual source even if history was unreadable.
+                    Log.w("Z80Workspace", "Undo state not recovered for " + doc.title,
+                            historyFailure);
+                }
+                loaded.add(doc);
+            }
+            documents.clear();
+            documents.addAll(loaded);
+            activeIndex = session.activeIndex;
+            pendingSaveIndex = -1;
+            pendingCloseAfterSave = false;
+            return true;
+        } catch (IOException exception) {
+            Log.e("Z80Workspace", "Cannot restore workspace; using Android state", exception);
+            return false;
+        }
+    }
+
     private String starterSource() {
         return "ORG $8000\n\nSTART:\n    NOP\n    RET\n";
     }
