@@ -1,5 +1,9 @@
 package com.alexzab.z80pocketide.editor;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -11,7 +15,9 @@ import java.util.List;
  * as the user types again after undo.
  */
 public final class UndoHistory {
-    private static final int MAX_GROUPS = 120;
+    private static final int MAX_GROUPS = 100;
+    private static final int MAX_EDITS_PER_GROUP = 20000;
+    private static final int MAX_FIELD_BYTES = 24 * 1024 * 1024;
     private static final long GROUP_WINDOW_MS = 650;
 
     public static final class Change {
@@ -53,6 +59,9 @@ public final class UndoHistory {
     public void markSaved() { savePosition = position; separateNext = true; }
     public void markUnsaved() { savePosition = -1; }
     public void separateNext() { separateNext = true; }
+
+    public int undoDepth() { return position; }
+    public int redoDepth() { return groups.size() - position; }
 
     public void clear() {
         groups.clear();
@@ -101,6 +110,81 @@ public final class UndoHistory {
         active.cursorAfter = cursorAfter;
         active.updatedAt = now;
         active.lastPosition = start + after.length();
+    }
+
+    /**
+     * Persist the last 100 undo groups, the redo branch and savepoint.
+     * Monotonic time is deliberately not persisted: reopening starts a new group.
+     */
+    public void writeTo(DataOutput output) throws IOException {
+        output.writeInt(groups.size());
+        output.writeInt(position);
+        output.writeInt(savePosition);
+        for (Group group : groups) {
+            output.writeInt(group.cursorBefore);
+            output.writeInt(group.cursorAfter);
+            output.writeInt(group.changes.size());
+            for (Change change : group.changes) {
+                output.writeInt(change.start);
+                writeString(output, change.before);
+                writeString(output, change.after);
+            }
+        }
+    }
+
+    public static UndoHistory readFrom(DataInput input) throws IOException {
+        int count = input.readInt();
+        int position = input.readInt();
+        int savepoint = input.readInt();
+        if (count < 0 || count > MAX_GROUPS || position < 0 || position > count
+                || savepoint < -1 || savepoint > count)
+            throw new IOException("Invalid undo history index");
+        UndoHistory history = new UndoHistory();
+        for (int i = 0; i < count; i++) {
+            int cursorBefore = input.readInt();
+            int cursorAfter = input.readInt();
+            int changes = input.readInt();
+            if (cursorBefore < 0 || cursorAfter < 0
+                    || changes <= 0 || changes > MAX_EDITS_PER_GROUP)
+                throw new IOException("Invalid undo history group");
+            Group group = new Group(cursorBefore, cursorAfter, 0L, 0);
+            for (int j = 0; j < changes; j++) {
+                int start = input.readInt();
+                if (start < 0) throw new IOException("Invalid undo edit start");
+                group.changes.add(new Change(start,
+                        readString(input), readString(input)));
+            }
+            group.lastPosition = 0;
+            history.groups.add(group);
+        }
+        history.position = position;
+        history.savePosition = savepoint;
+        history.separateNext = true;
+        return history;
+    }
+
+    public void copyFrom(UndoHistory other) {
+        groups.clear();
+        groups.addAll(other.groups);
+        position = other.position;
+        savePosition = other.savePosition;
+        separateNext = true;
+    }
+
+    private static void writeString(DataOutput output, String source) throws IOException {
+        byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length > MAX_FIELD_BYTES) throw new IOException("Undo text too large");
+        output.writeInt(bytes.length);
+        output.write(bytes);
+    }
+
+    private static String readString(DataInput input) throws IOException {
+        int length = input.readInt();
+        if (length < 0 || length > MAX_FIELD_BYTES)
+            throw new IOException("Invalid undo text length");
+        byte[] bytes = new byte[length];
+        input.readFully(bytes);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     /** A returned group is applied in reverse order for undo. */
