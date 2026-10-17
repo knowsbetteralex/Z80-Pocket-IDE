@@ -70,15 +70,18 @@ public final class WorkspaceStoreTest {
         edits.markSaved();
         edits.record(1, "", "D", 1, 2, 2000L, false);
         edits.record(2, "", " ", 2, 3, 3000L, false);
-        edits.takeUndo(); // Cursor now between L and D, redo available.
+        edits.takeUndo(); // Undo the space.
+        edits.takeUndo(); // Undo D; we're now exactly at the saved "L" state.
         byte[] encoded = historyBytes(edits);
         UndoHistory restored = recoverHistory(encoded);
         assertEquals(1, restored.undoDepth());
-        assertEquals(1, restored.redoDepth());
+        assertEquals(2, restored.redoDepth());
         assertTrue(restored.isAtSavePoint());
+        assertEquals("D", restored.takeRedo().changes.get(0).after);
         assertEquals(" ", restored.takeRedo().changes.get(0).after);
         assertFalse(restored.isAtSavePoint());
         assertEquals(" ", restored.takeUndo().changes.get(0).after);
+        assertEquals("D", restored.takeUndo().changes.get(0).after);
         assertTrue(restored.isAtSavePoint());
         assertArrayEquals(encoded, historyBytes(recoverHistory(encoded)));
     }
