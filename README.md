@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.20.0)
+## Current development build (v0.20.1)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -18,7 +18,7 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Editor line-number gutter and current-line highlighting, with tap/drag line selection.
 - Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
 - Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
-- Compact top bar with Run, Open ASM folder, Save, Undo/Redo, ? reference, wrench workshop, TAB and RU/EN. Quick actions scroll horizontally on narrow phones; the rightmost main-menu button stays pinned. Editor settings appear as the last top-level menu item.
+- Compact top bar with Run, Open ASM folder, Save, Undo/Redo, Find/Replace magnifier, ? reference, wrench workshop, TAB and RU/EN. Quick actions scroll horizontally on narrow phones; the rightmost main-menu button stays pinned. Editor settings appear as the last top-level menu item.
 - New / Open / Save / Save As / Close / Build / Save TAP actions live under File.
 - Single slim status row expands on tap into diagnostics and byte/T-state statistics.
 - Best-effort multiple assembler errors in a scrollable diagnostics panel.
@@ -144,3 +144,10 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - The last **100 grouped edits per tab** are serialized, including both Undo and Redo branches, the position in history and the last explicit Save checkpoint. Normal typing is not delayed by immediate disk I/O.
 - Intentional tab closure removes the tab from next launch; closing the whole application keeps dirty drafts. The exit prompt explains that these drafts are locally recoverable.
 - Session files are kept only in the app's private device storage (not exported or included in Android cloud backups); clearing app data or uninstalling the app deletes them. A process killed before the current debounced autosave or lifecycle flush may still lose the last fraction of a second of edits.
+
+## v0.20.1 compact search and status
+
+- Find/Replace is accessible directly from a magnifier icon on the scrolling quick-actions bar; tapping it while search is open closes it.
+- Find/Replace panel uses only two 38dp rows with tight margins and paddings to keep source visible above the keyboard. The match counter now shares the search row.
+- Match-case is controlled by a compact **Aa** button that changes color when enabled, instead of a full-width checkbox.
+- The expanded bottom status now shows diagnostics and byte/T-state statistics without duplicating the last action message already shown on the collapsed status row.
