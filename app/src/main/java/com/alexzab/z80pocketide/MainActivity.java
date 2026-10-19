@@ -152,7 +152,6 @@ public class MainActivity extends Activity {
     private Button tabKeyButton;
     private LinearLayout statusDetails;
     private TextView statusExpandIcon;
-    private TextView detailedStatus;
     private TextView diagnosticsView;
     private ScrollView diagnosticScroll;
     private boolean detailsExpanded;
@@ -256,6 +255,17 @@ public class MainActivity extends Activity {
         redoButton = headerButton("↷", t("Redo", "Повторить"), false);
         undoButton.setEnabled(false);
         redoButton.setEnabled(false);
+        ImageButton findButton = new ImageButton(this);
+        findButton.setContentDescription(t("Find / Replace", "Найти / Заменить"));
+        findButton.setImageResource(R.drawable.ic_header_search);
+        findButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        findButton.setPadding(dp(7), dp(7), dp(7), dp(7));
+        findButton.setBackground(UiStyle.ripple(this,
+                0xFFE3F1E8, 14, 0xFFB8D7C5));
+        LinearLayout.LayoutParams findButtonParams =
+                new LinearLayout.LayoutParams(dp(34), dp(42));
+        findButtonParams.setMargins(dp(1), 0, dp(1), 0);
+        findButton.setLayoutParams(findButtonParams);
         Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
         ImageButton converterButton = new ImageButton(this);
         converterButton.setContentDescription(t("Tools", "Инструменты"));
@@ -274,6 +284,7 @@ public class MainActivity extends Activity {
         quickActions.addView(saveSourceButton);
         quickActions.addView(undoButton);
         quickActions.addView(redoButton);
+        quickActions.addView(findButton);
         quickActions.addView(referenceButton);
         quickActions.addView(converterButton);
         quickActions.addView(tabKeyButton);
@@ -291,6 +302,11 @@ public class MainActivity extends Activity {
         openSourceButton.setOnClickListener(v -> openSourceFilePicker());
         undoButton.setOnClickListener(v -> undoOrRedo(true));
         redoButton.setOnClickListener(v -> undoOrRedo(false));
+        findButton.setOnClickListener(v -> {
+            if (searchPanel != null && searchPanel.getVisibility() == View.VISIBLE)
+                hideSearchPanel();
+            else showSearchPanel();
+        });
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
         root.addView(stripe, new LinearLayout.LayoutParams(
@@ -331,7 +347,7 @@ public class MainActivity extends Activity {
         searchPanel.setVisibility(View.GONE);
         LinearLayout.LayoutParams findParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        findParams.setMargins(0, 0, 0, dp(5));
+        findParams.setMargins(0, 0, 0, dp(3));
         root.addView(searchPanel, findParams);
 
         editor = new CodeEditorView(this);
@@ -388,13 +404,8 @@ public class MainActivity extends Activity {
 
         statusDetails = new LinearLayout(this);
         statusDetails.setOrientation(LinearLayout.VERTICAL);
-        statusDetails.setPadding(dp(8), dp(5), dp(8), dp(8));
+        statusDetails.setPadding(dp(8), dp(4), dp(8), dp(6));
         statusDetails.setVisibility(View.GONE);
-
-        detailedStatus = new TextView(this);
-        detailedStatus.setTextSize(12);
-        detailedStatus.setTextColor(Color.rgb(78, 99, 86));
-        statusDetails.addView(detailedStatus);
 
         diagnosticScroll = new ScrollView(this);
         diagnosticsView = new TextView(this);
@@ -1929,10 +1940,6 @@ public class MainActivity extends Activity {
         } else {
             status.setText(statusMessage);
             status.setTextColor(statusColor);
-        }
-        if (detailedStatus != null) {
-            detailedStatus.setText(statusMessage);
-            detailedStatus.setTextColor(statusColor);
         }
         if (diagnosticsView != null) {
             if (n > 0) {
