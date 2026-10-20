@@ -1616,7 +1616,18 @@ public class MainActivity extends Activity {
     }
 
     private void openTools() {
-        startActivityForResult(new Intent(this, ToolsActivity.class), REQUEST_TOOLS);
+        Intent intent = new Intent(this, ToolsActivity.class);
+        if (editor != null) {
+            int a = editor.getSelectionStart(), b = editor.getSelectionEnd();
+            if (a >= 0 && b >= 0 && a != b) {
+                String selected = editor.getText().subSequence(
+                        Math.min(a, b), Math.max(a, b)).toString();
+                // Clipboard also remains usable from the dialog.
+                if (selected.length() <= 16384)
+                    intent.putExtra("sprite_selected_source", selected);
+            }
+        }
+        startActivityForResult(intent, REQUEST_TOOLS);
     }
 
     private void insertToolSource(String source) {
