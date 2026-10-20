@@ -5,6 +5,9 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.text.InputType;
+import android.widget.EditText;
+import android.widget.Toast;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
@@ -38,9 +41,16 @@ public final class SpriteToolPanel extends LinearLayout {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable delayedPreview = this::refreshExport;
     private boolean sizing;
+    private final String suggestedImport;
 
     public SpriteToolPanel(Context context, boolean ru, InsertAction insertAction) {
+        this(context, ru, insertAction, null);
+    }
+
+    public SpriteToolPanel(Context context, boolean ru, InsertAction insertAction,
+                           String selectedSource) {
         super(context);
+        suggestedImport = selectedSource == null ? "" : selectedSource;
         this.ru = ru;
         this.insertAction = insertAction;
         sprite = SpriteSession.sprite();
@@ -202,24 +212,39 @@ public final class SpriteToolPanel extends LinearLayout {
         addView(title(t("Bitmap · DB", "Рисунок · DB"), 15));
         bitmapPreview = codePreview();
         addView(bitmapPreview);
+        LinearLayout bitmapActions = row();
+        Button importBitmap = smallButton(t("Load DB into sprite", "Загрузить DB в рисунок"));
         Button insertBitmap = greenButton(t("Insert sprite DB", "Вставить DB рисунка"));
-        addView(insertBitmap, new LayoutParams(LayoutParams.MATCH_PARENT, dp(46)));
+        bitmapActions.addView(importBitmap, new LayoutParams(0, dp(46), 1f));
+        bitmapActions.addView(insertBitmap, new LayoutParams(0, dp(46), 1f));
+        addView(bitmapActions);
+        importBitmap.setOnClickListener(v -> showImportDialog(0));
         insertBitmap.setOnClickListener(v ->
                 insertAction.insert(sprite.dbPixels(SpriteSession.binaryExport())));
 
         addView(title(t("Mask · DB (1 = visible)", "Маска · DB (1 = видно)"), 15));
         maskPreview = codePreview();
         addView(maskPreview);
+        LinearLayout maskDbActions = row();
+        Button importMask = smallButton(t("Load DB into mask", "Загрузить DB в маску"));
         Button insertMask = greenButton(t("Insert mask DB", "Вставить DB маски"));
-        addView(insertMask, new LayoutParams(LayoutParams.MATCH_PARENT, dp(46)));
+        maskDbActions.addView(importMask, new LayoutParams(0, dp(46), 1f));
+        maskDbActions.addView(insertMask, new LayoutParams(0, dp(46), 1f));
+        addView(maskDbActions);
+        importMask.setOnClickListener(v -> showImportDialog(1));
         insertMask.setOnClickListener(v ->
                 insertAction.insert(sprite.dbMask(SpriteSession.binaryExport())));
 
         addView(title(t("Attributes 8×8 · DB", "Атрибуты 8×8 · DB"), 15));
         attrPreview = codePreview();
         addView(attrPreview);
+        LinearLayout attributeActions = row();
+        Button importAttrs = smallButton(t("Load attribute DB", "Загрузить DB атрибутов"));
         Button insertAttrs = greenButton(t("Insert attribute DB", "Вставить DB атрибутов"));
-        addView(insertAttrs, new LayoutParams(LayoutParams.MATCH_PARENT, dp(46)));
+        attributeActions.addView(importAttrs, new LayoutParams(0, dp(46), 1f));
+        attributeActions.addView(insertAttrs, new LayoutParams(0, dp(46), 1f));
+        addView(attributeActions);
+        importAttrs.setOnClickListener(v -> showImportDialog(2));
         insertAttrs.setOnClickListener(v ->
                 insertAction.insert(sprite.dbAttributes(SpriteSession.binaryExport())));
 
@@ -238,6 +263,73 @@ public final class SpriteToolPanel extends LinearLayout {
         refreshLayer();
         refreshPalette();
         refreshExport();
+    }
+
+    /**
+     * Load bytes from the clipboard, a copied DB listing, or a selection made
+     * in the main ASM editor before opening Tools. Reject incomplete data
+     * without partially overwriting the current sprite.
+     */
+    private void showImportDialog(int kind) {
+        final int expected = kind == 2 ? sprite.cellsX() * sprite.cellsY()
+                : sprite.cellsX() * sprite.height();
+        String layer = kind == 0 ? t("sprite", "рисунка")
+                : kind == 1 ? t("mask", "маски") : t("attributes", "атрибутов");
+
+        LinearLayout wrapper = new LinearLayout(getContext());
+        wrapper.setOrientation(VERTICAL);
+        wrapper.setPadding(dp(17), dp(4), dp(17), dp(2));
+        TextView help = detail((ru ? "Байтов: " : "Required bytes: ") + expected
+                + t(". Supports DB $3C,%00111100, 0x3C, decimal and DEFB.",
+                ". Форматы: DB $3C,%00111100, 0x3C, десятичный, DEFB."));
+        wrapper.addView(help);
+        EditText source = new EditText(getContext());
+        source.setGravity(Gravity.TOP | Gravity.START);
+        source.setTypeface(Typeface.MONOSPACE);
+        source.setTextSize(13);
+        source.setMinLines(5);
+        source.setMaxLines(11);
+        source.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        source.setHint("    DB $3C,$42,$81,$FF");
+        source.setText(suggestedImport);
+        source.setSelectAllOnFocus(false);
+        wrapper.addView(source, new LayoutParams(LayoutParams.MATCH_PARENT, dp(195)));
+
+        AlertDialog dialog = new AlertDialog.Builder(getContext())
+                .setTitle(t("Import DB: ", "Импорт DB: ") + layer)
+                .setView(wrapper)
+                .setPositiveButton(t("Import", "Загрузить"), null)
+                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .create();
+        dialog.setOnShowListener(ignored -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                try {
+                    int[] bytes = SpriteDbParser.parse(source.getText().toString());
+                    if (bytes.length != expected)
+                        throw new IllegalArgumentException((ru ? "Ожидается " : "Expected ")
+                                + expected + (ru ? " байт, получено " : " bytes, got ")
+                                + bytes.length);
+                    if (kind == 0) sprite.loadBitmap(bytes);
+                    else if (kind == 1) sprite.loadMask(bytes);
+                    else {
+                        sprite.loadAttributes(bytes);
+                        refreshPalette();
+                    }
+                    canvas.invalidate();
+                    refreshExport();
+                    Toast.makeText(getContext(),
+                            t("Imported ", "Загружено байт: ") + bytes.length,
+                            Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                } catch (IllegalArgumentException problem) {
+                    // Keep the dialog open so the user can fix byte count/syntax.
+                    source.setError(problem.getMessage());
+                }
+            });
+        });
+        dialog.show();
     }
 
     private void refreshLayer() {
