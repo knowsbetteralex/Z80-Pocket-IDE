@@ -53,6 +53,7 @@ import com.alexzab.z80pocketide.editor.EditorPreferences;
 import com.alexzab.z80pocketide.editor.EditorSettingsDialog;
 import com.alexzab.z80pocketide.editor.UndoHistory;
 import com.alexzab.z80pocketide.editor.WorkspaceStore;
+import com.alexzab.z80pocketide.tools.SpriteSession;
 import com.alexzab.z80pocketide.editor.SyntaxHighlighter;
 import com.alexzab.z80pocketide.emulator.EmulatorSettings;
 import com.alexzab.z80pocketide.examples.ExamplePrograms;
@@ -482,6 +483,9 @@ public class MainActivity extends Activity {
         workspaceWriter.shutdown();
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
+        // Finishing the IDE ends the in-memory sprite editing session;
+        // configuration changes and closing only ToolsActivity do not.
+        if (isFinishing() && !isChangingConfigurations()) SpriteSession.clear();
         super.onDestroy();
     }
 
