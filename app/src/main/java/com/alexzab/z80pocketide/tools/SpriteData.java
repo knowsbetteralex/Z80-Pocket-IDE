@@ -3,126 +3,189 @@ package com.alexzab.z80pocketide.tools;
 import java.util.Locale;
 
 /**
- * Bitmap pixels and one ZX attribute byte per 8x8 tile.
- * Each tile has one INK and one PAPER, as on Spectrum hardware.
+ * Lossless 64x64 backing store with a movable, resizable 8..64-pixel viewport.
+ *
+ * Both the sprite bitmap and the mask are stored in source coordinates.
+ * Translation and canvas-size changes affect only projection / DB export,
+ * so clipped content returns when the offset or dimensions are restored.
+ * Mask convention in the editor: 1 = visible, 0 = transparent.
  */
 public final class SpriteData {
-    private final int width, height, cellsX, cellsY;
-    private final boolean[][] dots;
-    private final int[][] attributes;
-    // Whole-sprite palette. Hardware has one BRIGHT bit shared by INK and PAPER.
+    public static final int MAX_SIZE = 64;
+
+    private int width, height;
+    private int offsetX, offsetY;
+    private final boolean[][] dots = new boolean[MAX_SIZE][MAX_SIZE];
+    private final boolean[][] mask = new boolean[MAX_SIZE][MAX_SIZE];
+
     private int inkColor = 7;
-    private int paperColor = 0;
+    private int paperColor;
     private boolean bright;
 
     public SpriteData(int width, int height) {
-        if (width < 8 || width > 64 || (width & 7) != 0
-                || height < 8 || height > 64 || (height & 7) != 0)
-            throw new IllegalArgumentException("Sprite dimensions: 8..64, multiples of 8");
+        resize(width, height);
+        resetMask();
+    }
+
+    /** Resizing never erases or translates either backing layer. */
+    public void resize(int width, int height) {
+        validSize(width);
+        validSize(height);
         this.width = width;
         this.height = height;
-        cellsX = width / 8;
-        cellsY = height / 8;
-        dots = new boolean[height][width];
-        attributes = new int[cellsY][cellsX];
-        for (int y = 0; y < cellsY; y++)
-            for (int x = 0; x < cellsX; x++) attributes[y][x] = 0x07;
+    }
+
+    private static void validSize(int size) {
+        if (size < 8 || size > MAX_SIZE || (size & 7) != 0)
+            throw new IllegalArgumentException("Sprite dimensions: 8..64, multiples of 8");
     }
 
     public int width() { return width; }
     public int height() { return height; }
-    public int cellsX() { return cellsX; }
-    public int cellsY() { return cellsY; }
+    public int cellsX() { return width / 8; }
+    public int cellsY() { return height / 8; }
 
+    public int offsetX() { return offsetX; }
+    public int offsetY() { return offsetY; }
 
-    /** Global INK/PAPER changes recolor existing pixels immediately, without changing bitmap. */
-    public void setInkColor(int paletteIndex) {
-        checkColor(paletteIndex);
-        inkColor = paletteIndex & 7;
-        bright = (paletteIndex & 8) != 0;
-        recolorAll();
+    public void moveBy(int dx, int dy) {
+        offsetX = Math.max(-MAX_SIZE, Math.min(MAX_SIZE, offsetX + dx));
+        offsetY = Math.max(-MAX_SIZE, Math.min(MAX_SIZE, offsetY + dy));
     }
 
-    public void setPaperColor(int paletteIndex) {
-        checkColor(paletteIndex);
-        paperColor = paletteIndex & 7;
-        bright = (paletteIndex & 8) != 0;
-        recolorAll();
+    public void resetOffset() { offsetX = offsetY = 0; }
+
+    private boolean sourceInBounds(int x, int y) {
+        return x >= 0 && y >= 0 && x < MAX_SIZE && y < MAX_SIZE;
     }
 
-    public int getInkColor() { return inkColor | (bright ? 8 : 0); }
-    public int getPaperColor() { return paperColor | (bright ? 8 : 0); }
+    private boolean visibleInBounds(int x, int y) {
+        return x >= 0 && y >= 0 && x < width && y < height;
+    }
+
+    private int sourceX(int x) { return x - offsetX; }
+    private int sourceY(int y) { return y - offsetY; }
+
+    /** Read a pixel in current exported (shifted and clipped) coordinates. */
+    public boolean getPixel(int x, int y) {
+        int sx = sourceX(x), sy = sourceY(y);
+        return visibleInBounds(x, y) && sourceInBounds(sx, sy) && dots[sy][sx];
+    }
+
+    /** Drawing changes the stored source point; moving away never destroys it. */
+    public void setPixel(int x, int y, boolean filled) {
+        int sx = sourceX(x), sy = sourceY(y);
+        if (visibleInBounds(x, y) && sourceInBounds(sx, sy)) dots[sy][sx] = filled;
+    }
+
+    /** Mask=1 means opaque/visible, mask=0 means transparent/checkerboard. */
+    public boolean getMask(int x, int y) {
+        int sx = sourceX(x), sy = sourceY(y);
+        return visibleInBounds(x, y) && sourceInBounds(sx, sy) && mask[sy][sx];
+    }
+
+    public void setMask(int x, int y, boolean visible) {
+        int sx = sourceX(x), sy = sourceY(y);
+        if (visibleInBounds(x, y) && sourceInBounds(sx, sy)) mask[sy][sx] = visible;
+    }
+
+    public void resetMask() {
+        for (int y = 0; y < MAX_SIZE; y++)
+            for (int x = 0; x < MAX_SIZE; x++) mask[y][x] = true;
+    }
+
+    public void invertMask() {
+        for (int y = 0; y < MAX_SIZE; y++)
+            for (int x = 0; x < MAX_SIZE; x++) mask[y][x] = !mask[y][x];
+    }
+
+    public void clearPixels() {
+        for (int y = 0; y < MAX_SIZE; y++)
+            for (int x = 0; x < MAX_SIZE; x++) dots[y][x] = false;
+    }
+
+    public void clear() {
+        clearPixels();
+        resetMask();
+        resetOffset();
+        inkColor = 7;
+        paperColor = 0;
+        bright = false;
+    }
+
+    public void setInkColor(int color) {
+        checkColor(color);
+        inkColor = color & 7;
+        bright = (color & 8) != 0;
+    }
+
+    public void setPaperColor(int color) {
+        checkColor(color);
+        paperColor = color & 7;
+        bright = (color & 8) != 0;
+    }
 
     private void checkColor(int color) {
         if (color < 0 || color > 15)
             throw new IllegalArgumentException("Spectrum color: 0..15");
     }
 
-    private void recolorAll() {
-        int attribute = (bright ? 0x40 : 0) | (paperColor << 3) | inkColor;
-        for (int y = 0; y < cellsY; y++)
-            for (int x = 0; x < cellsX; x++) attributes[y][x] = attribute;
-    }
+    public int getInkColor() { return inkColor | (bright ? 8 : 0); }
+    public int getPaperColor() { return paperColor | (bright ? 8 : 0); }
 
-    public void setPixel(int x, int y, boolean filled) {
-        if (x < 0 || y < 0 || x >= width || y >= height) return;
-        dots[y][x] = filled;
-    }
-
-    public void clearPixels() {
-        for (int y = 0; y < height; y++)
-            for (int x = 0; x < width; x++) dots[y][x] = false;
-    }
-
-    public boolean getPixel(int x, int y) { return dots[y][x]; }
-
-    public void paint(int x, int y, int color, Mode mode) {
-        if (x < 0 || y < 0 || x >= width || y >= height) return;
-        int cx = x / 8, cy = y / 8;
-        int attr = attributes[cy][cx];
-        if (mode == Mode.ERASE) {
-            dots[y][x] = false;
-        } else if (mode == Mode.INK) {
-            dots[y][x] = true;
-            attributes[cy][cx] = (attr & 0xF8) | (color & 7);
-            if ((color & 8) != 0) attributes[cy][cx] |= 0x40;
-            else attributes[cy][cx] &= ~0x40;
-        } else if (mode == Mode.PAPER) {
-            attributes[cy][cx] = (attr & 0xC7) | ((color & 7) << 3);
-            if ((color & 8) != 0) attributes[cy][cx] |= 0x40;
-            else attributes[cy][cx] &= ~0x40;
-        }
-    }
-
+    /** Compatibility with existing editor/test callers. */
     public enum Mode { INK, PAPER, ERASE }
 
-    public int attribute(int cellX, int cellY) { return attributes[cellY][cellX]; }
+    public void paint(int x, int y, int color, Mode mode) {
+        if (!visibleInBounds(x, y)) return;
+        if (mode == Mode.ERASE) setPixel(x, y, false);
+        else if (mode == Mode.INK) {
+            setPixel(x, y, true);
+            setInkColor(color);
+        } else if (mode == Mode.PAPER) setPaperColor(color);
+    }
 
-    public int pixelByte(int byteX, int y) {
+    public int attribute(int cellX, int cellY) {
+        if (cellX < 0 || cellY < 0 || cellX >= cellsX() || cellY >= cellsY())
+            throw new IndexOutOfBoundsException();
+        return (bright ? 0x40 : 0) | (paperColor << 3) | inkColor;
+    }
+
+    private int exportedByte(int byteX, int y, boolean maskLayer) {
         int value = 0;
-        for (int bit = 0; bit < 8; bit++) if (dots[y][byteX * 8 + bit])
-            value |= (0x80 >> bit);
+        for (int bit = 0; bit < 8; bit++) {
+            boolean on = maskLayer ? getMask(byteX * 8 + bit, y)
+                    : getPixel(byteX * 8 + bit, y);
+            if (on) value |= 0x80 >> bit;
+        }
         return value;
     }
 
-    public int[] bitmapBytes() {
-        int[] bytes = new int[(width / 8) * height];
+    public int pixelByte(int byteX, int y) { return exportedByte(byteX, y, false); }
+    public int maskByte(int byteX, int y) { return exportedByte(byteX, y, true); }
+
+    private int[] exportBytes(boolean maskLayer) {
+        int[] bytes = new int[cellsX() * height];
         int i = 0;
         for (int y = 0; y < height; y++)
-            for (int x = 0; x < cellsX; x++) bytes[i++] = pixelByte(x, y);
+            for (int x = 0; x < cellsX(); x++)
+                bytes[i++] = exportedByte(x, y, maskLayer);
         return bytes;
     }
+
+    public int[] bitmapBytes() { return exportBytes(false); }
+    public int[] maskBytes() { return exportBytes(true); }
 
     public int[] attributeBytes() {
-        int[] bytes = new int[cellsY * cellsX];
-        int i = 0;
-        for (int y = 0; y < cellsY; y++)
-            for (int x = 0; x < cellsX; x++) bytes[i++] = attributes[y][x];
+        int[] bytes = new int[cellsX() * cellsY()];
+        for (int i = 0; i < bytes.length; i++)
+            bytes[i] = (bright ? 0x40 : 0) | (paperColor << 3) | inkColor;
         return bytes;
     }
 
-    public String dbPixels(boolean binary) { return toDb(bitmapBytes(), cellsX, binary); }
-    public String dbAttributes(boolean binary) { return toDb(attributeBytes(), cellsX, binary); }
+    public String dbPixels(boolean binary) { return toDb(bitmapBytes(), cellsX(), binary); }
+    public String dbMask(boolean binary) { return toDb(maskBytes(), cellsX(), binary); }
+    public String dbAttributes(boolean binary) { return toDb(attributeBytes(), cellsX(), binary); }
 
     private static String toDb(int[] values, int perLine, boolean binary) {
         StringBuilder code = new StringBuilder();
@@ -140,27 +203,17 @@ public final class SpriteData {
         return code.toString();
     }
 
-    /** Standard Spectrum palette. Index 8..15 sets BRIGHT; black is unchanged. */
+    /** Standard Spectrum palette. BRIGHT is shared for INK and PAPER. */
     public static int palette(int color) {
         int base = color & 7;
         int level = (color & 8) != 0 ? 255 : 205;
-        int r = (base & 2) != 0 ? level : 0;
-        int g = (base & 4) != 0 ? level : 0;
-        int b = (base & 1) != 0 ? level : 0;
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
+        int red = (base & 2) != 0 ? level : 0;
+        int green = (base & 4) != 0 ? level : 0;
+        int blue = (base & 1) != 0 ? level : 0;
+        return 0xFF000000 | (red << 16) | (green << 8) | blue;
     }
 
     public int displayedColor(int x, int y) {
-        int a = attributes[y / 8][x / 8];
-        int index = dots[y][x] ? (a & 7) : ((a >> 3) & 7);
-        return palette(index | ((a & 0x40) != 0 ? 8 : 0));
-    }
-
-    public void clear() {
-        clearPixels();
-        inkColor = 7;
-        paperColor = 0;
-        bright = false;
-        recolorAll();
+        return palette(getPixel(x, y) ? getInkColor() : getPaperColor());
     }
 }
