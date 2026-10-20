@@ -53,6 +53,8 @@ public final class SpriteImportTest {
         assertArrayEquals(attrs, s.attributeBytes());
         assertEquals(0x02, s.attribute(1, 0));
         assertEquals(0xAF, s.attribute(0, 1));
+        s.setPixel(0, 0, true);
+        s.setPixel(8, 0, true);
         assertEquals(SpriteData.palette(15), s.displayedColor(0, 0));
         assertEquals(SpriteData.palette(2), s.displayedColor(8, 0));
         assertEquals(15, s.getInkColor());
