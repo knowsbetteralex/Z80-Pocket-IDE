@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.21.0)
+## Current development build (v0.21.1)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -161,3 +161,13 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Two-finger pan/zoom changes the display, separately from the exported content offsets. Fit to height is retained.
 - Closing/reopening ToolsActivity while the IDE process runs retains pixel/mask layers, canvas size, offsets, palette choice, selected layer and BIN/HEX format via a process-local SpriteSession. This is not written to the persistent ASM workspace; finishing the IDE or process death clears the session.
 - Tests cover mask export, clipping, lossless resize/shift and in-process retention.
+
+## v0.21.1 stable sprite scrolling and DB import
+
+- Sprite painting, palette changes, shift controls and live DB preview updates no longer cause the Tools page to jump down: the Sprite tab's ScrollView ignores automatic focus-based scroll requests while still allowing manual scrolling and pinch gestures.
+- Each tool tab remembers its current vertical scroll position when changing tabs.
+- Each Sprite/Mask/Attributes DB preview now has **Load DB** (import) alongside Insert DB into ASM (export). Paste an entire `DB` / `DEFB` listing in HEX, BIN or decimal; labels, simple byte dumps and `;` comments are supported.
+- The dialog checks the byte count for the selected canvas and validates all bytes before changing the image; invalid imports leave the existing sprite untouched and the dialog open for correction.
+- Selecting a block of ASM text before opening Tools pre-fills import dialogs with that text, or the normal Android paste action can be used.
+- Imported bitmap and mask data update only the active visible canvas area, leaving clipped data intact. Imported attributes preserve independent cell bytes, including INK, PAPER, BRIGHT and FLASH; palette edits recolor cells again.
+- Added round-trip import/export, parser, validation and per-cell color tests.
