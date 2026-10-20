@@ -19,7 +19,7 @@ public final class SpriteDbParser {
             if (statement.matches("^[A-Za-z_][\\w.]*\\s*:.*"))
                 statement = statement.substring(statement.indexOf(':') + 1).trim();
             if (statement.isEmpty()) continue;
-            statement = statement.replaceFirst("(?i)^\\.?DEFB?\\b\\s*", "");
+            statement = statement.replaceFirst("(?i)^\\.?(?:DB|DEFB)\\b\\s*", "");
             // Also recognize BYTE / .BYTE, useful when pasting external byte dumps.
             statement = statement.replaceFirst("(?i)^\\.?BYTE\\b\\s*", "");
             if (statement.isEmpty()) continue;
