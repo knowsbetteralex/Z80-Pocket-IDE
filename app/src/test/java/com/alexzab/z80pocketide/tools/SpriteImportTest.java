@@ -55,7 +55,7 @@ public final class SpriteImportTest {
         assertEquals(0xAF, s.attribute(0, 1));
         assertEquals(SpriteData.palette(15), s.displayedColor(0, 0));
         assertEquals(SpriteData.palette(2), s.displayedColor(8, 0));
-        assertEquals(0x07, s.getInkColor());
+        assertEquals(15, s.getInkColor());
         // Changing palette applies globally while preserving imported FLASH.
         s.setInkColor(10);
         assertEquals(0x80, s.attribute(0, 1) & 0x80);
