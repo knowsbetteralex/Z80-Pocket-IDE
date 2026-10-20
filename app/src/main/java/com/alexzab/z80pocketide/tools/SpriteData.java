@@ -17,6 +17,9 @@ public final class SpriteData {
     private int offsetX, offsetY;
     private final boolean[][] dots = new boolean[MAX_SIZE][MAX_SIZE];
     private final boolean[][] mask = new boolean[MAX_SIZE][MAX_SIZE];
+    // Attributes are attached to the visible character grid (0..7 in each axis).
+    // Import may contain independent colors/FLASH for each 8x8 cell.
+    private final int[][] attributes = new int[MAX_SIZE / 8][MAX_SIZE / 8];
 
     private int inkColor = 7;
     private int paperColor;
@@ -25,6 +28,7 @@ public final class SpriteData {
     public SpriteData(int width, int height) {
         resize(width, height);
         resetMask();
+        recolorAll();
     }
 
     /** Resizing never erases or translates either backing layer. */
@@ -111,18 +115,28 @@ public final class SpriteData {
         inkColor = 7;
         paperColor = 0;
         bright = false;
+        recolorAll();
     }
 
     public void setInkColor(int color) {
         checkColor(color);
         inkColor = color & 7;
         bright = (color & 8) != 0;
+        recolorAll();
     }
 
     public void setPaperColor(int color) {
         checkColor(color);
         paperColor = color & 7;
         bright = (color & 8) != 0;
+        recolorAll();
+    }
+
+    private void recolorAll() {
+        int base = (bright ? 0x40 : 0) | (paperColor << 3) | inkColor;
+        for (int y = 0; y < attributes.length; y++)
+            for (int x = 0; x < attributes[y].length; x++)
+                attributes[y][x] = (attributes[y][x] & 0x80) | base;
     }
 
     private void checkColor(int color) {
@@ -148,7 +162,50 @@ public final class SpriteData {
     public int attribute(int cellX, int cellY) {
         if (cellX < 0 || cellY < 0 || cellX >= cellsX() || cellY >= cellsY())
             throw new IndexOutOfBoundsException();
-        return (bright ? 0x40 : 0) | (paperColor << 3) | inkColor;
+        return attributes[cellY][cellX];
+    }
+
+    /**
+     * Import precisely one visible bitmap or mask layer.
+     * Write through current viewport offset, preserving offscreen backing data.
+     */
+    public void loadBitmap(int[] bytes) { loadBitLayer(bytes, false); }
+    public void loadMask(int[] bytes) { loadBitLayer(bytes, true); }
+
+    private void loadBitLayer(int[] bytes, boolean maskLayer) {
+        requireLength(bytes, cellsX() * height);
+        // Source coordinates outside the 64x64 backing area are intentionally
+        // clipped, just like interactive painting at the same offset.
+        for (int y = 0; y < height; y++)
+            for (int byteX = 0; byteX < cellsX(); byteX++) {
+                int value = bytes[y * cellsX() + byteX];
+                for (int bit = 0; bit < 8; bit++) {
+                    boolean enabled = ((value >>> (7 - bit)) & 1) != 0;
+                    if (maskLayer) setMask(byteX * 8 + bit, y, enabled);
+                    else setPixel(byteX * 8 + bit, y, enabled);
+                }
+            }
+    }
+
+    /** Import all attribute bytes, including per-tile INK/PAPER/BRIGHT/FLASH. */
+    public void loadAttributes(int[] bytes) {
+        requireLength(bytes, cellsX() * cellsY());
+        for (int y = 0; y < cellsY(); y++)
+            for (int x = 0; x < cellsX(); x++)
+                attributes[y][x] = bytes[y * cellsX() + x];
+        int first = bytes[0];
+        inkColor = first & 7;
+        paperColor = (first >>> 3) & 7;
+        bright = (first & 0x40) != 0;
+    }
+
+    private static void requireLength(int[] bytes, int expected) {
+        if (bytes == null || bytes.length != expected)
+            throw new IllegalArgumentException("Expected " + expected
+                    + " DB bytes, got " + (bytes == null ? 0 : bytes.length));
+        for (int value : bytes)
+            if (value < 0 || value > 255)
+                throw new IllegalArgumentException("DB value must be 0..255");
     }
 
     private int exportedByte(int byteX, int y, boolean maskLayer) {
@@ -178,8 +235,9 @@ public final class SpriteData {
 
     public int[] attributeBytes() {
         int[] bytes = new int[cellsX() * cellsY()];
-        for (int i = 0; i < bytes.length; i++)
-            bytes[i] = (bright ? 0x40 : 0) | (paperColor << 3) | inkColor;
+        for (int y = 0; y < cellsY(); y++)
+            for (int x = 0; x < cellsX(); x++)
+                bytes[y * cellsX() + x] = attributes[y][x];
         return bytes;
     }
 
@@ -214,6 +272,8 @@ public final class SpriteData {
     }
 
     public int displayedColor(int x, int y) {
-        return palette(getPixel(x, y) ? getInkColor() : getPaperColor());
+        int attr = attribute(x / 8, y / 8);
+        int color = getPixel(x, y) ? (attr & 7) : ((attr >>> 3) & 7);
+        return palette(color | ((attr & 0x40) != 0 ? 8 : 0));
     }
 }
