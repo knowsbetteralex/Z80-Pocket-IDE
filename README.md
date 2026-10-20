@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.20.1)
+## Current development build (v0.21.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -151,3 +151,13 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Find/Replace panel uses only two 38dp rows with tight margins and paddings to keep source visible above the keyboard. The match counter now shares the search row.
 - Match-case is controlled by a compact **Aa** button that changes color when enabled, instead of a full-width checkbox.
 - The expanded bottom status now shows diagnostics and byte/T-state statistics without duplicating the last action message already shown on the collapsed status row.
+
+## v0.21.0 Sprite mask, shift and editing session
+
+- Separate Sprite / Mask editing layers. Mask starts as all ones; a tap erases a bit to a black-and-white checkerboard, and the reverse gesture restores the underlying INK/PAPER pixel. Drag strokes work as on the sprite.
+- Mask data gets its own HEX/BIN DB preview and Insert mask DB button. Mask convention is 1 = visible, 0 = transparent. Invert mask polarity when using classic AND-clear blitters.
+- A 64x64 backing store retains the full bitmap and mask. Resizing the viewport between 8 and 64 pixels (steps of 8) never discards any hidden data.
+- Arrow controls shift the drawing 1 pixel at a time, showing X/Y offsets. Pixels hidden by the viewport or backing field are clipped, not destroyed; returning restores them. Off-source areas export as zero bits.
+- Two-finger pan/zoom changes the display, separately from the exported content offsets. Fit to height is retained.
+- Closing/reopening ToolsActivity while the IDE process runs retains pixel/mask layers, canvas size, offsets, palette choice, selected layer and BIN/HEX format via a process-local SpriteSession. This is not written to the persistent ASM workspace; finishing the IDE or process death clears the session.
+- Tests cover mask export, clipping, lossless resize/shift and in-process retention.
