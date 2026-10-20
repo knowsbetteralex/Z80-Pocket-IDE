@@ -3,6 +3,7 @@ package com.alexzab.z80pocketide;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
@@ -12,6 +13,7 @@ import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -35,6 +37,8 @@ public final class ToolsActivity extends Activity {
     private AppLanguage language;
     private boolean ru;
     private LinearLayout page;
+    private StableToolsScrollView scroller;
+    private final int[] savedScrollY = new int[3];
     private final Button[] tabs = new Button[3];
     private View[] panels = new View[3];
     private int activeTab;
@@ -99,7 +103,7 @@ public final class ToolsActivity extends Activity {
         }
         root.addView(tabRow);
 
-        ScrollView scroller=new ScrollView(this);
+        scroller=new StableToolsScrollView(this);
         scroller.setFillViewport(false);
         scroller.setClipToPadding(false);
         page=new LinearLayout(this);
@@ -117,7 +121,7 @@ public final class ToolsActivity extends Activity {
             result.putExtra(EXTRA_INSERT_SOURCE,source);
             setResult(RESULT_OK,result);
             finish();
-        });
+        },getIntent().getStringExtra("sprite_selected_source"));
 
         activeTab=state!=null?state.getInt(STATE_TAB,0):
                 getIntent().getIntExtra(EXTRA_SELECTED_TAB,0);
@@ -131,15 +135,45 @@ public final class ToolsActivity extends Activity {
     }
 
     private void selectTab(int index){
+        if (scroller != null) savedScrollY[activeTab] = scroller.getScrollY();
         activeTab=index;
         page.removeAllViews();
         View content=panels[index];
         if(content.getParent() instanceof android.view.ViewGroup)
             ((android.view.ViewGroup)content.getParent()).removeView(content);
         page.addView(content);
+        // Avoid Android auto-scrolling to selectable DB previews or action buttons.
+        scroller.setSpriteFocusScrollDisabled(index == 2);
+        final int restoreY = savedScrollY[index];
+        scroller.post(() -> scroller.scrollTo(0, restoreY));
         for(int i=0;i<tabs.length;i++){
             if(i==index)UiStyle.styleGreenButton(tabs[i]);
             else UiStyle.styleSoftGreenButton(tabs[i]);
+        }
+    }
+
+    /**
+     * TextView.setText() on a selectable DB preview can request focus and
+     * force ScrollView to jump to that preview after every brush stroke.
+     * Ignore programmatic focus-driven scrolling on the sprite tab, while
+     * preserving direct touch scrolling and pinch gestures.
+     */
+    private static final class StableToolsScrollView extends ScrollView {
+        private boolean spriteFocusScrollDisabled;
+        StableToolsScrollView(android.content.Context context) { super(context); }
+
+        void setSpriteFocusScrollDisabled(boolean disabled) {
+            spriteFocusScrollDisabled = disabled;
+        }
+
+        @Override public void requestChildFocus(View child, View focused) {
+            if (!spriteFocusScrollDisabled) super.requestChildFocus(child, focused);
+        }
+
+        @Override public boolean requestChildRectangleOnScreen(View child, Rect rectangle,
+                                                               boolean immediate) {
+            if (spriteFocusScrollDisabled) return false;
+            return super.requestChildRectangleOnScreen(child, rectangle, immediate);
         }
     }
 
