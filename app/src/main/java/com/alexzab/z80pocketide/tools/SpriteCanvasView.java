@@ -26,6 +26,7 @@ public final class SpriteCanvasView extends View {
     private int previousPixelX = -1, previousPixelY = -1;
     private boolean strokeFills;
     private boolean transforming;
+    private boolean maskMode;
     private Runnable onChange;
 
     public SpriteCanvasView(Context context, SpriteData initial) {
@@ -53,6 +54,12 @@ public final class SpriteCanvasView extends View {
     }
 
     public void setOnChange(Runnable callback) { onChange = callback; }
+
+    public void setMaskMode(boolean enabled) {
+        maskMode = enabled;
+        previousPixelX = previousPixelY = -1;
+        invalidate();
+    }
 
     /** Fit to the entire available height, even if the resulting width exceeds the viewport. */
     public void fitHeight() {
@@ -99,8 +106,19 @@ public final class SpriteCanvasView extends View {
             float top = originY + y * cell;
             for (int x = startX; x < endX; x++) {
                 float left = originX + x * cell;
-                pixels.setColor(data.displayedColor(x, y));
-                canvas.drawRect(left, top, left + cell + .3f, top + cell + .3f, pixels);
+                if (maskMode && !data.getMask(x, y)) {
+                    // Two-by-two translucent checkerboard within a masked-out
+                    // sprite pixel. Underlying INK/PAPER is not altered.
+                    float half = cell / 2f;
+                    pixels.setColor(0xFFD8D8D8);
+                    canvas.drawRect(left, top, left + cell + .3f, top + cell + .3f, pixels);
+                    pixels.setColor(0xFF606060);
+                    canvas.drawRect(left, top, left + half, top + half, pixels);
+                    canvas.drawRect(left + half, top + half, left + cell, top + cell, pixels);
+                } else {
+                    pixels.setColor(data.displayedColor(x, y));
+                    canvas.drawRect(left, top, left + cell + .3f, top + cell + .3f, pixels);
+                }
             }
         }
 
@@ -144,7 +162,7 @@ public final class SpriteCanvasView extends View {
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
             int x = xPixel(event.getX()), y = yPixel(event.getY());
             if (valid(x,y)) {
-                strokeFills = !data.getPixel(x,y);
+                strokeFills = !(maskMode ? data.getMask(x, y) : data.getPixel(x, y));
                 strokeTo(x,y);
             }
             return true;
@@ -225,7 +243,8 @@ public final class SpriteCanvasView extends View {
         for (int i = 0; i <= steps; i++) {
             int xx = steps == 0 ? x : fromX + (x - fromX) * i / steps;
             int yy = steps == 0 ? y : fromY + (y - fromY) * i / steps;
-            data.setPixel(xx, yy, strokeFills);
+            if (maskMode) data.setMask(xx, yy, strokeFills);
+            else data.setPixel(xx, yy, strokeFills);
         }
         previousPixelX = x;
         previousPixelY = y;
