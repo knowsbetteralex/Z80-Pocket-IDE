@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.22.0)
+## Current development build (v0.22.1)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -180,3 +180,8 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Existing separate Load DB and Insert DB buttons remain usable. The inline editor uses the same HEX/BIN/decimal DB parser and updates the canvas and all previews on commit.
 - The Tools workshop remembers the last selected tab (number converter, addresses or sprite) in app preferences and returns to it on the next opening, including after process restarts. Inline DB fields can request scrolling to expose the keyboard; passive DB preview redraws still cannot force page scroll.
 - Run/Build moves from the header to a circular green ▶ button floating at the bottom-right of the **source editor**. It remains available with the keyboard shown, preserves automatic Build & Run and leaves the menu's existing Run action intact.
+
+## v0.22.1 Run button overlay fix
+
+- Removed the 69dp full-width bottom padding added for the Run FAB, restoring the normal 12dp editor inset. Only the circular floating play button overlays source text; no blank full-width strip is reserved.
+- The floating Run FAB stays at bottom-right of the editor and retains Build & Run behavior.
