@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.23.1)
+## Current development build (v0.24.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -202,3 +202,11 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Dragging the exposed thumb or holding its arrow buttons keeps it visible until release, then starts the same hide delay.
 - Scrolling caused by caret movement, restoring source position, tab changes, layout, folding or other programmatic actions only updates rail geometry and never reveals it.
 - The rail remains clear of the floating Run button and does not allocate an extra full-width strip.
+
+## v0.24.0 visual Spectrum screen address picker and Fit
+
+- Sprite editor's former **Fit to height** action is now simply **Fit** (Вписать), calculating the uniform pixel scale from the limiting width/height so the entire current sprite is visible, centered with ~12dp side margins. Resizing the sprite canvas uses the same operation and retains the underlying pixels and mask.
+- Screen Address tool now features a fully linked **32×24 character screen map** for the ZX Spectrum 256×192 bitmap. Tap or drag over a character square to choose its row and byte column; thick horizontal guides separate the three 64-line display thirds.
+- A larger **8×8 pixel view** below the whole-screen grid picks pixel scanline LLL (0..7) and bit (0..7). The selected scanline updates the real bitmap address. The selected bit shows its byte mask ($80..$01) and absolute X/Y pixel position, but does not change the bitmap byte address.
+- The screen map and 8×8 selector react immediately to numeric coordinate fields and the HEX/BIN bitmap/attribute address inputs, and screen touches update those existing fields using ScreenAddress, including third/row interleaving.
+- Unit tests verify all three display thirds, pointer mapping, bit-mask endpoints and coordinate-to-address consistency.
