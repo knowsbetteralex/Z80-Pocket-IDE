@@ -38,6 +38,7 @@ import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -145,7 +146,7 @@ public class MainActivity extends Activity {
     private volatile int analysisRevision;
     private int resultRevision = -1;
     private final Runnable delayedAnalyze = this::performLiveAnalysis;
-    private Button runTap;
+    private ImageButton runTap;
     private Button undoButton;
     private Button redoButton;
     private Button saveTap;
@@ -232,7 +233,6 @@ public class MainActivity extends Activity {
         topBar.addView(quickScroll, new LinearLayout.LayoutParams(0, dp(43), 1f));
 
         mainMenuButton = headerButton("☰", t("Menu", "Меню"), false);
-        runTap = headerButton("▶", t("Build and run TAP", "Собрать и запустить TAP"), true);
         ImageButton saveSourceButton = new ImageButton(this);
         saveSourceButton.setContentDescription(t("Save source", "Сохранить исходник"));
         saveSourceButton.setImageResource(R.drawable.ic_header_save);
@@ -280,7 +280,6 @@ public class MainActivity extends Activity {
         tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
         Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
                 t("Switch language", "Переключить язык"), false);
-        quickActions.addView(runTap);
         quickActions.addView(openSourceButton);
         quickActions.addView(saveSourceButton);
         quickActions.addView(undoButton);
@@ -298,7 +297,6 @@ public class MainActivity extends Activity {
         languageButton.setOnClickListener(v -> toggleLanguage());
         tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
-        runTap.setOnClickListener(v -> runTapInEmulator());
         saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
         openSourceButton.setOnClickListener(v -> openSourceFilePicker());
         undoButton.setOnClickListener(v -> undoOrRedo(true));
@@ -357,16 +355,39 @@ public class MainActivity extends Activity {
         editor.setTextColor(Color.rgb(25, 25, 25));
         editor.setBackground(UiStyle.rounded(this,
                 Color.rgb(252, 253, 252), 20, Color.rgb(207, 222, 213), 1));
-        editor.setPadding(dp(54), dp(12), dp(14), dp(12));
+        // Bottom clearance lets the caret scroll above the overlaid Run FAB.
+        editor.setPadding(dp(54), dp(12), dp(14), dp(69));
         editor.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editor.setHorizontallyScrolling(true);
 
+        FrameLayout editorHost = new FrameLayout(this);
         LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
         editorParams.setMargins(0, 0, 0, dp(5));
-        root.addView(editor, editorParams);
+        root.addView(editorHost, editorParams);
+        editorHost.addView(editor, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        // Build + Run sits over the code canvas instead of consuming header width.
+        runTap = new ImageButton(this);
+        runTap.setContentDescription(t("Build and run TAP", "Собрать и запустить TAP"));
+        runTap.setImageResource(R.drawable.ic_run_play);
+        runTap.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        runTap.setPadding(dp(16), dp(16), dp(13), dp(16));
+        GradientDrawable runCircle = new GradientDrawable();
+        runCircle.setShape(GradientDrawable.OVAL);
+        runCircle.setColor(0xFF2D8556);
+        runCircle.setStroke(dp(2), 0xFFD8F0DD);
+        runTap.setBackground(runCircle);
+        runTap.setElevation(dp(5));
+        FrameLayout.LayoutParams runParams = new FrameLayout.LayoutParams(
+                dp(58), dp(58), Gravity.BOTTOM | Gravity.RIGHT);
+        runParams.setMargins(0, 0, dp(13), dp(13));
+        editorHost.addView(runTap, runParams);
+        runTap.setOnClickListener(v -> runTapInEmulator());
 
         SyntaxHighlighter.attach(editor);
 
@@ -435,7 +456,7 @@ public class MainActivity extends Activity {
         root.addView(bottomPanel);
         compactStatus.setOnClickListener(v -> setStatusDetailsExpanded(!detailsExpanded));
 
-        // TAP saving is now under File; Run on the top panel builds automatically.
+        // TAP saving remains under File; the floating Run button auto-builds.
         saveTap = new Button(this);
         saveTap.setEnabled(false);
         runTap.setEnabled(true);
