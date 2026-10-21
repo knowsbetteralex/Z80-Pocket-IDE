@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.22.1)
+## Current development build (v0.23.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -185,3 +185,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 
 - Removed the 69dp full-width bottom padding added for the Run FAB, restoring the normal 12dp editor inset. Only the circular floating play button overlays source text; no blank full-width strip is reserved.
 - The floating Run FAB stays at bottom-right of the editor and retains Build & Run behavior.
+
+## v0.23.0 touch scrolling and top-level fold actions
+
+- The editor has a dedicated **42dp-wide touch scrollbar** over the right edge. Its 30dp thumb is draggable, becomes prominent during scrolling and dims after 1.8 seconds of inactivity; it remains faintly visible while idle. The original thin Android scroll indicator is disabled.
+- **▲ / ▼ buttons** at either end scroll about 15% of the visible code height per tap. Holding an arrow repeats after 330 ms, then about every 95 ms. Dragging the thumb maps directly to the actual scroll range, without moving the caret.
+- The scrollbar ends **87dp above the editor bottom**, so it never covers the floating Run button. No full-width bar or blank padding is introduced.
+- A pinned fold/unfold-all icon sits to the right of the horizontal file tabs. It folds only the **first label in each blank-line-separated paragraph**, treating any subsequent labels in that paragraph as nested under the first. Tapping again restores the entire source.
+- Folding is a visual presentation operation: assembler source, saves and Undo history are not changed. Existing per-label gutter folding remains available.
+- Added host-side tests for paragraph boundaries, nested labels, label comments and EOF without trailing newline.
