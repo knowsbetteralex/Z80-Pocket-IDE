@@ -89,7 +89,7 @@ public final class SpriteToolPanel extends LinearLayout {
             refreshLayer();
         });
 
-        Button fit = greenButton(t("Fit to height ↕", "Вписать по высоте ↕"));
+        Button fit = greenButton(t("Fit", "Вписать"));
         LayoutParams fitParams = new LayoutParams(LayoutParams.MATCH_PARENT, dp(41));
         fitParams.setMargins(0, dp(5), 0, dp(7));
         addView(fit, fitParams);
@@ -118,7 +118,7 @@ public final class SpriteToolPanel extends LinearLayout {
             canvas.setLocked(next);
             updatePadlock(padlock);
         });
-        fit.setOnClickListener(v -> canvas.fitHeight());
+        fit.setOnClickListener(v -> canvas.fitToCanvas());
         canvas.setOnChange(this::schedulePreview);
 
         addView(detail(t("Mask starts at all 1s (visible). Tap on a visible mask pixel to "
@@ -466,7 +466,7 @@ public final class SpriteToolPanel extends LinearLayout {
                 int height = SIZES[heightChooser.getSelectedItemPosition()];
                 if (width == sprite.width() && height == sprite.height()) return;
                 sprite.resize(width, height);
-                canvas.fitHeight();
+                canvas.fitToCanvas();
                 refreshExport();
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
