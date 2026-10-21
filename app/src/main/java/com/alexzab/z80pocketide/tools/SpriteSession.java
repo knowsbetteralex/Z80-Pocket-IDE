@@ -10,6 +10,8 @@ public final class SpriteSession {
     private static boolean maskEditing;
     private static boolean paperTarget;
     private static boolean binaryExport;
+    // Locked by default, including after closing and reopening ToolsActivity.
+    private static boolean canvasLocked = true;
 
     private SpriteSession() {}
 
@@ -21,10 +23,14 @@ public final class SpriteSession {
     public static boolean binaryExport() { return binaryExport; }
     public static void setBinaryExport(boolean enabled) { binaryExport = enabled; }
 
+    public static boolean canvasLocked() { return canvasLocked; }
+    public static void setCanvasLocked(boolean locked) { canvasLocked = locked; }
+
     public static void clear() {
         sprite = new SpriteData(16, 16);
         maskEditing = false;
         paperTarget = false;
         binaryExport = false;
+        canvasLocked = true;
     }
 }
