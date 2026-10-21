@@ -7,6 +7,9 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.text.InputType;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.Toast;
 import android.os.Handler;
 import android.os.Looper;
@@ -37,7 +40,8 @@ public final class SpriteToolPanel extends LinearLayout {
     private final Button inkButton, paperButton;
     private final View[] swatches = new View[16];
     private final Spinner widthChooser, heightChooser;
-    private final TextView bitmapPreview, maskPreview, attrPreview, offsetLabel;
+    private final SpriteDbField bitmapPreview, maskPreview, attrPreview;
+    private final TextView offsetLabel;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable delayedPreview = this::refreshExport;
     private boolean sizing;
@@ -58,8 +62,8 @@ public final class SpriteToolPanel extends LinearLayout {
         setPadding(dp(2), dp(8), dp(2), dp(18));
 
         addView(title(t("Spectrum sprite editor", "Редактор спрайтов Spectrum"), 19));
-        addView(detail(t("Tap to draw/erase; drag to continue. Two fingers move/zoom the viewport.",
-                "Касание рисует/стирает, скольжение продолжает. Два пальца двигают и масштабируют холст.")));
+        addView(detail(t("Canvas starts locked. Tap the padlock to paint; locked mode allows one-finger pan and two-finger pinch.",
+                "По умолчанию холст заблокирован. Замочек разрешает рисование; при блокировке один палец двигает, два масштабируют.")));
 
         LinearLayout dimensions = row();
         widthChooser = spinner();
@@ -91,9 +95,29 @@ public final class SpriteToolPanel extends LinearLayout {
         addView(fit, fitParams);
 
         canvas = new SpriteCanvasView(context, sprite);
+        FrameLayout canvasHolder = new FrameLayout(context);
         LayoutParams canvasParams = new LayoutParams(LayoutParams.MATCH_PARENT, dp(315));
         canvasParams.setMargins(0, 0, 0, dp(7));
-        addView(canvas, canvasParams);
+        addView(canvasHolder, canvasParams);
+        canvasHolder.addView(canvas, new FrameLayout.LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        ImageButton padlock = new ImageButton(context);
+        padlock.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        padlock.setPadding(dp(9), dp(9), dp(9), dp(9));
+        padlock.setElevation(dp(3));
+        padlock.setBackground(UiStyle.rounded(context, 0xFF2D8052, 13, 0xFF266744, 1));
+        FrameLayout.LayoutParams lockParams = new FrameLayout.LayoutParams(
+                dp(43), dp(43), Gravity.TOP | Gravity.RIGHT);
+        lockParams.setMargins(0, dp(8), dp(8), 0);
+        canvasHolder.addView(padlock, lockParams);
+        canvas.setLocked(SpriteSession.canvasLocked());
+        updatePadlock(padlock);
+        padlock.setOnClickListener(v -> {
+            boolean next = !SpriteSession.canvasLocked();
+            SpriteSession.setCanvasLocked(next);
+            canvas.setLocked(next);
+            updatePadlock(padlock);
+        });
         fit.setOnClickListener(v -> canvas.fitHeight());
         canvas.setOnChange(this::schedulePreview);
 
@@ -210,7 +234,7 @@ public final class SpriteToolPanel extends LinearLayout {
         });
 
         addView(title(t("Bitmap · DB", "Рисунок · DB"), 15));
-        bitmapPreview = codePreview();
+        bitmapPreview = dbField(0);
         addView(bitmapPreview);
         LinearLayout bitmapActions = row();
         Button importBitmap = smallButton(t("Load DB into sprite", "Загрузить DB в рисунок"));
@@ -223,7 +247,7 @@ public final class SpriteToolPanel extends LinearLayout {
                 insertAction.insert(sprite.dbPixels(SpriteSession.binaryExport())));
 
         addView(title(t("Mask · DB (1 = visible)", "Маска · DB (1 = видно)"), 15));
-        maskPreview = codePreview();
+        maskPreview = dbField(1);
         addView(maskPreview);
         LinearLayout maskDbActions = row();
         Button importMask = smallButton(t("Load DB into mask", "Загрузить DB в маску"));
@@ -236,7 +260,7 @@ public final class SpriteToolPanel extends LinearLayout {
                 insertAction.insert(sprite.dbMask(SpriteSession.binaryExport())));
 
         addView(title(t("Attributes 8×8 · DB", "Атрибуты 8×8 · DB"), 15));
-        attrPreview = codePreview();
+        attrPreview = dbField(2);
         addView(attrPreview);
         LinearLayout attributeActions = row();
         Button importAttrs = smallButton(t("Load attribute DB", "Загрузить DB атрибутов"));
@@ -332,6 +356,36 @@ public final class SpriteToolPanel extends LinearLayout {
         dialog.show();
     }
 
+    private void updatePadlock(ImageButton button) {
+        boolean locked = SpriteSession.canvasLocked();
+        button.setImageResource(locked
+                ? com.alexzab.z80pocketide.R.drawable.ic_sprite_locked
+                : com.alexzab.z80pocketide.R.drawable.ic_sprite_unlocked);
+        button.setContentDescription(locked
+                ? t("Unlock sprite canvas for drawing", "Разблокировать холст для рисования")
+                : t("Lock sprite canvas", "Заблокировать рисование"));
+    }
+
+    /** DB edits stay in a temporary input buffer until explicit OK. */
+    private SpriteDbField dbField(int kind) {
+        return new SpriteDbField(getContext(), ru, source -> {
+            int[] bytes = SpriteDbParser.parse(source);
+            int expected = kind == 2 ? sprite.cellsX() * sprite.cellsY()
+                    : sprite.cellsX() * sprite.height();
+            if (bytes.length != expected)
+                throw new IllegalArgumentException(
+                        (ru ? "Ожидается " : "Expected ") + expected
+                                + (ru ? " байт, получено " : " bytes, got ") + bytes.length);
+            if (kind == 0) sprite.loadBitmap(bytes);
+            else if (kind == 1) sprite.loadMask(bytes);
+            else sprite.loadAttributes(bytes);
+        }, () -> {
+            canvas.invalidate();
+            refreshPalette();
+            refreshExport();
+        });
+    }
+
     private void refreshLayer() {
         boolean mask = SpriteSession.maskEditing();
         canvas.setMaskMode(mask);
@@ -399,9 +453,9 @@ public final class SpriteToolPanel extends LinearLayout {
 
     private void refreshExport() {
         handler.removeCallbacks(delayedPreview);
-        bitmapPreview.setText(sprite.dbPixels(SpriteSession.binaryExport()));
-        maskPreview.setText(sprite.dbMask(SpriteSession.binaryExport()));
-        attrPreview.setText(sprite.dbAttributes(SpriteSession.binaryExport()));
+        bitmapPreview.setCode(sprite.dbPixels(SpriteSession.binaryExport()));
+        maskPreview.setCode(sprite.dbMask(SpriteSession.binaryExport()));
+        attrPreview.setCode(sprite.dbAttributes(SpriteSession.binaryExport()));
     }
 
     private void bindSize(Spinner field) {
