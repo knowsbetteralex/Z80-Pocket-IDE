@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.24.0)
+## Current development build (v0.25.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -210,3 +210,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - A larger **8×8 pixel view** below the whole-screen grid picks pixel scanline LLL (0..7) and bit (0..7). The selected scanline updates the real bitmap address. The selected bit shows its byte mask ($80..$01) and absolute X/Y pixel position, but does not change the bitmap byte address.
 - The screen map and 8×8 selector react immediately to numeric coordinate fields and the HEX/BIN bitmap/attribute address inputs, and screen touches update those existing fields using ScreenAddress, including third/row interleaving.
 - Unit tests verify all three display thirds, pointer mapping, bit-mask endpoints and coordinate-to-address consistency.
+
+## v0.25.0 ZX Spectrum keyboard worksheet
+
+- Added a fourth **Keyboard / Клавиши** workshop tab with a drawn four-row 40-key ZX Spectrum membrane keyboard. Keys can be tapped to toggle simultaneous presses. Selected keys are highlighted in amber.
+- For each selected half-row, shows the exact port address ($FEFE, $FDFE, $FBFE, $F7FE, $EFFE, $DFFE, $BFFE, $7FFE), read byte in HEX and BIN, and the pressed key names. Tap a readout row to focus its values in the decoder.
+- Reverse lookup: edit a half-row port in HEX and a read byte in HEX or eight-bit BIN; the selected physical keys update immediately. The reverse lookup replaces previous pressed selections, while tapping the keyboard can build multi-half-row key combinations.
+- Bits D0..D4 are active-low, 0 = pressed. The displayed high bits are normalized to ones; the real D6 EAR line may vary. Loading a byte ignores D5..D7 for key selection.
+- Button **Insert Z80 reading snippet** inserts LD BC,port / IN A,(C) and optionally BIT n,A (for the first selected key in the focused half-row). Selection survives reopening the workshop during the current Android process.
+- Added JVM unit tests for all 40 key positions, 8 ports, key combinations, reverse decoding, binary/hex input and Z80 snippet creation.
