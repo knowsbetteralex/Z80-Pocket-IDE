@@ -47,6 +47,7 @@ import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyDiagnostics;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
+import com.alexzab.z80pocketide.editor.SourceScrollRail;
 import com.alexzab.z80pocketide.editor.SourceSearch;
 import com.alexzab.z80pocketide.editor.SearchReplacePanel;
 import com.alexzab.z80pocketide.editor.EditorDocument;
@@ -161,6 +162,8 @@ public class MainActivity extends Activity {
     private int statusColor = Color.DKGRAY;
     private List<AssemblyDiagnostics.Issue> analysisIssues = new ArrayList<>();
     private HorizontalScrollView tabStrip;
+    private SourceScrollRail sourceScrollRail;
+    private ImageButton foldAllButton;
     private SearchReplacePanel searchPanel;
     private final List<SourceSearch.Match> searchMatches = new ArrayList<>();
     private int searchMatchIndex = -1;
@@ -329,6 +332,32 @@ public class MainActivity extends Activity {
                 HorizontalScrollView.LayoutParams.WRAP_CONTENT));
         workspaceBar.addView(tabStrip, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        foldAllButton = new ImageButton(this);
+        foldAllButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        foldAllButton.setPadding(dp(6), dp(6), dp(6), dp(6));
+        foldAllButton.setBackground(UiStyle.ripple(this,
+                0xFFE3F1E8, 12, 0xFFB8D7C5));
+        LinearLayout.LayoutParams foldParams = new LinearLayout.LayoutParams(
+                dp(40), dp(40));
+        foldParams.setMargins(dp(3), 0, dp(1), 0);
+        workspaceBar.addView(foldAllButton, foldParams);
+        foldAllButton.setOnClickListener(v -> {
+            if (editor == null) return;
+            boolean changed;
+            if (editor.isFolded()) {
+                editor.unfoldAll();
+                changed = true;
+            } else {
+                changed = editor.foldTopLevelLabels();
+            }
+            if (changed) {
+                sourceScrollRail.onEditorScroll();
+                scheduleAnalysis();
+                scheduleSearchRefresh();
+            }
+            updateFoldAllButton();
+        });
         LinearLayout.LayoutParams workspaceParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         workspaceParams.setMargins(0, dp(5), 0, dp(4));
@@ -362,6 +391,9 @@ public class MainActivity extends Activity {
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         editor.setHorizontallyScrolling(true);
+        // A dedicated 42dp thumb is easier to grab than Android's thin system
+        // scroll indicator. Avoid duplicate bars on the right.
+        editor.setVerticalScrollBarEnabled(false);
 
         FrameLayout editorHost = new FrameLayout(this);
         LinearLayout.LayoutParams editorParams = new LinearLayout.LayoutParams(
@@ -371,6 +403,17 @@ public class MainActivity extends Activity {
         editorHost.addView(editor, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
+
+        sourceScrollRail = new SourceScrollRail(this, editor);
+        FrameLayout.LayoutParams railParams = new FrameLayout.LayoutParams(
+                dp(42), FrameLayout.LayoutParams.MATCH_PARENT,
+                Gravity.TOP | Gravity.RIGHT);
+        // Run FAB occupies bottom 71dp and must never overlap this control.
+        railParams.setMargins(0, dp(6), dp(5), dp(87));
+        editorHost.addView(sourceScrollRail, railParams);
+        editor.setOnViewportScrolled(sourceScrollRail::onEditorScroll);
+        editor.setOnFoldStateChanged(this::updateFoldAllButton);
+        updateFoldAllButton();
 
         // Build + Run sits over the code canvas instead of consuming header width.
         runTap = new ImageButton(this);
@@ -832,6 +875,16 @@ public class MainActivity extends Activity {
         return p;
     }
 
+    private void updateFoldAllButton() {
+        if (foldAllButton == null || editor == null) return;
+        boolean folded = editor.isFolded();
+        foldAllButton.setImageResource(folded
+                ? R.drawable.ic_unfold_all : R.drawable.ic_fold_all);
+        foldAllButton.setContentDescription(folded
+                ? t("Expand all label blocks", "Развернуть все блоки меток")
+                : t("Collapse top-level labels", "Свернуть верхние метки"));
+    }
+
     private void renderTabs() {
         if (tabRow == null) return;
         tabRow.removeAllViews();
@@ -910,7 +963,12 @@ public class MainActivity extends Activity {
         editor.setUndoHistory(doc.history, this::updateUndoRedoButtons);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
-        editor.post(() -> editor.scrollTo(doc.scrollX, doc.scrollY));
+        updateFoldAllButton();
+        editor.post(() -> {
+            editor.scrollToVerticalOffset(doc.scrollY);
+            editor.scrollTo(doc.scrollX, editor.getScrollY());
+            sourceScrollRail.invalidate();
+        });
 
         boolean built = doc.buildIsCurrent();
         // Run always builds stale or never-built sources; only Save TAP depends on Build.
