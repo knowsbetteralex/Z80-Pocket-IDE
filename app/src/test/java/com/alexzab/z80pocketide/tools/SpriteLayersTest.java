@@ -88,6 +88,19 @@ public final class SpriteLayersTest {
         assertFalse(s.getMask(3, 4));
     }
 
+    @Test public void canvasLockDefaultsOnAndSurvivesToolReopening() {
+        SpriteSession.clear();
+        assertTrue(SpriteSession.canvasLocked());
+        SpriteSession.setCanvasLocked(false);
+        assertFalse(SpriteSession.canvasLocked());
+        // Opening another tool panel reads the same in-process session state.
+        assertFalse(SpriteSession.canvasLocked());
+        SpriteSession.setCanvasLocked(true);
+        assertTrue(SpriteSession.canvasLocked());
+        SpriteSession.clear();
+        assertTrue(SpriteSession.canvasLocked());
+    }
+
     @Test public void spriteStateIsSharedWithinOneProcessUntilReset() {
         SpriteSession.clear();
         SpriteData held = SpriteSession.sprite();
