@@ -21,6 +21,7 @@ import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.LocalizedReference;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.reference.InstructionReference;
+import com.alexzab.z80pocketide.reference.InstructionDetails;
 import com.alexzab.z80pocketide.reference.SpectrumReference;
 import com.alexzab.z80pocketide.ui.SpectrumScreenMapView;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
@@ -29,11 +30,14 @@ import com.alexzab.z80pocketide.ui.UiStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.HashSet;
+import java.util.Set;
 
 public final class ReferenceActivity extends Activity {
     public static final String EXTRA_QUERY = "query";
     private static final String STATE_QUERY = "reference_query";
     private static final String STATE_SECTION = "reference_section";
+    private static final String STATE_EXPANDED = "reference_expanded";
 
     private static final int SECTION_Z80 = 0;
     private static final int SECTION_ZX = 1;
@@ -49,6 +53,7 @@ public final class ReferenceActivity extends Activity {
     private Button ioTab;
     private AppLanguage language;
     private int section = SECTION_Z80;
+    private final Set<String> expandedInstructions = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -167,6 +172,8 @@ public final class ReferenceActivity extends Activity {
         if (savedInstanceState != null) {
             initial = savedInstanceState.getString(STATE_QUERY, "");
             section = savedInstanceState.getInt(STATE_SECTION, SECTION_Z80);
+            ArrayList<String> expanded = savedInstanceState.getStringArrayList(STATE_EXPANDED);
+            if (expanded != null) expandedInstructions.addAll(expanded);
         } else {
             initial = getIntent().getStringExtra(EXTRA_QUERY);
             if (initial == null) initial = "";
@@ -184,6 +191,7 @@ public final class ReferenceActivity extends Activity {
         super.onSaveInstanceState(outState);
         if (search != null) outState.putString(STATE_QUERY, search.getText().toString());
         outState.putInt(STATE_SECTION, section);
+        outState.putStringArrayList(STATE_EXPANDED, new ArrayList<>(expandedInstructions));
     }
 
     private void setSection(int next) {
@@ -340,7 +348,113 @@ public final class ReferenceActivity extends Activity {
                 12, Color.rgb(80, 80, 80), false));
         card.addView(text(Texts.referenceDescription(language, e.description),
                 13, Color.rgb(65, 65, 65), false));
+
+        // The compact view stays lightweight. Expanded variants are only
+        // materialized when requested, so search through all families is fast.
+        final List<InstructionDetails.Variant> variants = InstructionDetails.variants(e);
+        final boolean alreadyExpanded = expandedInstructions.contains(e.mnemonic);
+        Button expand = new Button(this);
+        expand.setTextSize(12);
+        expand.setMinHeight(dp(37));
+        expand.setMinWidth(0);
+        expand.setAllCaps(false);
+        UiStyle.styleSoftGreenButton(expand);
+        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(39));
+        buttonParams.setMargins(0, dp(8), 0, 0);
+        card.addView(expand, buttonParams);
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setVisibility(alreadyExpanded ? View.VISIBLE : View.GONE);
+        card.addView(details);
+        if (alreadyExpanded) fillInstructionDetails(details, e, variants);
+        updateExpandLabel(expand, alreadyExpanded, variants.size());
+        expand.setOnClickListener(v -> {
+            boolean show = !expandedInstructions.contains(e.mnemonic);
+            if (show) {
+                expandedInstructions.add(e.mnemonic);
+                if (details.getChildCount() == 0)
+                    fillInstructionDetails(details, e, variants);
+            } else {
+                expandedInstructions.remove(e.mnemonic);
+            }
+            details.setVisibility(show ? View.VISIBLE : View.GONE);
+            updateExpandLabel(expand, show, variants.size());
+        });
         return card;
+    }
+
+    private void updateExpandLabel(Button button, boolean show, int variantCount) {
+        button.setText((show ? "▴ " : "▾ ") +
+                t(show ? "Hide details" : "Show details",
+                        show ? "Свернуть подробности" : "Подробности") +
+                " · " + variantCount +
+                t(" forms", " вариантов"));
+        button.setContentDescription(t(
+                show ? "Collapse instruction details" : "Expand instruction forms and flag effects",
+                show ? "Свернуть подробности команды" : "Показать формы команды и значения флагов"));
+    }
+
+    private void fillInstructionDetails(LinearLayout area, InstructionReference.Entry e,
+                                        List<InstructionDetails.Variant> variants) {
+        area.addView(text(t("Every timing is in un-contended Z80 T-states. Conditional "
+                                + "timings specify taken / not taken.",
+                        "Все такты указаны без задержек от доступа к видеопамяти. "
+                                + "В условных командах: переход выполнен / не выполнен."),
+                12, 0xFF5B7663, false));
+
+        TextView flagLegend = text(t(
+                        "Flags F: S sign · Z zero · H half-carry · P/V parity or "
+                                + "overflow · N subtraction · C carry. Unchanged means "
+                                + "the old flag value is retained. F3/F5 are undocumented.",
+                        "Флаги F: S знак · Z нуль · H полуперенос · P/V чётность "
+                                + "или переполнение · N вычитание · C перенос. "
+                                + "«Без изменения» означает сохранение прежнего бита. "
+                                + "F3/F5 недокументированы."),
+                12, 0xFF637368, false);
+        flagLegend.setPadding(dp(5), dp(8), dp(5), dp(9));
+        area.addView(flagLegend);
+
+        for (InstructionDetails.Variant variant : variants) {
+            LinearLayout panel = new LinearLayout(this);
+            panel.setOrientation(LinearLayout.VERTICAL);
+            panel.setPadding(dp(10), dp(8), dp(10), dp(9));
+            panel.setBackground(UiStyle.rounded(this,
+                    0xFFF4F9F5, 12, 0xFFDBE9DF, 1));
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            p.setMargins(0, dp(3), 0, dp(5));
+            area.addView(panel, p);
+
+            LinearLayout titleLine = new LinearLayout(this);
+            titleLine.setOrientation(LinearLayout.HORIZONTAL);
+            titleLine.setGravity(Gravity.CENTER_VERTICAL);
+            TextView form = text(variant.form, 14, 0xFF245F40, true);
+            form.setTypeface(android.graphics.Typeface.MONOSPACE,
+                    android.graphics.Typeface.BOLD);
+            form.setSingleLine(false);
+            titleLine.addView(form, new LinearLayout.LayoutParams(0,
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            TextView cycles = text(variant.timing + " T", 12, 0xFF8B521B, true);
+            cycles.setGravity(Gravity.RIGHT | Gravity.TOP);
+            cycles.setPadding(dp(7), dp(3), 0, 0);
+            titleLine.addView(cycles);
+            panel.addView(titleLine);
+
+            TextView desc = text(variant.description(language == AppLanguage.RU),
+                    13, 0xFF354139, false);
+            desc.setPadding(0, dp(6), 0, dp(7));
+            panel.addView(desc);
+
+            TextView flagsTitle = text(t("Status flags after execution:",
+                    "Флаги после выполнения:"), 12, 0xFF5E7063, false);
+            panel.addView(flagsTitle);
+            TextView flagsBody = text(variant.flags(language == AppLanguage.RU),
+                    12, 0xFF334C3D, true);
+            flagsBody.setPadding(dp(5), dp(3), 0, dp(2));
+            panel.addView(flagsBody);
+        }
     }
 
     private View topicCard(SpectrumReference.Topic topic) {
