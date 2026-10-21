@@ -3,7 +3,6 @@ package com.alexzab.z80pocketide.editor;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -17,15 +16,16 @@ import android.view.View;
 public final class SourceScrollRail extends View {
     private final CodeEditorView editor;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private boolean bright;
+    private static final long HIDE_DELAY_MS = 1800L;
     private boolean dragging;
     private boolean holding;
     private int heldDirection;
     private float dragInsideThumb;
     private final Runnable idle = () -> {
         if (!dragging && !holding) {
-            bright = false;
-            invalidate();
+            // INVISIBLE rather than alpha=0: do not intercept swipes on the
+            // code when the scrollbar is hidden, and leave no faint track.
+            setVisibility(INVISIBLE);
         }
     };
     private final Runnable repeated = new Runnable() {
@@ -42,13 +42,30 @@ public final class SourceScrollRail extends View {
         setContentDescription("Source scrollbar: drag thumb, tap or hold arrows");
         setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         setClickable(true);
+        setVisibility(INVISIBLE);
     }
 
-    public void onEditorScroll() {
-        bright = true;
+    /** Only invoked from an actual touch-pan gesture on the code, never from
+     * restoring a file, moving the caret, folding or auto-scrolling. */
+    public void onUserScroll() {
+        if (editor.maxVerticalScroll() <= 0) {
+            hideNow();
+            return;
+        }
+        if (getVisibility() != VISIBLE) setVisibility(VISIBLE);
         invalidate();
         removeCallbacks(idle);
-        postDelayed(idle, 1800L);
+        if (!dragging && !holding) postDelayed(idle, HIDE_DELAY_MS);
+    }
+
+    /** Repaint the thumb without revealing the bar on programmatic scrolls. */
+    public void onViewportChanged() {
+        if (getVisibility() == VISIBLE) invalidate();
+    }
+
+    private void hideNow() {
+        removeCallbacks(idle);
+        if (!dragging && !holding) setVisibility(INVISIBLE);
     }
 
     private float arrowHeight() { return dp(44); }
@@ -75,10 +92,10 @@ public final class SourceScrollRail extends View {
         float w = getWidth();
         float cx = w / 2f;
         boolean canScroll = editor.maxVerticalScroll() > 0;
-        int alpha = canScroll ? (bright ? 235 : 130) : 65;
+        int alpha = canScroll ? 235 : 65;
 
         fill.setColor(0xFFE8F2EA);
-        fill.setAlpha(bright ? 235 : 155);
+        fill.setAlpha(235);
         canvas.drawRoundRect(dp(2), dp(2), w - dp(2),
                 getHeight() - dp(2), dp(14), dp(14), fill);
         fill.setColor(0xFF9CC5A9);
@@ -95,11 +112,11 @@ public final class SourceScrollRail extends View {
             float top = thumbTop();
             float height = thumbLength();
             fill.setColor(0xFF2E8053);
-            fill.setAlpha(bright ? 248 : 174);
+            fill.setAlpha(248);
             canvas.drawRoundRect(dp(5), top, w - dp(5), top + height,
                     dp(11), dp(11), fill);
             fill.setColor(0xFFE7F5EA);
-            fill.setAlpha(bright ? 220 : 145);
+            fill.setAlpha(220);
             for (int k = -1; k <= 1; k++) {
                 float cy = top + height / 2f + k * dp(6);
                 canvas.drawRoundRect(cx - dp(7), cy - dp(1), cx + dp(7),
@@ -129,7 +146,6 @@ public final class SourceScrollRail extends View {
             case MotionEvent.ACTION_DOWN: {
                 if (editor.maxVerticalScroll() <= 0) return true;
                 getParent().requestDisallowInterceptTouchEvent(true);
-                bright = true;
                 removeCallbacks(idle);
                 float y = event.getY();
                 if (y <= arrowHeight() || y >= getHeight() - arrowHeight()) {
@@ -162,7 +178,7 @@ public final class SourceScrollRail extends View {
                 if (getParent() != null)
                     getParent().requestDisallowInterceptTouchEvent(false);
                 removeCallbacks(idle);
-                postDelayed(idle, 1800L);
+                postDelayed(idle, HIDE_DELAY_MS);
                 performClick();
                 return true;
             default:
