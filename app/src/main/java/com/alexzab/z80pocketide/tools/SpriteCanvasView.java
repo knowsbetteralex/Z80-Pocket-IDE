@@ -27,6 +27,8 @@ public final class SpriteCanvasView extends View {
     private boolean strokeFills;
     private boolean transforming;
     private boolean maskMode;
+    private boolean locked = true;
+    private float lastOneFingerX, lastOneFingerY;
     private Runnable onChange;
 
     public SpriteCanvasView(Context context, SpriteData initial) {
@@ -54,6 +56,14 @@ public final class SpriteCanvasView extends View {
     }
 
     public void setOnChange(Runnable callback) { onChange = callback; }
+
+    /** Locked canvas: no edits; one finger pans and two fingers pan/pinch. */
+    public void setLocked(boolean value) {
+        locked = value;
+        previousPixelX = previousPixelY = -1;
+    }
+
+    public boolean isLocked() { return locked; }
 
     public void setMaskMode(boolean enabled) {
         maskMode = enabled;
@@ -159,11 +169,15 @@ public final class SpriteCanvasView extends View {
         if (action == MotionEvent.ACTION_DOWN) {
             transforming = false;
             previousPixelX = previousPixelY = -1;
+            lastOneFingerX = event.getX();
+            lastOneFingerY = event.getY();
             if (getParent() != null) getParent().requestDisallowInterceptTouchEvent(true);
-            int x = xPixel(event.getX()), y = yPixel(event.getY());
-            if (valid(x,y)) {
-                strokeFills = !(maskMode ? data.getMask(x, y) : data.getPixel(x, y));
-                strokeTo(x,y);
+            if (!locked) {
+                int x = xPixel(event.getX()), y = yPixel(event.getY());
+                if (valid(x,y)) {
+                    strokeFills = !(maskMode ? data.getMask(x, y) : data.getPixel(x, y));
+                    strokeTo(x,y);
+                }
             }
             return true;
         }
@@ -189,7 +203,15 @@ public final class SpriteCanvasView extends View {
                 return true;
             }
             // Never accidentally draw when lifting one finger out of a pinch.
-            if (!transforming) {
+            if (locked) {
+                if (!transforming) {
+                    originX += event.getX() - lastOneFingerX;
+                    originY += event.getY() - lastOneFingerY;
+                    invalidate();
+                }
+                lastOneFingerX = event.getX();
+                lastOneFingerY = event.getY();
+            } else if (!transforming) {
                 int x = xPixel(event.getX()), y = yPixel(event.getY());
                 if (valid(x,y)) strokeTo(x,y);
                 else previousPixelX = previousPixelY = -1;
