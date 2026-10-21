@@ -204,7 +204,12 @@ public final class SpectrumKeyboardPanel extends LinearLayout {
     private void addRowResult(int row) {
         int port = SpectrumKeyboardMatrix.port(row);
         int value = SESSION.readByte(row);
-        String names = String.join(", ", SESSION.pressedKeys(row));
+        StringBuilder joined = new StringBuilder();
+        for (String key : SESSION.pressedKeys(row)) {
+            if (joined.length() != 0) joined.append(", ");
+            joined.append(key);
+        }
+        String names = joined.toString();
         Button button = smallButton(
                 SpectrumKeyboardMatrix.hexPort(port) + "  " + SpectrumKeyboardMatrix.hexByte(value)
                 + "  " + SpectrumKeyboardMatrix.binByte(value)
@@ -229,7 +234,7 @@ public final class SpectrumKeyboardPanel extends LinearLayout {
                 0xFFFFFFFF, 16, 0xFFD0E2D6, 1));
         LayoutParams p = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         p.setMargins(0, dp(5), 0, dp(12));
-        addView(result, p);
+        result.setLayoutParams(p);
         return result;
     }
 
