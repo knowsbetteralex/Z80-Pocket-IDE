@@ -56,6 +56,7 @@ public class CodeEditorView extends EditText {
     private Runnable onCaretMoved;
     private Runnable onFoldStateChanged;
     private Runnable onViewportScrolled;
+    private Runnable onUserFingerScroll;
     private int[] instructionSizes;
     private int[] instructionMinCycles;
     private int[] instructionMaxCycles;
@@ -358,6 +359,11 @@ public class CodeEditorView extends EditText {
 
     public void setOnViewportScrolled(Runnable listener) {
         onViewportScrolled = listener;
+    }
+
+    /** Distinguishes deliberate finger panning from caret/programmatic scroll. */
+    public void setOnUserFingerScroll(Runnable listener) {
+        onUserFingerScroll = listener;
     }
 
     public int maxVerticalScroll() {
@@ -1008,7 +1014,10 @@ public class CodeEditorView extends EditText {
                 }
 
                 if (panning) {
+                    int beforeScrollY = getScrollY();
                     panTo(downScrollX - Math.round(dx), downScrollY - Math.round(dy));
+                    if (getScrollY() != beforeScrollY && onUserFingerScroll != null)
+                        onUserFingerScroll.run();
                     restoreSelection();
                     return true;
                 }
