@@ -25,6 +25,9 @@ public final class ScreenAddressPanel extends LinearLayout {
     private final TextView third;
     private final EditText attrRow, attrCol, pixelHex, pixelBinary, attrHex, attrBinary;
     private final TextView status;
+    private final ScreenGridView screenGrid;
+    private final PixelByteView pixelPreview;
+    private final TextView positionDetails;
     private ScreenAddress current = new ScreenAddress(0, 0, 0, 0);
     private boolean updating;
 
@@ -38,6 +41,44 @@ public final class ScreenAddressPanel extends LinearLayout {
                 "Экран: 010 TT LLL RRR CCCCC"), 17, C_THIRD));
         addView(description(t("Row is 0–23 across the entire screen; third is calculated. Column is a byte (8 pixels).",
                 "Строка 0–23 по всему экрану; треть вычисляется автоматически. Столбец — байт (8 пикселей).")));
+
+        // Touchable overall 256×192 screen, subdivided into 32×24 characters.
+        LinearLayout visualization = card();
+        visualization.addView(heading(
+                t("Screen map · tap a character cell", "Карта экрана · выбери знакоместо"),
+                15, C_THIRD));
+        visualization.addView(description(t(
+                "Each square = 8×8 pixels / 1 attribute. Heavy lines separate the screen thirds.",
+                "Каждая клетка = 8×8 пикселей / 1 атрибут. Толстые линии разделяют трети экрана.")));
+        screenGrid = new ScreenGridView(context, (charRow, col) ->
+                apply(ScreenAddress.fromAttributeCoordinates(
+                        charRow, col, current.pixelLine), null));
+        visualization.addView(screenGrid, new LayoutParams(
+                LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+
+        visualization.addView(heading(
+                t("Pixel scanline and bit in selected byte (8×8)",
+                        "Пиксельная линия и бит в выбранном байте (8×8)"),
+                14, C_LINE));
+        LinearLayout detailRow = horizontal();
+        detailRow.setGravity(Gravity.CENTER_VERTICAL);
+        pixelPreview = new PixelByteView(context, (line, bit) ->
+                apply(new ScreenAddress(current.third, current.row,
+                        line, current.column), null));
+        detailRow.addView(pixelPreview, new LayoutParams(dp(164), dp(164)));
+        positionDetails = description("");
+        positionDetails.setTypeface(Typeface.MONOSPACE);
+        positionDetails.setTextSize(12);
+        positionDetails.setPadding(dp(9), dp(4), dp(2), dp(4));
+        detailRow.addView(positionDetails, new LayoutParams(
+                0, LayoutParams.WRAP_CONTENT, 1f));
+        visualization.addView(detailRow);
+        visualization.addView(description(t(
+                "Tap a pixel in the large 8×8 cell: its row sets LLL (bitmap address). "
+                        + "The bit column supplies a separate byte mask; it does not change the address.",
+                "Выбери пиксель в крупной клетке: строка задаёт LLL (адрес bitmap). "
+                        + "Столбец определяет маску бита внутри байта и не меняет адрес.")));
+        addView(visualization);
 
         LinearLayout coords = card();
         LinearLayout one = horizontal();
@@ -141,6 +182,17 @@ public final class ScreenAddressPanel extends LinearLayout {
 
     private void apply(ScreenAddress next, EditText excluded) {
         current = next;
+        screenGrid.setSelection(current);
+        pixelPreview.setSelection(current.pixelLine, pixelPreview.selectedBit());
+        int bit = pixelPreview.selectedBit();
+        positionDetails.setText(
+                t("Cell: ", "Знакоместо: ") + current.column + ", " + current.characterRow()
+                        + "\nX: " + (current.column * 8 + bit)
+                        + "\nY: " + (current.characterRow() * 8 + current.pixelLine)
+                        + "\nLLL: " + current.pixelLine
+                        + "\nBIT: " + bit
+                        + "\nMASK: " + String.format(java.util.Locale.ROOT,
+                                "$%02X", ScreenTouchMath.bitMask(bit)));
         updating = true;
         third.setText(String.valueOf(current.third));
         setField(row, String.valueOf(current.characterRow()), excluded);
