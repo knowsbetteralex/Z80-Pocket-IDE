@@ -25,11 +25,12 @@ import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.tools.NumberBaseConverter;
 import com.alexzab.z80pocketide.tools.ScreenAddressPanel;
+import com.alexzab.z80pocketide.tools.SpectrumKeyboardPanel;
 import com.alexzab.z80pocketide.tools.SpriteToolPanel;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 
-/** One mobile workshop with number, screen address and sprite tabs. */
+/** Mobile workshop with number, screen address, sprite and keyboard tabs. */
 public final class ToolsActivity extends Activity {
     public static final String EXTRA_INSERT_SOURCE = "insert_source";
     public static final String EXTRA_SELECTED_TAB = "selected_tab";
@@ -40,9 +41,9 @@ public final class ToolsActivity extends Activity {
     private boolean ru;
     private LinearLayout page;
     private StableToolsScrollView scroller;
-    private final int[] savedScrollY = new int[3];
-    private final Button[] tabs = new Button[3];
-    private View[] panels = new View[3];
+    private final int[] savedScrollY = new int[4];
+    private final Button[] tabs = new Button[4];
+    private View[] panels = new View[4];
     private int activeTab;
     private EditText dec, hex, bin;
     private TextView numberStatus;
@@ -93,9 +94,9 @@ public final class ToolsActivity extends Activity {
         LinearLayout tabRow = new LinearLayout(this);
         tabRow.setOrientation(LinearLayout.HORIZONTAL);
         String[] captions = ru ?
-                new String[]{"123","Адреса","Спрайт"} :
-                new String[]{"123","Addresses","Sprite"};
-        for(int i=0;i<3;i++){
+                new String[]{"123","Адреса","Спрайт","Клавиши"} :
+                new String[]{"123","Addresses","Sprite","Keyboard"};
+        for(int i=0;i<tabs.length;i++){
             final int index=i;
             tabs[i]=button(captions[i],false);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(44),1f);
@@ -124,12 +125,18 @@ public final class ToolsActivity extends Activity {
             setResult(RESULT_OK,result);
             finish();
         },getIntent().getStringExtra("sprite_selected_source"));
+        panels[3]=new SpectrumKeyboardPanel(this,ru,source->{
+            Intent result=new Intent();
+            result.putExtra(EXTRA_INSERT_SOURCE,source);
+            setResult(RESULT_OK,result);
+            finish();
+        });
 
         int remembered = getSharedPreferences(PREFS_TOOLS, MODE_PRIVATE)
                 .getInt(PREF_LAST_TAB, 0);
         activeTab = state != null ? state.getInt(STATE_TAB, remembered)
                 : getIntent().getIntExtra(EXTRA_SELECTED_TAB, remembered);
-        selectTab(Math.max(0,Math.min(activeTab,2)));
+        selectTab(Math.max(0,Math.min(activeTab,tabs.length-1)));
         setContentView(root);
     }
 
