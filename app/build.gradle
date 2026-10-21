@@ -10,8 +10,8 @@ android {
         applicationId 'com.alexzab.z80pocketide'
         minSdk 23
         targetSdk 35
-        versionCode 30
-        versionName '0.23.0'
+        versionCode 31
+        versionName '0.23.1'
 
         testInstrumentationRunner 'android.test.InstrumentationTestRunner'
     }
