@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.25.0)
+## Current development build (v0.26.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -219,3 +219,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Bits D0..D4 are active-low, 0 = pressed. The displayed high bits are normalized to ones; the real D6 EAR line may vary. Loading a byte ignores D5..D7 for key selection.
 - Button **Insert Z80 reading snippet** inserts LD BC,port / IN A,(C) and optionally BIT n,A (for the first selected key in the focused half-row). Selection survives reopening the workshop during the current Android process.
 - Added JVM unit tests for all 40 key positions, 8 ports, key combinations, reverse decoding, binary/hex input and Z80 snippet creation.
+
+## v0.26.0 expanded Z80 instruction reference
+
+- Z80 reference has a **two-level UI**: its existing quick card lists syntax alternatives, opcode patterns, a short description, affected flags and the approximate T-state counts; the new Show details/Подробности button opens per-form explanations and folds them back without leaving search or changing its scroll position.
+- Detailed entries cover **all existing 60 instruction/directive families** (register, immediate, (HL), indexed (IX/IY+d), memory, conditional branch and repeat forms as applicable), including additional common 16-bit LD, stack and interrupt forms. Each variant gets its own T-state value or taken/not-taken/iteration distinction and a short explanation in English/Russian.
+- Every expanded form displays the individual **S, Z, H, P/V, N, C flag outcomes**, distinguishing carry vs borrow, parity vs signed overflow, fixed 0/1, preservation and special instructions (BIT, DAA, NEG, SCF/CCF, block transfer/search/I/O, IN r,(C), LD A,I/R, POP AF and EX AF,AF'). Unofficial F3/F5 bits are identified separately rather than incorrectly conflated with the six documented flags.
+- Expanded card state survives search rerenders and device rotation within the Reference Activity. The other ZX/ROM/I/O reference tabs remain unchanged.
+- Expanded T-state counts assume the standard un-contended Z80; Spectrum-specific RAM contention delays are not part of these instruction counts.
+- Added JVM coverage tests for catalog completeness, special flags, and tricky indexed/conditional timing paths.
