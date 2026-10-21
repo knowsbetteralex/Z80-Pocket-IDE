@@ -52,7 +52,7 @@ public final class SpriteCanvasView extends View {
 
     public void setModel(SpriteData model) {
         data = model;
-        fitHeight();
+        fitToCanvas();
     }
 
     public void setOnChange(Runnable callback) { onChange = callback; }
@@ -71,20 +71,27 @@ public final class SpriteCanvasView extends View {
         invalidate();
     }
 
-    /** Fit to the entire available height, even if the resulting width exceeds the viewport. */
-    public void fitHeight() {
+    /** Fits the complete sprite by its limiting dimension with 12dp margins. */
+    public void fitToCanvas() {
         if (data == null || getHeight() <= 0 || getWidth() <= 0) {
             post(this::fitIfReady);
             return;
         }
-        cell = Math.max(2.5f, (getHeight() - 2f * dp(10)) / data.height());
+        float gap = dp(12);
+        float availableW = Math.max(1f, getWidth() - 2f * gap);
+        float availableH = Math.max(1f, getHeight() - 2f * gap);
+        cell = Math.max(.1f, Math.min(availableW / data.width(),
+                availableH / data.height()));
         originX = (getWidth() - data.width() * cell) / 2f;
         originY = (getHeight() - data.height() * cell) / 2f;
         invalidate();
     }
 
+    // Old API retained for any external tool callers.
+    public void fitHeight() { fitToCanvas(); }
+
     private void fitIfReady() {
-        if (getWidth() > 0 && getHeight() > 0) fitHeight();
+        if (getWidth() > 0 && getHeight() > 0) fitToCanvas();
     }
 
     private void zoomAt(float factor, float centerX, float centerY) {
@@ -98,7 +105,7 @@ public final class SpriteCanvasView extends View {
 
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
-        if (oldWidth == 0 || oldHeight == 0) fitHeight();
+        if (oldWidth == 0 || oldHeight == 0) fitToCanvas();
     }
 
     @Override protected void onDraw(Canvas canvas) {
