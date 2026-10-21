@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.21.1)
+## Current development build (v0.22.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -18,7 +18,7 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Editor line-number gutter and current-line highlighting, with tap/drag line selection.
 - Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
 - Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
-- Compact top bar with Run, Open ASM folder, Save, Undo/Redo, Find/Replace magnifier, ? reference, wrench workshop, TAB and RU/EN. Quick actions scroll horizontally on narrow phones; the rightmost main-menu button stays pinned. Editor settings appear as the last top-level menu item.
+- Compact top bar with Open ASM folder, Save, Undo/Redo, Find/Replace magnifier, ? reference, wrench workshop, TAB and RU/EN. Quick actions scroll horizontally on narrow phones; the rightmost main-menu button stays pinned. Editor settings appear as the last top-level menu item.
 - New / Open / Save / Save As / Close / Build / Save TAP actions live under File.
 - Single slim status row expands on tap into diagnostics and byte/T-state statistics.
 - Best-effort multiple assembler errors in a scrollable diagnostics panel.
@@ -171,3 +171,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Selecting a block of ASM text before opening Tools pre-fills import dialogs with that text, or the normal Android paste action can be used.
 - Imported bitmap and mask data update only the active visible canvas area, leaving clipped data intact. Imported attributes preserve independent cell bytes, including INK, PAPER, BRIGHT and FLASH; palette edits recolor cells again.
 - Added round-trip import/export, parser, validation and per-cell color tests.
+
+
+## v0.22.0 edit controls and Run placement
+
+- The sprite canvas has a top-right padlock overlay. It is **locked by default**, disabling painting while allowing one-finger panning and two-finger pan/pinch zoom. Unlocking restores drawing. Lock state stays in the in-memory sprite session and resets to locked on app restart.
+- Bitmap, mask and 8×8 attribute DB previews have a pencil icon at the upper right. It opens an **inline text editor** with **✓ OK** and **✕ Cancel**; validation and conversion occur only when OK is pressed. Invalid byte counts/values leave the editor open and the sprite unchanged; Cancel discards edits.
+- Existing separate Load DB and Insert DB buttons remain usable. The inline editor uses the same HEX/BIN/decimal DB parser and updates the canvas and all previews on commit.
+- The Tools workshop remembers the last selected tab (number converter, addresses or sprite) in app preferences and returns to it on the next opening, including after process restarts. Inline DB fields can request scrolling to expose the keyboard; passive DB preview redraws still cannot force page scroll.
+- Run/Build moves from the header to a circular green ▶ button floating at the bottom-right of the **source editor**. It remains available with the keyboard shown, preserves automatic Build & Run and leaves the menu's existing Run action intact.
