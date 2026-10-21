@@ -54,6 +54,8 @@ public class CodeEditorView extends EditText {
     private final Set<Integer> selectedLines = new TreeSet<>();
     private Runnable onLineSelectionChanged;
     private Runnable onCaretMoved;
+    private Runnable onFoldStateChanged;
+    private Runnable onViewportScrolled;
     private int[] instructionSizes;
     private int[] instructionMinCycles;
     private int[] instructionMaxCycles;
@@ -350,6 +352,30 @@ public class CodeEditorView extends EditText {
         onCaretMoved = listener;
     }
 
+    public void setOnFoldStateChanged(Runnable listener) {
+        onFoldStateChanged = listener;
+    }
+
+    public void setOnViewportScrolled(Runnable listener) {
+        onViewportScrolled = listener;
+    }
+
+    public int maxVerticalScroll() {
+        Layout layout = getLayout();
+        return layout == null ? 0 : maxScrollY(layout);
+    }
+
+    /** Move the viewport, not the text caret, while dragging the scrollbar. */
+    public void scrollToVerticalOffset(int targetY) {
+        panTo(getScrollX(), targetY);
+    }
+
+    /** Scroll one step (~15% of the visible editor height) on arrow tap. */
+    public void scrollByEditorStep(int direction) {
+        int step = Math.max(dp(20), Math.round(getHeight() * 0.15f));
+        scrollToVerticalOffset(getScrollY() + direction * step);
+    }
+
     public List<Integer> getSelectedLines() {
         return new ArrayList<>(selectedLines);
     }
@@ -536,6 +562,7 @@ public class CodeEditorView extends EditText {
         presentationChange = true;
         setText(source == null ? "" : source);
         presentationChange = false;
+        if (onFoldStateChanged != null) onFoldStateChanged.run();
     }
 
     /**
@@ -559,6 +586,7 @@ public class CodeEditorView extends EditText {
                 presentationChange = false;
                 foldedBlocks.remove(entry.getKey());
                 setSelection(Math.min(at, length()));
+                if (onFoldStateChanged != null) onFoldStateChanged.run();
                 return true;
             }
         }
@@ -588,17 +616,66 @@ public class CodeEditorView extends EditText {
         editable.replace(bodyStart, bodyEnd, marker);
         presentationChange = false;
         setSelection(Math.min(bodyStart, length()));
+        if (onFoldStateChanged != null) onFoldStateChanged.run();
+        return true;
+    }
+
+    /** Fold only the outermost label of each paragraph, leaving inner labels inside. */
+    public boolean foldTopLevelLabels() {
+        refreshPreferences();
+        if (editorPreferences == null || !editorPreferences.folding) return false;
+        if (isFolded()) return false;
+        String source = getText().toString();
+        java.util.List<TopLevelFoldPlanner.Range> ranges = TopLevelFoldPlanner.plan(source);
+        if (ranges.isEmpty()) return false;
+
+        int caret = Math.max(0, getSelectionStart());
+        int oldY = getScrollY();
+        clearLineSelection();
+        String indent = SourceFormatter.indentUnit(
+                editorPreferences.tabSize, editorPreferences.useSpaces);
+        presentationChange = true;
+        try {
+            Editable editable = getText();
+            // End-to-start replacements preserve the original byte offsets.
+            for (int i = ranges.size() - 1; i >= 0; --i) {
+                TopLevelFoldPlanner.Range range = ranges.get(i);
+                String hidden = source.substring(range.bodyStart, range.bodyEnd);
+                boolean newline = hidden.endsWith("\n");
+                int lines = countVisibleLines(hidden);
+                String marker = indent + "; ▶ " + lines
+                        + (lines == 1 ? " line" : " lines")
+                        + " · fold#" + (nextFoldId++) + (newline ? "\n" : "");
+                foldedBlocks.put(marker, hidden);
+                editable.replace(range.bodyStart, range.bodyEnd, marker);
+                if (caret > range.bodyStart)
+                    caret -= Math.min(caret, range.bodyEnd) - range.bodyStart;
+            }
+            setSelection(Math.max(0, Math.min(caret, editable.length())));
+        } finally {
+            presentationChange = false;
+        }
+        post(() -> scrollToVerticalOffset(Math.min(oldY, maxVerticalScroll())));
+        if (onFoldStateChanged != null) onFoldStateChanged.run();
         return true;
     }
 
     public void unfoldAll() {
         if (foldedBlocks.isEmpty()) return;
         clearLineSelection();
+        int caret = Math.max(0, getSelectionStart());
+        int oldY = getScrollY();
         String source = getSourceText();
         foldedBlocks.clear();
         presentationChange = true;
-        setText(source);
-        presentationChange = false;
+        try {
+            setText(source);
+            setSelection(Math.min(caret, length()));
+        } finally {
+            presentationChange = false;
+        }
+        post(() -> scrollToVerticalOffset(Math.min(oldY, maxVerticalScroll())));
+        if (onFoldStateChanged != null) onFoldStateChanged.run();
     }
 
     private void applyNewLineIndent(Editable text, int cursor) {
@@ -821,6 +898,12 @@ public class CodeEditorView extends EditText {
     protected void onScrollChanged(int horiz, int vert, int oldHoriz, int oldVert) {
         super.onScrollChanged(horiz, vert, oldHoriz, oldVert);
         invalidate();
+        if (onViewportScrolled != null) onViewportScrolled.run();
+    }
+
+    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (onViewportScrolled != null) post(onViewportScrolled);
     }
 
     @Override
