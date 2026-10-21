@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.23.0)
+## Current development build (v0.23.1)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -194,3 +194,11 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - A pinned fold/unfold-all icon sits to the right of the horizontal file tabs. It folds only the **first label in each blank-line-separated paragraph**, treating any subsequent labels in that paragraph as nested under the first. Tapping again restores the entire source.
 - Folding is a visual presentation operation: assembler source, saves and Undo history are not changed. Existing per-label gutter folding remains available.
 - Added host-side tests for paragraph boundaries, nested labels, label comments and EOF without trailing newline.
+
+## v0.23.1 transient touch scrollbar
+
+- The wide scrollbar, including thumb and arrow buttons, is **fully invisible** until a real finger-driven vertical scroll begins in the code editor.
+- After 1.8 seconds without further finger scroll the whole rail disappears; it no longer leaves a faint track overlay on the code or intercepts input while hidden.
+- Dragging the exposed thumb or holding its arrow buttons keeps it visible until release, then starts the same hide delay.
+- Scrolling caused by caret movement, restoring source position, tab changes, layout, folding or other programmatic actions only updates rail geometry and never reveals it.
+- The rail remains clear of the floating Run button and does not allocate an extra full-width strip.
