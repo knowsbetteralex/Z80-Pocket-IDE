@@ -17,6 +17,11 @@ import android.view.View;
 public final class SourceScrollRail extends View {
     private final CodeEditorView editor;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private boolean bright;
+    private boolean dragging;
+    private boolean holding;
+    private int heldDirection;
+    private float dragInsideThumb;
     private final Runnable idle = () -> {
         if (!dragging && !holding) {
             bright = false;
@@ -30,12 +35,6 @@ public final class SourceScrollRail extends View {
             postDelayed(this, 95L);
         }
     };
-
-    private boolean bright;
-    private boolean dragging;
-    private boolean holding;
-    private int heldDirection;
-    private float dragInsideThumb;
 
     public SourceScrollRail(Context context, CodeEditorView editor) {
         super(context);
