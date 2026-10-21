@@ -355,8 +355,9 @@ public class MainActivity extends Activity {
         editor.setTextColor(Color.rgb(25, 25, 25));
         editor.setBackground(UiStyle.rounded(this,
                 Color.rgb(252, 253, 252), 20, Color.rgb(207, 222, 213), 1));
-        // Bottom clearance lets the caret scroll above the overlaid Run FAB.
-        editor.setPadding(dp(54), dp(12), dp(14), dp(69));
+        // Keep normal editor padding: the Run button overlays only its own
+        // circular bounds, without a full-width empty strip below the code.
+        editor.setPadding(dp(54), dp(12), dp(14), dp(12));
         editor.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
