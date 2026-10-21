@@ -34,6 +34,8 @@ public final class ToolsActivity extends Activity {
     public static final String EXTRA_INSERT_SOURCE = "insert_source";
     public static final String EXTRA_SELECTED_TAB = "selected_tab";
     private static final String STATE_TAB = "tools_tab";
+    private static final String PREFS_TOOLS = "z80_tools_state";
+    private static final String PREF_LAST_TAB = "last_tab";
     private AppLanguage language;
     private boolean ru;
     private LinearLayout page;
@@ -123,8 +125,10 @@ public final class ToolsActivity extends Activity {
             finish();
         },getIntent().getStringExtra("sprite_selected_source"));
 
-        activeTab=state!=null?state.getInt(STATE_TAB,0):
-                getIntent().getIntExtra(EXTRA_SELECTED_TAB,0);
+        int remembered = getSharedPreferences(PREFS_TOOLS, MODE_PRIVATE)
+                .getInt(PREF_LAST_TAB, 0);
+        activeTab = state != null ? state.getInt(STATE_TAB, remembered)
+                : getIntent().getIntExtra(EXTRA_SELECTED_TAB, remembered);
         selectTab(Math.max(0,Math.min(activeTab,2)));
         setContentView(root);
     }
@@ -137,6 +141,8 @@ public final class ToolsActivity extends Activity {
     private void selectTab(int index){
         if (scroller != null) savedScrollY[activeTab] = scroller.getScrollY();
         activeTab=index;
+        getSharedPreferences(PREFS_TOOLS, MODE_PRIVATE)
+                .edit().putInt(PREF_LAST_TAB, activeTab).apply();
         page.removeAllViews();
         View content=panels[index];
         if(content.getParent() instanceof android.view.ViewGroup)
@@ -166,13 +172,19 @@ public final class ToolsActivity extends Activity {
             spriteFocusScrollDisabled = disabled;
         }
 
+        private boolean isInlineDbEditor(View focused) {
+            return focused instanceof EditText
+                    && "sprite-db-edit".equals(focused.getTag());
+        }
+
         @Override public void requestChildFocus(View child, View focused) {
-            if (!spriteFocusScrollDisabled) super.requestChildFocus(child, focused);
+            if (!spriteFocusScrollDisabled || isInlineDbEditor(focused))
+                super.requestChildFocus(child, focused);
         }
 
         @Override public boolean requestChildRectangleOnScreen(View child, Rect rectangle,
                                                                boolean immediate) {
-            if (spriteFocusScrollDisabled) return false;
+            if (spriteFocusScrollDisabled && !isInlineDbEditor(findFocus())) return false;
             return super.requestChildRectangleOnScreen(child, rectangle, immediate);
         }
     }
