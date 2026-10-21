@@ -352,7 +352,7 @@ public class MainActivity extends Activity {
                 changed = editor.foldTopLevelLabels();
             }
             if (changed) {
-                sourceScrollRail.onEditorScroll();
+                sourceScrollRail.onViewportChanged();
                 scheduleAnalysis();
                 scheduleSearchRefresh();
             }
@@ -411,7 +411,8 @@ public class MainActivity extends Activity {
         // Run FAB occupies bottom 71dp and must never overlap this control.
         railParams.setMargins(0, dp(6), dp(5), dp(87));
         editorHost.addView(sourceScrollRail, railParams);
-        editor.setOnViewportScrolled(sourceScrollRail::onEditorScroll);
+        editor.setOnViewportScrolled(sourceScrollRail::onViewportChanged);
+        editor.setOnUserFingerScroll(sourceScrollRail::onUserScroll);
         editor.setOnFoldStateChanged(this::updateFoldAllButton);
         updateFoldAllButton();
 
