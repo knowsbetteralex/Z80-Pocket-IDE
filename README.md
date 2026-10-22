@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.26.0)
+## Current development build (v0.27.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -228,3 +228,12 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Expanded card state survives search rerenders and device rotation within the Reference Activity. The other ZX/ROM/I/O reference tabs remain unchanged.
 - Expanded T-state counts assume the standard un-contended Z80; Spectrum-specific RAM contention delays are not part of these instruction counts.
 - Added JVM coverage tests for catalog completeness, special flags, and tricky indexed/conditional timing paths.
+
+## v0.27.0 Android 'Open with' integration
+
+- The IDE now appears as a target for Android **Open with / Открыть с помощью** when a file manager or document provider sends an ACTION_VIEW or ACTION_EDIT for assembly/text documents. Manifest supports content:// and file:// URIs and common .asm MIME declarations: text/x-asm, application/x-asm, text/plain and application/octet-stream.
+- External files use the existing ContentResolver source loader, opening in a new source tab while preserving all unsaved editor buffers and undo history. Opening an already-loaded document URI switches to that tab rather than duplicating it.
+- MainActivity now uses singleTask and handles onNewIntent, allowing additional files to be opened by the system chooser into the running IDE instead of creating extra IDE activities.
+- The original external launch URI is not replayed after device rotation, and files without persistent grants remain readable as drafts even if the provider stops granting the original URI. Save as remains available for read-only files.
+- The chooser is MIME-based, so Android may list the IDE for other plain-text files if their provider assigns text/plain; Android content:// document IDs do not always expose filename extensions for reliable filtering.
+- Added tests for external document action/scheme validation and AndroidManifest Open with declarations.
