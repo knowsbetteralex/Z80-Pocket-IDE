@@ -63,6 +63,7 @@ import com.alexzab.z80pocketide.i18n.AppLanguage;
 import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.source.SourceFileNames;
+import com.alexzab.z80pocketide.source.ExternalSourceIntent;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
@@ -536,8 +537,28 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         restoreWorkspace(savedInstanceState);
+        // Only consume a launch document on first creation. Rotation restores
+        // the workspace and should not reopen/switch to the original file.
+        if (savedInstanceState == null) openExternalSourceIntent(getIntent());
         scheduleAnalysis();
         scheduleWorkspaceSave();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        // MainActivity is singleTask: a second system "Open with" request
+        // reuses existing source tabs, including their unsaved edits/Undo.
+        openExternalSourceIntent(intent);
+    }
+
+    private void openExternalSourceIntent(Intent intent) {
+        if (intent == null) return;
+        Uri uri = intent.getData();
+        if (uri == null
+                || !ExternalSourceIntent.accepts(intent.getAction(), uri.getScheme())) return;
+        openSourceUri(uri, intent);
     }
 
     @Override
