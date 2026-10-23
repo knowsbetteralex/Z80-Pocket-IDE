@@ -45,10 +45,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- "Open with" from Android DocumentsUI, file managers and editors.
-                 Most providers expose .asm as text/plain or octet-stream rather
-                 than a dedicated MIME type. Both content: and file: are read.
-                 Extension-only filters do not match opaque content: document IDs. -->
+            <!-- Broad MIME providers: DocumentsUI commonly reports .asm as text/plain. -->
             <intent-filter android:label="@string/app_name">
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
@@ -61,6 +58,20 @@
                 <data android:mimeType="text/x-assembly" />
                 <data android:mimeType="application/x-assembly" />
                 <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- File-extension association for managers that dispatch file:// URIs.
+                 A pathPattern is not enough for opaque content:// document IDs. -->
+            <intent-filter android:label="@string/app_name">
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.asm" />
+                <data android:pathPattern=".*\\.ASM" />
+                <data android:pathPattern=".*\\.z80" />
+                <data android:pathPattern=".*\\.Z80" />
             </intent-filter>
         </activity>
 
