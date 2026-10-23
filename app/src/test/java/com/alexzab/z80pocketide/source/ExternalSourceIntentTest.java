@@ -39,4 +39,15 @@ public final class ExternalSourceIntentTest {
         assertTrue(xml.contains("android:mimeType=\"text/x-asm\""));
         assertTrue(xml.contains("android:mimeType=\"application/octet-stream\""));
     }
+
+    @Test public void writeGrantPickerRequiresMatchingOriginalFileName() {
+        assertTrue(ExternalSourceIntent.matchingName("demo.asm", "demo.asm"));
+        assertTrue(ExternalSourceIntent.matchingName("CODE.ASM", "code.asm"));
+        assertTrue(ExternalSourceIntent.matchingName(" demo.asm ", "demo.asm"));
+        assertFalse(ExternalSourceIntent.matchingName("demo.asm", "other.asm"));
+        assertFalse(ExternalSourceIntent.matchingName("demo.asm", "demo.asm.txt"));
+        assertFalse(ExternalSourceIntent.matchingName(null, "demo.asm"));
+        assertFalse(ExternalSourceIntent.matchingName("demo.asm", null));
+        assertFalse(ExternalSourceIntent.matchingName("", ""));
+    }
 }
