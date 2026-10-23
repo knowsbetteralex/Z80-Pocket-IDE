@@ -13,6 +13,7 @@ import android.text.style.CharacterStyle;
 import android.text.TextPaint;
 import android.widget.EditText;
 
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,7 +52,12 @@ public final class SyntaxHighlighter {
     public static void attach(EditText editor) {
         final Handler handler = new Handler(Looper.getMainLooper());
         final Runnable repaint = () -> {
-            if (editor.getWindowToken() != null) apply(editor.getText());
+            if (editor.getWindowToken() != null) {
+                String logicalSource = editor instanceof CodeEditorView
+                        ? ((CodeEditorView) editor).getSourceText()
+                        : editor.getText().toString();
+                apply(editor.getText(), logicalSource);
+            }
         };
         editor.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -66,6 +72,14 @@ public final class SyntaxHighlighter {
     }
 
     public static void apply(Editable text) {
+        apply(text, text.toString());
+    }
+
+    /**
+     * Syntax spans target visible characters. Label definitions come from the
+     * complete source, including those hidden behind visual fold markers.
+     */
+    public static void apply(Editable text, String fullSource) {
         ForegroundColorSpan[] colors = text.getSpans(0, text.length(), ForegroundColorSpan.class);
         for (ForegroundColorSpan span : colors) text.removeSpan(span);
         StyleSpan[] styles = text.getSpans(0, text.length(), StyleSpan.class);
@@ -82,7 +96,8 @@ public final class SyntaxHighlighter {
 
         // Known labels in operands (including forward references) share the
         // same turquoise styling as declarations, never inside comments/strings.
-        for (int[] range : SourceSymbols.labelRanges(text.toString())) {
+        Set<String> labels = SourceSymbols.definedLabels(fullSource);
+        for (int[] range : SourceSymbols.labelRanges(text.toString(), labels)) {
             if (range[0] < 0 || range[1] > text.length() || range[0] >= range[1]) continue;
             text.setSpan(new ForegroundColorSpan(LABEL), range[0], range[1],
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
