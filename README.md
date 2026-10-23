@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.27.0)
+## Current development build (v0.26.2)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -237,3 +237,11 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - The original external launch URI is not replayed after device rotation, and files without persistent grants remain readable as drafts even if the provider stops granting the original URI. Save as remains available for read-only files.
 - The chooser is MIME-based, so Android may list the IDE for other plain-text files if their provider assigns text/plain; Android content:// document IDs do not always expose filename extensions for reliable filtering.
 - Added tests for external document action/scheme validation and AndroidManifest Open with declarations.
+
+## v0.26.2 writable external ASM documents and folded label highlighting
+
+- **Open with** now keeps the external file's original URI as its save target. Normal Save overwrites the same document whenever the launching file manager has granted write access.
+- If an external provider supplied only a read grant or rejects writing, the editor offers **Select original file**, using Android ACTION_OPEN_DOCUMENT to obtain writable access to the existing file. After choosing the same filename, the pending edits are saved there automatically and the new URI replaces the previous read-only URI for future normal saves. No duplicate document or Save As is needed. Providers that never allow editing cannot be forced to overwrite a protected file.
+- Write-grant fallback persists granted read/write URI rights when Android's document provider allows it; on navigation/rotation the pending request is restored. A different filename is rejected rather than overwritten.
+- Folded code retains turquoise symbol highlighting for visible references to labels whose declarations are hidden inside folded blocks. The highlighter builds the symbol table from the logical (unfolded) source and applies spans only to visible text; the saved/generated source remains unchanged.
+- Added pure JVM regression tests for folded forward/nested references and safe writable URI reselection.
