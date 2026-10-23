@@ -101,6 +101,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_OPEN_SOURCE = 1003;
     private static final int REQUEST_SAVE_SOURCE_AS = 1004;
     private static final int REQUEST_TOOLS = 1005;
+    private static final int REQUEST_RESELECT_WRITABLE_SOURCE = 1006;
 
     private static final String STATE_TITLES = "tab_titles";
     private static final String STATE_TEXTS = "tab_texts";
@@ -112,6 +113,8 @@ public class MainActivity extends Activity {
     private static final String STATE_ACTIVE = "tab_active";
     private static final String STATE_PENDING_SAVE = "pending_save";
     private static final String STATE_PENDING_CLOSE = "pending_close";
+    private static final String STATE_PENDING_WRITE_GRANT = "pending_write_grant";
+    private static final String STATE_PENDING_GRANT_CLOSE = "pending_grant_close";
 
     private final List<EditorDocument> documents = new ArrayList<>();
     private static final String WORKSPACE_FILE = "workspace-session.bin";
@@ -175,6 +178,8 @@ public class MainActivity extends Activity {
     private int activeIndex = -1;
     private int pendingSaveIndex = -1;
     private boolean pendingCloseAfterSave;
+    private int pendingWriteGrantIndex = -1;
+    private boolean pendingGrantCloseAfterSave;
     private boolean loadingDocument;
     private byte[] pendingTapToSave;
     private int untitledCounter = 1;
@@ -617,6 +622,8 @@ public class MainActivity extends Activity {
         outState.putInt(STATE_ACTIVE, activeIndex);
         outState.putInt(STATE_PENDING_SAVE, pendingSaveIndex);
         outState.putBoolean(STATE_PENDING_CLOSE, pendingCloseAfterSave);
+        outState.putInt(STATE_PENDING_WRITE_GRANT, pendingWriteGrantIndex);
+        outState.putBoolean(STATE_PENDING_GRANT_CLOSE, pendingGrantCloseAfterSave);
     }
 
     @Override
@@ -642,6 +649,10 @@ public class MainActivity extends Activity {
     }
 
     private void restoreWorkspace(Bundle state) {
+        if (state != null) {
+            pendingWriteGrantIndex = state.getInt(STATE_PENDING_WRITE_GRANT, -1);
+            pendingGrantCloseAfterSave = state.getBoolean(STATE_PENDING_GRANT_CLOSE, false);
+        }
         documents.clear();
         if (restorePersistedWorkspace()) {
             updateUntitledCounter();
@@ -1472,21 +1483,72 @@ public class MainActivity extends Activity {
 
         try {
             writeSource(Uri.parse(doc.uriString), doc.text);
-            doc.history.markSaved();
-            doc.dirty = false;
-            scheduleWorkspaceSave();
-            updateUndoRedoButtons();
-            renderTabs();
-            setStatus(t("Saved · ", "Сохранено · ") + doc.title, Color.rgb(0, 110, 45));
-            Toast.makeText(this, t("Source saved", "Исходник сохранён"), Toast.LENGTH_SHORT).show();
-            if (closeAfterSave) closeTabImmediately(index);
+            markSourceSaved(index, closeAfterSave);
         } catch (Exception ex) {
-            setStatus(t("Save error · ", "Ошибка сохранения · ") + safeMessage(ex),
-                    Color.rgb(180, 30, 30));
-            Toast.makeText(this,
-                    t("Cannot overwrite this file; try Save as…",
-                            "Не удалось перезаписать файл; попробуйте «Сохранить как…»"),
-                    Toast.LENGTH_LONG).show();
+            // External ACTION_VIEW grants may be read-only. Request write
+            // access to the EXISTING document instead of creating another file.
+            if (doc.uriString != null) {
+                setStatus(t("Write access needed · ", "Нужен доступ на запись · ")
+                        + safeMessage(ex), Color.rgb(164, 92, 19));
+                showWritableSourceRequest(index, closeAfterSave);
+            }
+        }
+    }
+
+    private void markSourceSaved(int index, boolean closeAfterSave) {
+        if (index < 0 || index >= documents.size()) return;
+        EditorDocument doc = documents.get(index);
+        doc.history.markSaved();
+        doc.dirty = false;
+        scheduleWorkspaceSave();
+        updateUndoRedoButtons();
+        renderTabs();
+        setStatus(t("Saved to original file · ", "Сохранено в исходный файл · ")
+                + doc.title, Color.rgb(0, 110, 45));
+        Toast.makeText(this, t("Source saved", "Исходник сохранён"), Toast.LENGTH_SHORT).show();
+        if (closeAfterSave) closeTabImmediately(index);
+    }
+
+    private void showWritableSourceRequest(int index, boolean closeAfterSave) {
+        if (index < 0 || index >= documents.size()) return;
+        final EditorDocument doc = documents.get(index);
+        new AlertDialog.Builder(this)
+                .setTitle(t("Allow editing the original file",
+                        "Разрешить запись в исходный файл"))
+                .setMessage(t(
+                        "The file manager opened \"" + doc.title + "\" without writable "
+                                + "permission (or its provider rejected the write). "
+                                + "Select this SAME existing file once in Android's "
+                                + "document picker. Your changes will be saved there "
+                                + "automatically, and future saves can use its writable URI.",
+                        "Файловый менеджер открыл «" + doc.title + "» без прав на запись "
+                                + "(или провайдер отклонил запись). Один раз выбери "
+                                + "ЭТОТ ЖЕ существующий файл в системном окне Android. "
+                                + "Изменения автоматически запишутся в него; следующие "
+                                + "сохранения будут использовать полученный URI."))
+                .setPositiveButton(t("Select original file", "Выбрать исходный файл"),
+                        (dialog, which) -> requestWritableSource(index, closeAfterSave))
+                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .show();
+    }
+
+    private void requestWritableSource(int index, boolean closeAfterSave) {
+        pendingWriteGrantIndex = index;
+        pendingGrantCloseAfterSave = closeAfterSave;
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        // Unknown .asm MIME values must remain selectable in DocumentsUI.
+        intent.setType("*/*");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(intent, REQUEST_RESELECT_WRITABLE_SOURCE);
+        } catch (ActivityNotFoundException ex) {
+            pendingWriteGrantIndex = -1;
+            pendingGrantCloseAfterSave = false;
+            setStatus(t("Android document picker unavailable",
+                    "Системный выбор документов недоступен"), Color.rgb(180, 30, 30));
         }
     }
 
@@ -1591,11 +1653,22 @@ public class MainActivity extends Activity {
         if (data == null) return;
         int flags = data.getFlags()
                 & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        if (flags == 0) return;
+        if (flags == 0 || !"content".equalsIgnoreCase(uri.getScheme())) return;
         try {
             getContentResolver().takePersistableUriPermission(uri, flags);
         } catch (SecurityException ignored) {
-            // Some providers grant access only for the current session.
+            // A provider may offer persistable read but temporary write. Try
+            // to preserve whichever individual rights Android actually granted.
+            for (int candidate : new int[]{
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION}) {
+                if ((flags & candidate) == 0) continue;
+                try {
+                    getContentResolver().takePersistableUriPermission(uri, candidate);
+                } catch (SecurityException alsoIgnored) {
+                    // Some file-manager providers grant only session access.
+                }
+            }
         }
     }
 
@@ -1954,6 +2027,43 @@ public class MainActivity extends Activity {
                                     : displayTitle + " opened in a new tab",
                             Color.rgb(45, 80, 150));
                 }
+            }
+            return;
+        }
+
+        if (requestCode == REQUEST_RESELECT_WRITABLE_SOURCE) {
+            int index = pendingWriteGrantIndex;
+            boolean closeAfter = pendingGrantCloseAfterSave;
+            pendingWriteGrantIndex = -1;
+            pendingGrantCloseAfterSave = false;
+            if (resultCode != RESULT_OK || data == null
+                    || index < 0 || index >= documents.size()) return;
+            Uri selected = data.getData();
+            if (selected == null) return;
+            EditorDocument doc = documents.get(index);
+            String selectedName = displayName(selected);
+            if (!ExternalSourceIntent.matchingName(doc.title, selectedName)) {
+                String msg = t("Different file selected. Select the existing \"",
+                                "Выбран другой файл. Нужно выбрать исходный «")
+                        + doc.title + "»";
+                setStatus(msg, Color.rgb(180, 30, 30));
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+                return;
+            }
+            try {
+                takePersistablePermission(selected, data);
+                if (index == activeIndex) captureCurrentDocument();
+                writeSource(selected, doc.text);
+                // Store the new writable URI (often an Android DocumentsUI
+                // URI replacing the read-only FileProvider URI).
+                doc.uriString = selected.toString();
+                markSourceSaved(index, closeAfter);
+            } catch (Exception ex) {
+                String msg = t("The selected provider cannot write this file · ",
+                        "Провайдер не разрешает записать выбранный файл · ")
+                        + safeMessage(ex);
+                setStatus(msg, Color.rgb(180, 30, 30));
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
             }
             return;
         }
