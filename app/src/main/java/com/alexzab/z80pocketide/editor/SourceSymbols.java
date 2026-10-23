@@ -65,8 +65,18 @@ public final class SourceSymbols {
 
     /** Returns pairs of absolute start/end offsets for all known label tokens. */
     public static int[][] labelRanges(String source) {
-        if (source == null || source.isEmpty()) return new int[0][2];
-        Set<String> labels = definedLabels(source);
+        return labelRanges(source, definedLabels(source));
+    }
+
+    /**
+     * Keeps visible references highlighted even when their declarations
+     * are inside a collapsed editor block. The caller supplies definitions
+     * extracted from the complete (unfolded) source, but the returned offsets
+     * always belong to the currently visible text.
+     */
+    public static int[][] labelRanges(String source, Set<String> labels) {
+        if (source == null || source.isEmpty() || labels == null || labels.isEmpty())
+            return new int[0][2];
         java.util.List<int[]> spans = new java.util.ArrayList<>();
         int start = 0;
         for (String line : source.split("\n", -1)) {
