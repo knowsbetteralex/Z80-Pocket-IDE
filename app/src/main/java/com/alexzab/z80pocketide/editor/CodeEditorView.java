@@ -925,11 +925,13 @@ public class CodeEditorView extends EditText {
     protected void onScrollChanged(int horiz, int vert, int oldHoriz, int oldVert) {
         super.onScrollChanged(horiz, vert, oldHoriz, oldVert);
         invalidate();
+        if (vert != oldVert) SyntaxHighlighter.refreshViewport(this);
         if (onViewportScrolled != null) onViewportScrolled.run();
     }
 
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        SyntaxHighlighter.refreshViewport(this);
         if (onViewportScrolled != null) post(onViewportScrolled);
     }
 
