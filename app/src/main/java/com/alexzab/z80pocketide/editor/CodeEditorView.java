@@ -688,7 +688,7 @@ public class CodeEditorView extends EditText {
         if (cursor <= 0) return;
         int previousEnd = cursor - 1;
         int previousStart = previousEnd > 0
-                ? text.toString().lastIndexOf('\n', previousEnd - 1) + 1 : 0;
+                ? android.text.TextUtils.lastIndexOf(text, '\n', previousEnd - 1) + 1 : 0;
         String previousLine = text.subSequence(previousStart, previousEnd).toString();
         String indent = SourceFormatter.indentationForNewLine(
                 previousLine, editorPreferences.tabSize, editorPreferences.useSpaces);
@@ -701,13 +701,13 @@ public class CodeEditorView extends EditText {
     }
 
     private void uppercaseCurrentLine(Editable text, int cursor) {
-        String all = text.toString();
-        int lineStart = all.lastIndexOf('\n', Math.max(0, cursor - 1)) + 1;
-        int nextNewLine = all.indexOf('\n', cursor);
-        int lineEnd = nextNewLine < 0 ? all.length() : nextNewLine;
+        int lineStart = android.text.TextUtils.lastIndexOf(
+                text, '\n', Math.max(0, cursor - 1)) + 1;
+        int nextNewLine = android.text.TextUtils.indexOf(text, '\n', cursor);
+        int lineEnd = nextNewLine < 0 ? text.length() : nextNewLine;
         if (lineStart > lineEnd) return;
 
-        String line = all.substring(lineStart, lineEnd);
+        String line = text.subSequence(lineStart, lineEnd).toString();
         String formatted = SourceFormatter.uppercaseKeywordsInLine(line);
         if (line.equals(formatted)) return;
 
@@ -754,29 +754,48 @@ public class CodeEditorView extends EditText {
         return i < 0 ? text.length() : i;
     }
 
+    private int lineEnd(CharSequence text, int start) {
+        int i = android.text.TextUtils.indexOf(text, '\n', Math.max(0, start));
+        return i < 0 ? text.length() : i;
+    }
+
     /** A fold button belongs to a label on a visible editor row. */
-    private boolean isFoldableLine(int row) {
-        Layout layout = getLayout();
+    /** The source snapshot is shared across all gutter rows in one frame. */
+    private boolean isFoldableLine(int row, Layout layout, CharSequence content) {
         if (layout == null || row < 0 || row >= layout.getLineCount()
                 || editorPreferences == null || !editorPreferences.folding) return false;
-        String content = getText().toString();
         int start = layout.getLineStart(row);
         int end = lineEnd(content, start);
-        if (!LABEL_ONLY.matcher(content.substring(start, end).trim()).matches()) return false;
+        if (!LABEL_ONLY.matcher(content.subSequence(start, end).toString().trim()).matches())
+            return false;
         if (end >= content.length()) return false;
         int bodyStart = end + 1;
-        int bodyEnd = findNextBlankLineStart(content, bodyStart);
-        return bodyEnd > bodyStart && !content.substring(bodyStart, bodyEnd).trim().isEmpty();
+        // Fold availability only needs to know whether a non-blank line exists
+        // before the next blank; do not scan all the way to the next section.
+        int cursor = bodyStart;
+        while (cursor < content.length()) {
+            int next = lineEnd(content, cursor);
+            if (content.subSequence(cursor, next).toString().trim().isEmpty()) return false;
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isFoldableLine(int row) {
+        return isFoldableLine(row, getLayout(), getText());
+    }
+
+    private boolean isFoldedLine(int row, Layout layout, CharSequence visible) {
+        if (layout == null || !isFoldableLine(row, layout, visible)) return false;
+        int bodyStart = lineEnd(visible, layout.getLineStart(row)) + 1;
+        for (String marker : foldedBlocks.keySet())
+            if (android.text.TextUtils.regionMatches(visible, bodyStart, marker, 0, marker.length()))
+                return true;
+        return false;
     }
 
     private boolean isFoldedLine(int row) {
-        Layout layout = getLayout();
-        if (layout == null || !isFoldableLine(row)) return false;
-        String visible = getText().toString();
-        int bodyStart = lineEnd(visible, layout.getLineStart(row)) + 1;
-        for (String marker : foldedBlocks.keySet())
-            if (visible.startsWith(marker, bodyStart)) return true;
-        return false;
+        return isFoldedLine(row, getLayout(), getText());
     }
 
     /** Toggle the label's block without requiring the text cursor to be moved manually. */
@@ -841,6 +860,8 @@ public class CodeEditorView extends EditText {
         first = Math.max(0, first - 1);
         last = Math.min(layout.getLineCount() - 1, last + 1);
 
+        // Never allocate/copy the whole EditText buffer for every visible row.
+        final CharSequence visibleSource = getText();
         for (int i = first; i <= last; i++) {
             int baseline = getLineBounds(i, lineBounds);
             if (selectedLines.contains(i)) {
@@ -853,9 +874,9 @@ public class CodeEditorView extends EditText {
             lineNumberPaint.setFakeBoldText(i == currentLine || selectedLines.contains(i));
             canvas.drawText(String.valueOf(i + 1),
                     sx + gutterWidth - dp(7), baseline, lineNumberPaint);
-            if (isFoldableLine(i)) {
+            if (isFoldableLine(i, layout, visibleSource)) {
                 foldPaint.setTextSize(dp(15));
-                canvas.drawText(isFoldedLine(i) ? "▸" : "▾",
+                canvas.drawText(isFoldedLine(i, layout, visibleSource) ? "▸" : "▾",
                         sx + dp(5), baseline, foldPaint);
             }
         }
