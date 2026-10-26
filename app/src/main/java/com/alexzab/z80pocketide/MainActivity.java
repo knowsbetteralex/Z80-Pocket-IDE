@@ -26,6 +26,10 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.UnderlineSpan;
+import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowInsets;
@@ -133,6 +137,7 @@ public class MainActivity extends Activity {
 
     private CodeEditorView editor;
     private TextView status;
+    private TextView errorJumpLink;
     private TextView statistics;
     private Button clearLinesButton;
     private Button mainMenuButton;
@@ -464,6 +469,26 @@ public class MainActivity extends Activity {
         status.setEllipsize(TextUtils.TruncateAt.END);
         status.setGravity(Gravity.CENTER_VERTICAL);
         status.setPadding(dp(6), 0, dp(2), 0);
+        errorJumpLink = new TextView(this);
+        errorJumpLink.setTextSize(12);
+        errorJumpLink.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        errorJumpLink.setGravity(Gravity.CENTER_VERTICAL);
+        errorJumpLink.setPadding(dp(7), 0, dp(7), 0);
+        errorJumpLink.setBackground(UiStyle.ripple(this,
+                0xFFE0EAFB, 8, 0xFFB3C6EC));
+        errorJumpLink.setVisibility(View.GONE);
+        errorJumpLink.setOnClickListener(v -> {
+            if (analysisIssues == null) return;
+            for (AssemblyDiagnostics.Issue issue : analysisIssues) {
+                int target = issue.line > 0 ? issue.line : diagnosticLine(issue.message);
+                if (target > 0) {
+                    jumpToErrorLine(target);
+                    return;
+                }
+            }
+        });
+        compactStatus.addView(errorJumpLink, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(29)));
         compactStatus.addView(status, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
@@ -2160,11 +2185,31 @@ public class MainActivity extends Activity {
         if (status == null) return;
         int n = analysisIssues == null ? 0 : analysisIssues.size();
         if (n > 0) {
+            int firstLine = 0;
+            for (AssemblyDiagnostics.Issue issue : analysisIssues) {
+                firstLine = issue.line > 0 ? issue.line : diagnosticLine(issue.message);
+                if (firstLine > 0) break;
+            }
+            if (firstLine > 0 && errorJumpLink != null) {
+                String label = "↗ " + t("line ", "стр. ") + firstLine;
+                SpannableString link = new SpannableString(label);
+                link.setSpan(new UnderlineSpan(), 0, label.length(),
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                link.setSpan(new ForegroundColorSpan(0xFF205BAE),
+                        0, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                errorJumpLink.setText(link);
+                errorJumpLink.setContentDescription(t("Go to error on line ",
+                        "Перейти к ошибке в строке ") + firstLine);
+                errorJumpLink.setVisibility(View.VISIBLE);
+            } else if (errorJumpLink != null) {
+                errorJumpLink.setVisibility(View.GONE);
+            }
             String brief = language == AppLanguage.RU ? " ошибок" : " errors";
             status.setText("⚠ " + n + brief + " · " +
                     Texts.localizeAssemblerError(language, analysisIssues.get(0).message));
             status.setTextColor(Color.rgb(174, 43, 53));
         } else {
+            if (errorJumpLink != null) errorJumpLink.setVisibility(View.GONE);
             status.setText(statusMessage);
             status.setTextColor(statusColor);
         }
@@ -2197,22 +2242,28 @@ public class MainActivity extends Activity {
     }
 
     private void jumpToErrorLine(String message) {
-        if (message == null || !message.startsWith("line ")) return;
-        int colon = message.indexOf(':');
-        if (colon < 6) return;
-        try {
-            int line = Integer.parseInt(message.substring(5, colon).trim());
-            String text = editor.getText().toString();
-            int position = 0;
-            for (int i = 1; i < line && position < text.length(); i++) {
-                int next = text.indexOf('\n', position);
-                if (next < 0) break;
-                position = next + 1;
+        jumpToErrorLine(diagnosticLine(message));
+    }
+
+    /** Error line numbers always refer to the full source, not fold markers. */
+    private void jumpToErrorLine(int oneBasedLine) {
+        if (editor == null || oneBasedLine < 1) return;
+        if (editor.isFolded()) editor.unfoldAll();
+        CharSequence source = editor.getText();
+        int position = 0;
+        for (int line = 1; line < oneBasedLine; line++) {
+            int next = TextUtils.indexOf(source, '\n', position);
+            if (next < 0) {
+                position = source.length();
+                break;
             }
-            editor.requestFocus();
-            editor.setSelection(Math.min(position, editor.length()));
-        } catch (NumberFormatException ignored) {
+            position = next + 1;
         }
+        editor.clearLineSelection();
+        editor.requestFocus();
+        editor.setSelection(Math.min(position, editor.length()));
+        SyntaxHighlighter.setErrorLine(editor, oneBasedLine);
+        editor.post(editor::ensureCaretVisible);
     }
 
     private String safeMessage(Exception ex) {
