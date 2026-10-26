@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.26.2)
+## Current development build (v0.27.1)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -245,3 +245,11 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Write-grant fallback persists granted read/write URI rights when Android's document provider allows it; on navigation/rotation the pending request is restored. A different filename is rejected rather than overwritten.
 - Folded code retains turquoise symbol highlighting for visible references to labels whose declarations are hidden inside folded blocks. The highlighter builds the symbol table from the logical (unfolded) source and applies spans only to visible text; the saved/generated source remains unchanged.
 - Added pure JVM regression tests for folded forward/nested references and safe writable URI reselection.
+
+## v0.27.1 smoother typing and error-line navigation
+
+- Removed an O(visible lines × source length) UI hot path in editor gutter rendering. Fold markers now inspect the EditText buffer without making a full copy of the document for each painted line. Autocapitalization and newline indent also stop copying the whole file on every keystroke.
+- Z80 syntax tokenization runs on a dedicated worker **after a 950 ms pause in typing**, and only the visible section plus a small margin receives spans. Viewport recoloring follows scrolling with a short debounce. This prevents tens of thousands of spans from shifting when editing at the beginning of large sources.
+- Rapid typing no longer repeatedly clears already-empty assembler diagnostics/instruction metrics or re-renders unchanged status/statistics text. Live assembly is still debounced in its existing background executor.
+- If an assembly diagnostic contains a line number, the compact bottom status shows a distinct underlined **↗ line N / ↗ стр. N** link. Tap it to focus and scroll to the actual source line, unfolding visual label blocks first so the assembler's source-line numbering stays correct. The first navigable error is linked when multiple issues exist.
+- Added JVM tests for syntax token windows, original absolute offsets, register/mnemonic coloring and references to labels declared inside collapsed sections.
