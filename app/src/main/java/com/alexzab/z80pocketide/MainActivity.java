@@ -1096,15 +1096,19 @@ public class MainActivity extends Activity {
         resultRevision = -1;
         analyzeHandler.removeCallbacks(delayedAnalyze);
         if (runningAnalysis != null) runningAnalysis.cancel(true);
+        boolean hadMetrics = liveAnalysis != null;
+        boolean hadErrors = analysisError != null || !analysisIssues.isEmpty();
         liveAnalysis = null;
         analyzedSource = null;
         analysisError = null;
         analysisIssues.clear();
+        // On most keystrokes these are already clear. Avoid touching editor
+        // spans and repainting its status/layout during rapid typing.
         if (editor != null) {
-            editor.clearInstructionMetrics();
-            SyntaxHighlighter.setErrorLine(editor, 0);
+            if (hadMetrics) editor.clearInstructionMetrics();
+            if (hadErrors) SyntaxHighlighter.setErrorLine(editor, 0);
         }
-        updateStatistics();
+        if (hadMetrics || hadErrors) updateStatistics();
         analyzeHandler.postDelayed(delayedAnalyze, ANALYSIS_IDLE_MS);
     }
 
@@ -1175,8 +1179,12 @@ public class MainActivity extends Activity {
         }
         statistics.setTextColor(Color.rgb(35, 105, 66));
         if (liveAnalysis == null || resultRevision != analysisRevision) {
-            statistics.setText(t("Size/T: — (check source)", "Байты/такты: — (проверьте код)"));
-            refreshStatusPanel();
+            String waiting = t("Size/T: — (check source)",
+                    "Байты/такты: — (проверьте код)");
+            if (!waiting.contentEquals(statistics.getText())) {
+                statistics.setText(waiting);
+                refreshStatusPanel();
+            }
             return;
         }
 
@@ -2167,6 +2175,8 @@ public class MainActivity extends Activity {
     }
 
     private void setStatus(String message, int color) {
+        if (message != null && message.equals(statusMessage)
+                && color == statusColor && analysisIssues.isEmpty()) return;
         statusMessage = message;
         statusColor = color;
         refreshStatusPanel();
