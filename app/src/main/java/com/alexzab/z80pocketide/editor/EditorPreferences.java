@@ -13,6 +13,8 @@ public final class EditorPreferences {
     private static final String USE_SPACES = "use_spaces";
     private static final String SHOW_TAB = "show_tab_button";
     private static final String FOLDING = "folding";
+    private static final String QUICK_SYMBOLS = "quick_symbols";
+    private static final String LABEL_COMPLETION = "label_completion";
 
     private EditorPreferences() {}
 
@@ -25,7 +27,9 @@ public final class EditorPreferences {
                 p.getInt(TAB_SIZE, 4),
                 p.getBoolean(USE_SPACES, true),
                 p.getBoolean(SHOW_TAB, true),
-                p.getBoolean(FOLDING, true)
+                p.getBoolean(FOLDING, true),
+                p.getBoolean(QUICK_SYMBOLS, true),
+                p.getBoolean(LABEL_COMPLETION, true)
         );
     }
 
@@ -38,6 +42,8 @@ public final class EditorPreferences {
                 .putBoolean(USE_SPACES, value.useSpaces)
                 .putBoolean(SHOW_TAB, value.showTabButton)
                 .putBoolean(FOLDING, value.folding)
+                .putBoolean(QUICK_SYMBOLS, value.quickSymbols)
+                .putBoolean(LABEL_COMPLETION, value.labelCompletion)
                 .apply();
     }
 
@@ -53,9 +59,19 @@ public final class EditorPreferences {
         public final boolean useSpaces;
         public final boolean showTabButton;
         public final boolean folding;
+        public final boolean quickSymbols;
+        public final boolean labelCompletion;
 
+        /** Old seven-argument constructor kept for callers that use default helpers. */
         public Snapshot(boolean autoUppercase, boolean allUppercase, boolean autoIndent,
                         int tabSize, boolean useSpaces, boolean showTabButton, boolean folding) {
+            this(autoUppercase, allUppercase, autoIndent, tabSize, useSpaces,
+                    showTabButton, folding, true, true);
+        }
+
+        public Snapshot(boolean autoUppercase, boolean allUppercase, boolean autoIndent,
+                        int tabSize, boolean useSpaces, boolean showTabButton, boolean folding,
+                        boolean quickSymbols, boolean labelCompletion) {
             this.autoUppercase = autoUppercase;
             this.allUppercase = allUppercase;
             this.autoIndent = autoIndent;
@@ -63,6 +79,8 @@ public final class EditorPreferences {
             this.useSpaces = useSpaces;
             this.showTabButton = showTabButton;
             this.folding = folding;
+            this.quickSymbols = quickSymbols;
+            this.labelCompletion = labelCompletion;
         }
     }
 }
