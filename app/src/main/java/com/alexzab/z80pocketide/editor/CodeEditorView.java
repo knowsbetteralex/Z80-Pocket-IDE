@@ -295,8 +295,8 @@ public class CodeEditorView extends EditText {
      */
     public void replaceInline(int start, int end, String replacement) {
         if (replacement == null) return;
-        int a = Math.max(0, Math.min(start, length()));
-        int b = Math.max(a, Math.min(end, length()));
+        int a = Math.max(0, Math.min(Math.min(start, end), length()));
+        int b = Math.max(a, Math.min(Math.max(start, end), length()));
         if (undoHistory != null) undoHistory.separateNext();
         autoFormatting = true;
         try {
