@@ -1,6 +1,9 @@
 package com.alexzab.z80pocketide.editor;
 
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -61,6 +64,24 @@ public final class SourceSymbols {
             if (matcher.find()) labels.add(matcher.group(1).toUpperCase(Locale.ROOT));
         }
         return labels;
+    }
+
+    /**
+     * Labels in declaration order and their original spelling. Completion
+     * matches case-insensitively, while inserting exactly the declared name.
+     */
+    public static List<String> definedLabelNames(String source) {
+        LinkedHashMap<String, String> unique = new LinkedHashMap<>();
+        if (source == null || source.isEmpty()) return new ArrayList<>();
+        for (String line : source.split("\\n", -1)) {
+            Matcher matcher = DECLARATION.matcher(maskLiterals(line));
+            if (matcher.find()) {
+                String spelling = matcher.group(1);
+                String key = spelling.toUpperCase(Locale.ROOT);
+                if (!unique.containsKey(key)) unique.put(key, spelling);
+            }
+        }
+        return new ArrayList<>(unique.values());
     }
 
     /** Returns pairs of absolute start/end offsets for all known label tokens. */
