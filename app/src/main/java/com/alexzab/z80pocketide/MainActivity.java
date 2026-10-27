@@ -57,6 +57,7 @@ import com.alexzab.z80pocketide.editor.SearchReplacePanel;
 import com.alexzab.z80pocketide.editor.EditorDocument;
 import com.alexzab.z80pocketide.editor.EditorPreferences;
 import com.alexzab.z80pocketide.editor.EditorSettingsDialog;
+import com.alexzab.z80pocketide.editor.EditorInputBar;
 import com.alexzab.z80pocketide.editor.UndoHistory;
 import com.alexzab.z80pocketide.editor.WorkspaceStore;
 import com.alexzab.z80pocketide.tools.SpriteSession;
@@ -136,6 +137,8 @@ public class MainActivity extends Activity {
     private AtomicFile workspaceFile;
 
     private CodeEditorView editor;
+    private EditorInputBar editorInputBar;
+    private boolean softKeyboardVisible;
     private TextView status;
     private TextView errorJumpLink;
     private TextView statistics;
@@ -213,8 +216,10 @@ public class MainActivity extends Activity {
                 int bottom = Math.max(barBottom, imeBottom);
                 v.setPadding(side, vertical + top, side, vertical + bottom);
                 if (editor != null) {
-                    editor.setImeVisible(insets.isVisible(WindowInsets.Type.ime()));
-                    editor.post(editor::ensureCaretVisible);
+                    boolean keyboard = insets.isVisible(WindowInsets.Type.ime());
+                    editor.setImeVisible(keyboard);
+                    updateInputBarKeyboardVisibility(keyboard);
+                    if (keyboard) editor.post(editor::ensureCaretVisible);
                 }
                 return insets;
             });
@@ -227,6 +232,7 @@ public class MainActivity extends Activity {
                 root.getWindowVisibleDisplayFrame(frame);
                 boolean keyboard = root.getRootView().getHeight() - frame.bottom > dp(140);
                 editor.setImeVisible(keyboard);
+                updateInputBarKeyboardVisibility(keyboard);
                 if (keyboard) editor.post(editor::ensureCaretVisible);
             });
         }
@@ -448,7 +454,10 @@ public class MainActivity extends Activity {
         SyntaxHighlighter.attach(editor);
 
         editor.setOnLineSelectionChanged(this::updateStatistics);
-        editor.setOnCaretMoved(this::updateStatistics);
+        editor.setOnCaretMoved(() -> {
+            updateStatistics();
+            if (editorInputBar != null) editorInputBar.requestSuggestions();
+        });
         refreshEditorTools();
 
         // One compact status bar, expandable for diagnostics and byte/T totals.
@@ -532,6 +541,18 @@ public class MainActivity extends Activity {
         root.addView(bottomPanel);
         compactStatus.setOnClickListener(v -> setStatusDetailsExpanded(!detailsExpanded));
 
+        // Directly above the system IME: symbol keys + live label completions.
+        editorInputBar = new EditorInputBar(this, editor, language == AppLanguage.RU);
+        LinearLayout.LayoutParams inputBarParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        inputBarParams.setMargins(0, dp(3), 0, 0);
+        root.addView(editorInputBar, inputBarParams);
+        editor.setOnFocusChangeListener((v, focused) -> {
+            if (editorInputBar != null) editorInputBar.onEditorFocusChanged();
+        });
+        editorInputBar.setKeyboardVisible(softKeyboardVisible);
+
         // TAP saving remains under File; the floating Run button auto-builds.
         saveTap = new Button(this);
         saveTap.setEnabled(false);
@@ -558,6 +579,7 @@ public class MainActivity extends Activity {
                 saveTap.setEnabled(false);
                 scheduleAnalysis();
                 scheduleSearchRefresh();
+                if (editorInputBar != null) editorInputBar.requestSuggestions();
                 setStatus(t("Modified · source file not saved",
                         "Изменено · исходный файл не сохранён"), Color.rgb(120, 85, 0));
                 if (wasDirty != doc.dirty) renderTabs();
@@ -1021,6 +1043,7 @@ public class MainActivity extends Activity {
         editor.setUndoHistory(doc.history, this::updateUndoRedoButtons);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
+        if (editorInputBar != null) editorInputBar.requestSuggestions();
         updateFoldAllButton();
         editor.post(() -> {
             editor.scrollToVerticalOffset(doc.scrollY);
@@ -1445,9 +1468,14 @@ public class MainActivity extends Activity {
     private void refreshEditorTools() {
         if (editor == null) return;
         editor.refreshPreferences();
-        EditorPreferences.Snapshot prefs = editor.getEditorPreferences();
         // TAB is a permanent top-bar shortcut even if older preferences hid it.
         if (tabKeyButton != null) tabKeyButton.setVisibility(View.VISIBLE);
+        if (editorInputBar != null) editorInputBar.refreshSettings();
+    }
+
+    private void updateInputBarKeyboardVisibility(boolean visible) {
+        softKeyboardVisible = visible;
+        if (editorInputBar != null) editorInputBar.setKeyboardVisible(visible);
     }
 
     private void showTabMenu(int index) {
