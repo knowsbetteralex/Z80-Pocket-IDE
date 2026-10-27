@@ -288,6 +288,26 @@ public class CodeEditorView extends EditText {
         }
     }
 
+    /**
+     * Inserts a quick symbol or completes a label as one Undo step.
+     * This edits the same buffer as normal typing, preserving dirty flags,
+     * syntax checking, current tab, and keyboard focus.
+     */
+    public void replaceInline(int start, int end, String replacement) {
+        if (replacement == null) return;
+        int a = Math.max(0, Math.min(start, length()));
+        int b = Math.max(a, Math.min(end, length()));
+        if (undoHistory != null) undoHistory.separateNext();
+        autoFormatting = true;
+        try {
+            getText().replace(a, b, replacement);
+            setSelection(Math.min(length(), a + replacement.length()));
+        } finally {
+            autoFormatting = false;
+        }
+        if (undoHistory != null) undoHistory.separateNext();
+    }
+
     public void setUndoHistory(UndoHistory history, Runnable changeListener) {
         undoHistory = history;
         onHistoryChanged = changeListener;
