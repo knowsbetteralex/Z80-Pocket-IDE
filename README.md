@@ -2,7 +2,7 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.27.1)
+## Current development build (v0.28.0)
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
@@ -253,3 +253,11 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Rapid typing no longer repeatedly clears already-empty assembler diagnostics/instruction metrics or re-renders unchanged status/statistics text. Live assembly is still debounced in its existing background executor.
 - If an assembly diagnostic contains a line number, the compact bottom status shows a distinct underlined **↗ line N / ↗ стр. N** link. Tap it to focus and scroll to the actual source line, unfolding visual label blocks first so the assembler's source-line numbering stays correct. The first navigable error is linked when multiple issues exist.
 - Added JVM tests for syntax token windows, original absolute offsets, register/mnemonic coloring and references to labels declared inside collapsed sections.
+
+## v0.28.0 Quick ASM punctuation and label name completion
+
+- A compact accessory bar appears **immediately above the Android soft keyboard** while editing ASM. One-touch keys insert `_`, `,`, `'`, `:`, `#`, `%`, `$` at the caret or replace the selection without changing keyboard layout. Button touches do not steal editor focus; insertions participate in Undo/Redo, normal tab saving, and live analysis.
+- An optional **label autocomplete** row appears above the symbol keys when the caret follows at least two characters of a label reference in code. It suggests up to seven case-insensitive prefix matches from labels declared in the current complete ASM source (including `EQU` definitions and those hidden behind folded blocks), preserving the original spelling. Tap a suggestion to replace the current token, including any suffix after the caret. Suggestions are suppressed in strings, comments and label declaration positions.
+- Suggestions are calculated after a short typing pause on a worker thread; only the current editor line is examined on the UI thread, so long files remain responsive. The accessory hides when the keyboard closes or the editor loses focus.
+- Both helpers are **enabled by default** and independently switchable under **Editor settings / Настройки редактора**. Settings are stored in SharedPreferences. The settings dialog scrolls on smaller screens.
+- Added pure Java tests for prefix matching, casing, commented/quoted text, folded definitions, replacement bounds, result limits and independent preference defaults.
