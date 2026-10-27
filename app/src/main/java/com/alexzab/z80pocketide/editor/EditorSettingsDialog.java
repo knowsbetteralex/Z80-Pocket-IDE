@@ -8,6 +8,7 @@ import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.alexzab.z80pocketide.i18n.AppLanguage;
@@ -34,6 +35,12 @@ public final class EditorSettingsDialog {
                 "Использовать пробелы вместо символа TAB"), current.useSpaces);
         CheckBox folding = check(activity, t(language, "Enable label block folding",
                 "Разрешить сворачивание блоков под метками"), current.folding);
+        CheckBox quickSymbols = check(activity, t(language,
+                "Quick symbols above Android keyboard",
+                "Полоса знаков над системной клавиатурой"), current.quickSymbols);
+        CheckBox labelCompletion = check(activity, t(language,
+                "Suggest defined label names while typing",
+                "Подсказки имён объявленных меток при наборе"), current.labelCompletion);
 
         box.addView(upper);
         box.addView(allUpper);
@@ -60,16 +67,24 @@ public final class EditorSettingsDialog {
         }
         box.addView(widths);
         box.addView(folding);
+        box.addView(quickSymbols);
+        box.addView(labelCompletion);
+
+        // New switches should remain reachable even on short landscape screens.
+        ScrollView scroller = new ScrollView(activity);
+        scroller.setFillViewport(false);
+        scroller.addView(box);
 
         new AlertDialog.Builder(activity)
                 .setTitle(t(language, "Editor settings", "Настройки редактора"))
-                .setView(box)
+                .setView(scroller)
                 .setPositiveButton(t(language, "Apply", "Применить"), (dialog, which) -> {
                     int checked = widths.getCheckedRadioButtonId();
                     int tabSize = checked == 2 || checked == 8 ? checked : 4;
                     EditorPreferences.set(activity, new EditorPreferences.Snapshot(
                             upper.isChecked(), allUpper.isChecked(), indent.isChecked(), tabSize,
-                            spaces.isChecked(), true, folding.isChecked()));
+                            spaces.isChecked(), true, folding.isChecked(),
+                            quickSymbols.isChecked(), labelCompletion.isChecked()));
                     if (onChanged != null) onChanged.run();
                 })
                 .setNegativeButton(t(language, "Cancel", "Отмена"), null)
