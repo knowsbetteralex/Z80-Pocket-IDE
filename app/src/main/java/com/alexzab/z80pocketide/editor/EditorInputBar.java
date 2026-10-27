@@ -60,6 +60,8 @@ public final class EditorInputBar extends LinearLayout {
 
         suggestionScroll = new HorizontalScrollView(context);
         suggestionScroll.setHorizontalScrollBarEnabled(false);
+        suggestionScroll.setFocusable(false);
+        suggestionScroll.setFocusableInTouchMode(false);
         suggestionScroll.setFillViewport(false);
         suggestionScroll.setVisibility(GONE);
         suggestionItems = new LinearLayout(context);
@@ -71,6 +73,8 @@ public final class EditorInputBar extends LinearLayout {
 
         symbolScroll = new HorizontalScrollView(context);
         symbolScroll.setHorizontalScrollBarEnabled(false);
+        symbolScroll.setFocusable(false);
+        symbolScroll.setFocusableInTouchMode(false);
         symbolScroll.setFillViewport(true);
         LinearLayout symbols = new LinearLayout(context);
         symbols.setGravity(Gravity.CENTER_VERTICAL);
