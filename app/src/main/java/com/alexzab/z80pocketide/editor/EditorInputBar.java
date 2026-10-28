@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
  * punctuation and label-completion rows. Neither row can steal keyboard focus.
  */
 public final class EditorInputBar extends LinearLayout {
-    private static final String[] SYMBOLS = {"_", ",", "'", ":", "#", "%", "$"};
+    private static final String[] SYMBOLS = {"_", ",", "'", ":", "#", "%", "$", "(", ")"};
     private static final int SUGGESTION_LIMIT = 7;
     private static final long COMPLETION_IDLE_MS = 280L;
 
@@ -53,7 +53,7 @@ public final class EditorInputBar extends LinearLayout {
         setOrientation(VERTICAL);
         setBackground(UiStyle.rounded(context,
                 0xFFF8FBF8, 13, 0xFFBCD8C5, 1));
-        setPadding(dp(5), dp(3), dp(5), dp(3));
+        setPadding(dp(4), dp(1), dp(4), dp(1));
         setVisibility(GONE);
         setFocusable(false);
         setFocusableInTouchMode(false);
@@ -71,11 +71,32 @@ public final class EditorInputBar extends LinearLayout {
         addView(suggestionScroll, new LayoutParams(
                 LayoutParams.MATCH_PARENT, dp(41)));
 
+        // TAB stays pinned at the start; the remaining symbols scroll separately.
+        LinearLayout actionRow = new LinearLayout(context);
+        actionRow.setOrientation(HORIZONTAL);
+        actionRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView tab = actionText("⇥", true);
+        tab.setTextSize(19);
+        tab.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        tab.setContentDescription(russian ? "Вставить TAB" : "Insert TAB");
+        actionRow.addView(tab, new LayoutParams(dp(46), dp(32)));
+        tab.setOnClickListener(v -> {
+            editor.insertTabFromSettings();
+            editor.requestFocus();
+            requestSuggestions();
+        });
+
+        View separator = new View(context);
+        separator.setBackgroundColor(0xFFC5D9CA);
+        LayoutParams separatorParams = new LayoutParams(dp(1), dp(20));
+        separatorParams.setMargins(dp(1), 0, dp(1), 0);
+        actionRow.addView(separator, separatorParams);
+
         symbolScroll = new HorizontalScrollView(context);
         symbolScroll.setHorizontalScrollBarEnabled(false);
         symbolScroll.setFocusable(false);
         symbolScroll.setFocusableInTouchMode(false);
-        symbolScroll.setFillViewport(true);
+        symbolScroll.setFillViewport(false);
         LinearLayout symbols = new LinearLayout(context);
         symbols.setGravity(Gravity.CENTER_VERTICAL);
         for (String symbol : SYMBOLS) {
@@ -83,8 +104,7 @@ public final class EditorInputBar extends LinearLayout {
             key.setTextSize(18);
             key.setContentDescription(
                     (russian ? "Вставить " : "Insert ") + symbol);
-            symbols.addView(key, new LinearLayout.LayoutParams(
-                    0, dp(41), 1f));
+            symbols.addView(key, new LayoutParams(dp(40), dp(32)));
             key.setOnClickListener(v -> {
                 // Explicit edits go through the normal Undo/save/analysis path.
                 editor.replaceInline(editor.getSelectionStart(),
@@ -95,9 +115,10 @@ public final class EditorInputBar extends LinearLayout {
         }
         symbolScroll.addView(symbols,
                 new HorizontalScrollView.LayoutParams(
-                        LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-        addView(symbolScroll, new LayoutParams(
-                LayoutParams.MATCH_PARENT, dp(43)));
+                        LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT));
+        actionRow.addView(symbolScroll, new LayoutParams(0, dp(34), 1f));
+        addView(actionRow, new LayoutParams(
+                LayoutParams.MATCH_PARENT, dp(34)));
         refreshSettings();
     }
 
@@ -129,9 +150,8 @@ public final class EditorInputBar extends LinearLayout {
         boolean active = active();
         symbolScroll.setVisibility(active && quickSymbols ? VISIBLE : GONE);
         if (!active || !labelCompletion) suggestionScroll.setVisibility(GONE);
-        setVisibility(active && (quickSymbols
-                || labelCompletion && suggestionScroll.getVisibility() == VISIBLE)
-                ? VISIBLE : GONE);
+        // The permanent TAB remains available even when symbol suggestions are off.
+        setVisibility(active ? VISIBLE : GONE);
     }
 
     public void requestSuggestions() {
@@ -251,9 +271,11 @@ public final class EditorInputBar extends LinearLayout {
         text.setTextColor(isSymbol ? 0xFF25573B : 0xFF255A46);
         text.setGravity(Gravity.CENTER);
         text.setPadding(dp(5), 0, dp(5), 0);
-        text.setBackground(UiStyle.ripple(getContext(),
-                isSymbol ? 0xFFE6F1E9 : 0xFFF0EBDA, 9,
-                isSymbol ? 0xFFB8D9C4 : 0xFFD4C6A7));
+        // Symbols are text on a flat strip; suggestion chips keep their shape.
+        if (!isSymbol) {
+            text.setBackground(UiStyle.ripple(getContext(),
+                    0xFFF0EBDA, 9, 0xFFD4C6A7));
+        }
         text.setClickable(true);
         text.setFocusable(false);
         text.setFocusableInTouchMode(false);

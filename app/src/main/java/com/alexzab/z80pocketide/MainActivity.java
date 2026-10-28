@@ -164,7 +164,6 @@ public class MainActivity extends Activity {
     private Button redoButton;
     private Button saveTap;
     private Button emulatorButton;
-    private Button tabKeyButton;
     private LinearLayout statusDetails;
     private TextView statusExpandIcon;
     private TextView diagnosticsView;
@@ -297,7 +296,6 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams workshopParams = new LinearLayout.LayoutParams(dp(34), dp(42));
         workshopParams.setMargins(dp(1), 0, dp(1), 0);
         converterButton.setLayoutParams(workshopParams);
-        tabKeyButton = headerButton("⇥", t("Insert TAB", "Вставить TAB"), false);
         Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
                 t("Switch language", "Переключить язык"), false);
         quickActions.addView(openSourceButton);
@@ -305,17 +303,15 @@ public class MainActivity extends Activity {
         quickActions.addView(undoButton);
         quickActions.addView(redoButton);
         quickActions.addView(findButton);
-        quickActions.addView(referenceButton);
         quickActions.addView(converterButton);
-        quickActions.addView(tabKeyButton);
         quickActions.addView(languageButton);
+        quickActions.addView(referenceButton);
         topBar.addView(mainMenuButton);
         root.addView(topBar);
 
         referenceButton.setOnClickListener(v -> openReference());
         converterButton.setOnClickListener(v -> openTools());
         languageButton.setOnClickListener(v -> toggleLanguage());
-        tabKeyButton.setOnClickListener(v -> editor.insertTabFromSettings());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
         saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
         openSourceButton.setOnClickListener(v -> openSourceFilePicker());
@@ -463,14 +459,14 @@ public class MainActivity extends Activity {
         // One compact status bar, expandable for diagnostics and byte/T totals.
         LinearLayout bottomPanel = new LinearLayout(this);
         bottomPanel.setOrientation(LinearLayout.VERTICAL);
-        bottomPanel.setPadding(dp(7), dp(3), dp(7), dp(3));
+        bottomPanel.setPadding(dp(7), dp(1), dp(7), dp(1));
         bottomPanel.setBackground(UiStyle.rounded(this,
                 Color.rgb(229, 241, 234), 13, Color.rgb(192, 216, 201), 1));
 
         LinearLayout compactStatus = new LinearLayout(this);
         compactStatus.setOrientation(LinearLayout.HORIZONTAL);
         compactStatus.setGravity(Gravity.CENTER_VERTICAL);
-        compactStatus.setMinimumHeight(dp(31));
+        compactStatus.setMinimumHeight(dp(27));
 
         status = new TextView(this);
         status.setTextSize(12);
@@ -497,16 +493,16 @@ public class MainActivity extends Activity {
             }
         });
         compactStatus.addView(errorJumpLink, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, dp(29)));
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(25)));
         compactStatus.addView(status, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
         statusExpandIcon = new TextView(this);
         statusExpandIcon.setText("⌄");
-        statusExpandIcon.setTextSize(19);
+        statusExpandIcon.setTextSize(17);
         statusExpandIcon.setTextColor(Color.rgb(36, 100, 65));
         statusExpandIcon.setGravity(Gravity.CENTER);
-        compactStatus.addView(statusExpandIcon, new LinearLayout.LayoutParams(dp(38), dp(31)));
+        compactStatus.addView(statusExpandIcon, new LinearLayout.LayoutParams(dp(34), dp(27)));
         bottomPanel.addView(compactStatus);
 
         statusDetails = new LinearLayout(this);
@@ -546,7 +542,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams inputBarParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        inputBarParams.setMargins(0, dp(3), 0, 0);
+        inputBarParams.setMargins(0, dp(2), 0, 0);
         root.addView(editorInputBar, inputBarParams);
         editor.setOnFocusChangeListener((v, focused) -> {
             if (editorInputBar != null) editorInputBar.onEditorFocusChanged();
@@ -1468,8 +1464,6 @@ public class MainActivity extends Activity {
     private void refreshEditorTools() {
         if (editor == null) return;
         editor.refreshPreferences();
-        // TAB is a permanent top-bar shortcut even if older preferences hid it.
-        if (tabKeyButton != null) tabKeyButton.setVisibility(View.VISIBLE);
         if (editorInputBar != null) editorInputBar.refreshSettings();
     }
 

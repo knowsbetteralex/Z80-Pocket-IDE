@@ -1,8 +1,22 @@
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">monospace</item>
+        <!-- The code editor explicitly uses monospace; UI menus use modern sans. -->
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:popupMenuStyle">@style/Z80PopupMenu</item>
+        <item name="android:textAppearanceSmallPopupMenu">@style/Z80PopupMenuText</item>
+        <item name="android:textAppearanceLargePopupMenu">@style/Z80PopupMenuText</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">#FAFAFA</item>
         <item name="android:statusBarColor">#FAFAFA</item>
+    </style>
+
+    <style name="Z80PopupMenu">
+        <item name="android:popupBackground">@drawable/menu_popup_background</item>
+    </style>
+
+    <style name="Z80PopupMenuText">
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">#254132</item>
     </style>
 </resources>

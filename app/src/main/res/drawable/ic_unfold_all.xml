@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-<path android:fillColor="@android:color/transparent" android:strokeColor="#276943" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M4,5 L20,5 M4,19 L20,19 M7,9 L17,9 M7,15 L17,15 M9,13 L12,10 L15,13"/>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Two diagonal corner arrows pointing outward (expand). -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#276943" android:strokeWidth="2"
+        android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M10,10 L4,4 M4,9 L4,4 L9,4 M14,14 L20,20 M20,15 L20,20 L15,20"/>
 </vector>

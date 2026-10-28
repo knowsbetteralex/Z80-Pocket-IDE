@@ -22,7 +22,7 @@ public final class EditorPreferences {
         SharedPreferences p = prefs(context);
         return new Snapshot(
                 p.getBoolean(AUTO_UPPER, true),
-                p.getBoolean(ALL_UPPER, false),
+                p.getBoolean(ALL_UPPER, true),
                 p.getBoolean(AUTO_INDENT, true),
                 p.getInt(TAB_SIZE, 4),
                 p.getBoolean(USE_SPACES, true),
