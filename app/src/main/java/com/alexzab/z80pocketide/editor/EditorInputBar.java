@@ -45,6 +45,13 @@ public final class EditorInputBar extends LinearLayout {
     private boolean quickSymbols;
     private boolean labelCompletion;
     private long generation;
+    private String projectSymbolsSource;
+
+    public void setProjectSymbolsSource(String source) {
+        if (java.util.Objects.equals(projectSymbolsSource, source)) return;
+        projectSymbolsSource = source;
+        requestSuggestions();
+    }
 
     public EditorInputBar(Context context, CodeEditorView editor, boolean russian) {
         super(context);
@@ -194,7 +201,8 @@ public final class EditorInputBar extends LinearLayout {
             return;
         }
 
-        final String completeSource = editor.getSourceText();
+        final String completeSource = projectSymbolsSource == null
+                ? editor.getSourceText() : projectSymbolsSource;
         final int expectedCaret = caret;
         final int lineStart = from;
         final long revision = generation;
