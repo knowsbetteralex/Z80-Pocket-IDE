@@ -5,6 +5,8 @@ public final class EditorDocument {
     public String title;
     public String text;
     public String uriString;
+    /** Stable relative path within the SAF project, even for opaque document IDs. */
+    public String projectPath;
     public boolean dirty;
     public int cursor;
     public int scrollX;
