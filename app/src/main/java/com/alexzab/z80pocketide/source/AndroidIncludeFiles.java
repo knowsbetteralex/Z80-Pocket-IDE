@@ -17,8 +17,17 @@ import java.util.Map;
 public final class AndroidIncludeFiles {
     private static final String PREFS="include_project";
     private static final String TREE="project_tree";
+    private static final String ROOT="project_root";
     private AndroidIncludeFiles(){}
 
+
+    public static String selectedRoot(Context context){
+        return context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getString(ROOT,null);
+    }
+    public static void setRoot(Context context,String relativePath){
+        context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit()
+                .putString(ROOT,relativePath).apply();
+    }
     public static Uri projectTree(Context context){
         String uri=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE)
                 .getString(TREE,null);
@@ -41,6 +50,7 @@ public final class AndroidIncludeFiles {
     }
 
     public static String relativePath(Context context,EditorDocument doc){
+        if(doc.projectPath!=null&&!doc.projectPath.isEmpty())return doc.projectPath;
         Uri tree=projectTree(context);
         if(tree!=null&&doc.uriString!=null){
             try{
