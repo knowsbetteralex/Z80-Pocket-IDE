@@ -1525,7 +1525,7 @@ public class MainActivity extends Activity {
 
     private void showIncludeFiles() {
         if (!hasActiveDocument() || editor == null) return;
-        String[] lines = editor.getSourceText().replace("\\r", "").split("\\n", -1);
+        String[] lines = editor.getSourceText().replace("\r", "").split("\n", -1);
         List<String> names = new ArrayList<>();
         String underCursor = null;
         int cursor = Math.max(0, editor.getSelectionStart());
