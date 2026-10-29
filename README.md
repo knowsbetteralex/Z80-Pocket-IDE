@@ -261,3 +261,26 @@ The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 - Suggestions are calculated after a short typing pause on a worker thread; only the current editor line is examined on the UI thread, so long files remain responsive. The accessory hides when the keyboard closes or the editor loses focus.
 - Both helpers are **enabled by default** and independently switchable under **Editor settings / Настройки редактора**. Settings are stored in SharedPreferences. The settings dialog scrolls on smaller screens.
 - Added pure Java tests for prefix matching, casing, commented/quoted text, folded definitions, replacement bounds, result limits and independent preference defaults.
+
+
+## v0.30.0 INCLUDE and project folders
+
+- Supported directives: INCLUDE "file.asm", INCLUDE 'file.asm', INCLUDE file.asm, and .INCLUDE. Nested files and relative paths (including safe ../ within the project) are expanded during build and live analysis.
+- Included labels and EQU definitions share one assembly symbol table with the parent source. Included bytes and T-state totals are attributed to the parent's INCLUDE line; diagnostics identify both the include location and the child source line.
+- On the editor toolbar, tap INC while the caret is on an INCLUDE line to open that file as a tab. Otherwise INC lists all includes. Existing tabs are reused and their unsaved contents take precedence over on-disk sources.
+- On Android, choose Menu > Choose INCLUDE project folder (Папка проекта INCLUDE) to grant persisted SAF read access to sibling files and subdirectories. This is necessary when the editor only has permission for one individually opened source file.
+- Build, Run and Save TAP regenerate binary data for INCLUDE projects rather than relying on cached main-source text.
+- Missing or circular includes report errors; relative paths cannot escape the authorized project folder. Resolver tolerates case-insensitive filenames when uppercasing is enabled.
+
+Example main.asm:
+```asm
+ORG 32768
+INCLUDE "lib/graphics.asm"
+CALL DRAW_SCREEN
+RET
+```
+Example lib/graphics.asm:
+```asm
+DRAW_SCREEN:
+    RET
+```
