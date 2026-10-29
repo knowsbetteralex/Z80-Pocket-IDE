@@ -25,6 +25,36 @@ public final class SourceIncludes {
    if(l==null)return message;
    return "line "+l.rootLine+": "+(root.equals(l.path)&&l.rootLine==l.line?"":l.path+":"+l.line+": ")+m.group(2);
   }
+
+  /** Assembly error is navigable only in the file currently being edited. */
+  public String explainErrorFor(String message,String visiblePath){
+   if(message==null)return "Assembler error";
+   Matcher m=ERROR.matcher(message);
+   if(!m.matches())return message;
+   Location l=location(Integer.parseInt(m.group(1)));
+   if(l==null)return message;
+   if(l.path.equalsIgnoreCase(visiblePath))
+    return "line "+l.line+": "+m.group(2);
+   return l.path+":"+l.line+": "+m.group(2);
+  }
+  public boolean containsPath(String path){
+   for(Location l:positions)if(l.path.equalsIgnoreCase(path))return true;
+   return false;
+  }
+  /** Attribute byte counts and timing to actual lines of any INCLUDED file. */
+  public AssemblyResult projectFor(AssemblyResult result,String visiblePath,int visibleLines){
+   int[] sizes=new int[visibleLines],lo=new int[visibleLines],hi=new int[visibleLines];
+   boolean[] inst=new boolean[visibleLines];
+   for(int i=0;i<positions.size();i++){
+    Location loc=positions.get(i);
+    if(!loc.path.equalsIgnoreCase(visiblePath))continue;
+    int k=loc.line-1;
+    if(k<0||k>=visibleLines)continue;
+    sizes[k]+=result.getLineSize(i);lo[k]+=result.getLineMinCycles(i);
+    hi[k]+=result.getLineMaxCycles(i);inst[k]|=result.isInstruction(i);
+   }
+   return new AssemblyResult(result.getOrigin(),result.getBytes(),sizes,lo,hi,inst);
+  }
   public AssemblyResult project(AssemblyResult result){
    int[] sizes=new int[rootLines],lo=new int[rootLines],hi=new int[rootLines];
    boolean[] inst=new boolean[rootLines];
