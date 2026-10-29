@@ -19,7 +19,7 @@ import java.util.zip.CRC32;
  */
 public final class WorkspaceStore {
     private static final int MAGIC = 0x5A383057; // "Z80W"
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
     private static final int MAX_TABS = 64;
     private static final int MAX_PAYLOAD = 48 * 1024 * 1024;
     private static final int MAX_STRING = 24 * 1024 * 1024;
@@ -29,6 +29,7 @@ public final class WorkspaceStore {
         public String title = "";
         public String source = "";
         public String uri = "";
+        public String projectPath = "";
         public boolean dirty;
         public int cursor;
         public int scrollX, scrollY;
@@ -57,6 +58,7 @@ public final class WorkspaceStore {
             writeString(output, tab.title);
             writeString(output, tab.source);
             writeString(output, tab.uri);
+            writeString(output, tab.projectPath);
             output.writeBoolean(tab.dirty);
             output.writeInt(tab.cursor);
             output.writeInt(tab.scrollX);
@@ -97,7 +99,8 @@ public final class WorkspaceStore {
 
         DataInputStream input = new DataInputStream(new ByteArrayInputStream(body));
         if (input.readInt() != MAGIC) throw new IOException("Not a workspace snapshot");
-        if (input.readInt() != VERSION) throw new IOException("Unsupported workspace version");
+        int version = input.readInt();
+        if (version != 1 && version != VERSION) throw new IOException("Unsupported workspace version");
         int count = input.readInt();
         int active = input.readInt();
         if (count < 1 || count > MAX_TABS || active < 0 || active >= count)
@@ -109,6 +112,7 @@ public final class WorkspaceStore {
             tab.title = readString(input);
             tab.source = readString(input);
             tab.uri = readString(input);
+            if (version >= 2) tab.projectPath = readString(input);
             tab.dirty = input.readBoolean();
             tab.cursor = input.readInt();
             tab.scrollX = input.readInt();
