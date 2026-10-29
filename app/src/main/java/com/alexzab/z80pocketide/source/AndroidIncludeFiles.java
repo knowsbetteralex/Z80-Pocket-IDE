@@ -69,8 +69,12 @@ public final class AndroidIncludeFiles {
                     int nameCol=cursor.getColumnIndexOrThrow(Document.COLUMN_DISPLAY_NAME);
                     int mimeCol=cursor.getColumnIndexOrThrow(Document.COLUMN_MIME_TYPE);
                     while(cursor.moveToNext()){
-                        if(parts[i].equals(cursor.getString(nameCol))){
+                        String candidate=cursor.getString(nameCol);
+                        if(parts[i].equals(candidate)){
                             found=cursor.getString(idCol);mime=cursor.getString(mimeCol);break;
+                        }
+                        if(found==null&&parts[i].equalsIgnoreCase(candidate)){
+                            found=cursor.getString(idCol);mime=cursor.getString(mimeCol);
                         }
                     }
                 }
@@ -109,6 +113,14 @@ public final class AndroidIncludeFiles {
     public static String load(Context context,EditorDocument root,String path,
                               Map<String,String> opened) throws Exception{
         if(opened.containsKey(path))return opened.get(path);
+        // All-uppercase editor mode can capitalize quoted INCLUDE filenames.
+        // Reuse a uniquely matching open buffer without discarding unsaved work.
+        String matching=null;
+        for(String name:opened.keySet())if(name.equalsIgnoreCase(path)){
+            if(matching!=null)throw new IOException("ambiguous INCLUDE: "+path);
+            matching=name;
+        }
+        if(matching!=null)return opened.get(matching);
         Uri uri=locate(context,root,path);
         if(uri==null)return null;
         return read(context,uri);
