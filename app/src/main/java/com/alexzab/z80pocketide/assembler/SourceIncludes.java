@@ -8,6 +8,14 @@ public final class SourceIncludes {
  private static final Pattern ERROR=Pattern.compile("^line (\\d+):\\s*(.*)$");
  private SourceIncludes(){}
  public interface Loader { String load(String path) throws Exception; }
+ /** Preserves the exact originating file/line when recursive expansion fails. */
+ public static final class IncludeError extends IllegalArgumentException {
+  public final String path;
+  public final int line;
+  public IncludeError(String path,int line,String reason){
+   super(path+":"+line+": "+reason);this.path=path;this.line=line;
+  }
+ }
  public static final class Location {
   public final String path; public final int line, rootLine;
   Location(String p,int l,int r){path=p;line=l;rootLine=r;}
@@ -112,7 +120,7 @@ public final class SourceIncludes {
    int fromRoot=rootLine==0?i+1:rootLine;String value=lines[i];
    String name=includePath(value);
    if(name==null&&START.matcher(value).find())
-    throw new IllegalArgumentException("line "+fromRoot+": invalid INCLUDE in "+path+":"+(i+1));
+    throw new IncludeError(path,i+1,"invalid INCLUDE syntax");
    if(name==null){
     if(out.size()>100000)throw new IllegalArgumentException("line "+fromRoot+": INCLUDE too large");
     out.add(value);locations.add(new Location(path,i+1,fromRoot));
@@ -126,7 +134,10 @@ public final class SourceIncludes {
      active.add(child.toLowerCase(Locale.ROOT));
      try{append(childText,child,fromRoot,depth+1,loader,active,out,locations);}
      finally{active.remove(child.toLowerCase(Locale.ROOT));}
-    }catch(Exception ex){throw new IllegalArgumentException("line "+fromRoot+": "+path+":"+(i+1)+": "+ex.getMessage(),ex);}
+    }catch(Exception ex){
+     if(ex instanceof IncludeError)throw (IncludeError)ex;
+     throw new IncludeError(path,i+1,ex.getMessage());
+    }
    }
   }
  }
