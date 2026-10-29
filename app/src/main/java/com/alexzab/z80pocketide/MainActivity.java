@@ -1145,20 +1145,22 @@ public class MainActivity extends Activity {
         final int tabIndex = activeIndex;
         final EditorDocument tab = currentDocument();
         final String source = editor.getSourceText();
+        final Map<String, String> openBuffers = includeBuffers();
 
         runningAnalysis = analysisExecutor.submit(() -> {
             if (Thread.currentThread().isInterrupted() || revision != analysisRevision) return;
             AssemblyResult result = null;
+            SourceIncludes.Expanded expanded = null;
             String error = null;
             List<AssemblyDiagnostics.Issue> issues = new ArrayList<>();
             try {
-                result = new Assembler().assemble(source);
+                expanded = expandIncludes(tab, source, openBuffers);
+                result = expanded.project(new Assembler().assemble(expanded.source));
             } catch (RuntimeException ex) {
-                error = ex.getMessage() == null ? "Assembler error" : ex.getMessage();
-                if (revision == analysisRevision && !Thread.currentThread().isInterrupted()) {
-                    issues = AssemblyDiagnostics.collect(source, 8);
-                    if (issues.isEmpty()) issues.add(new AssemblyDiagnostics.Issue(0, error));
-                }
+                String raw = ex.getMessage() == null ? "Assembler error" : ex.getMessage();
+                error = expanded == null ? raw : expanded.explainError(raw);
+                if (revision == analysisRevision && !Thread.currentThread().isInterrupted())
+                    issues = includeIssues(expanded, error);
             }
 
             final AssemblyResult finished = result;
@@ -2037,8 +2039,11 @@ public class MainActivity extends Activity {
         saveTap.setEnabled(false);
         doc.invalidateBuild();
 
+        SourceIncludes.Expanded expanded = null;
         try {
-            AssemblyResult result = new Assembler().assemble(doc.text);
+            expanded = expandIncludes(doc, doc.text, includeBuffers());
+            AssemblyResult rawResult = new Assembler().assemble(expanded.source);
+            AssemblyResult result = expanded.project(rawResult);
             doc.lastTap = new TapWriter().programTap(
                     tapProgramName(doc.title), result.getOrigin(), result.getBytes());
             doc.lastBuiltSource = doc.text;
@@ -2068,17 +2073,16 @@ public class MainActivity extends Activity {
         } catch (RuntimeException ex) {
             runTap.setEnabled(true);
             String raw = ex.getMessage();
-            analysisError = Texts.localizeAssemblerError(language, raw);
-            analysisIssues = AssemblyDiagnostics.collect(doc.text, 8);
-            if (analysisIssues.isEmpty())
-                analysisIssues.add(new AssemblyDiagnostics.Issue(0, raw == null ? "Error" : raw));
-            SyntaxHighlighter.setErrorLine(editor, editor.isFolded() ? 0 : diagnosticLine(raw));
+            String explained = expanded == null ? raw : expanded.explainError(raw);
+            analysisError = Texts.localizeAssemblerError(language, explained);
+            analysisIssues = includeIssues(expanded, explained);
+            SyntaxHighlighter.setErrorLine(editor, editor.isFolded() ? 0 : diagnosticLine(explained));
             updateStatistics();
-            String detail = Texts.localizeAssemblerError(language, raw);
+            String detail = Texts.localizeAssemblerError(language, explained);
             String message = t("Build error · ", "Ошибка сборки · ") + detail;
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-            jumpToErrorLine(raw);
+            jumpToErrorLine(explained);
             return false;
         }
     }
@@ -2108,7 +2112,7 @@ public class MainActivity extends Activity {
         captureCurrentDocument();
         if (!hasActiveDocument()) return;
         EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent()) {
+        if (!doc.buildIsCurrent() || SourceIncludes.containsInclude(doc.text)) {
             if (!buildSource()) return;
             doc = currentDocument();
         }
@@ -2169,7 +2173,7 @@ public class MainActivity extends Activity {
         captureCurrentDocument();
         if (!hasActiveDocument()) return;
         EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent()) {
+        if (!doc.buildIsCurrent() || SourceIncludes.containsInclude(doc.text)) {
             if (!buildSource()) return;
             doc = currentDocument();
         }
