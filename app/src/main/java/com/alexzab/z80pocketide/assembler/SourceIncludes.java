@@ -70,7 +70,7 @@ public final class SourceIncludes {
   if(root==null||root.isEmpty())root="main.asm";
   String src=text==null?"":text.replace("\r","");
   List<String> lines=new ArrayList<>();List<Location> locations=new ArrayList<>();
-  Set<String> active=new HashSet<>();active.add(root);
+  Set<String> active=new HashSet<>();active.add(root.toLowerCase(Locale.ROOT));
   append(src,root,0,0,loader,active,lines,locations);
   return new Expanded(String.join("\n",lines),root,src.split("\n",-1).length,locations);
  }
@@ -88,13 +88,13 @@ public final class SourceIncludes {
    }else{
     try{
      String child=resolve(path,name);
-     if(active.contains(child))throw new IllegalArgumentException("cyclic INCLUDE: "+child);
+     if(active.contains(child.toLowerCase(Locale.ROOT)))throw new IllegalArgumentException("cyclic INCLUDE: "+child);
      if(depth>=24)throw new IllegalArgumentException("INCLUDE nesting too deep");
      String childText=loader.load(child);
      if(childText==null)throw new IllegalArgumentException("missing "+child+" (choose INCLUDE folder)");
-     active.add(child);
+     active.add(child.toLowerCase(Locale.ROOT));
      try{append(childText,child,fromRoot,depth+1,loader,active,out,locations);}
-     finally{active.remove(child);}
+     finally{active.remove(child.toLowerCase(Locale.ROOT));}
     }catch(Exception ex){throw new IllegalArgumentException("line "+fromRoot+": "+path+":"+(i+1)+": "+ex.getMessage(),ex);}
    }
   }
