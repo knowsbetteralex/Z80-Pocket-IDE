@@ -43,6 +43,7 @@ public final class SourceIncludes {
   }
   /** Attribute byte counts and timing to actual lines of any INCLUDED file. */
   public AssemblyResult projectFor(AssemblyResult result,String visiblePath,int visibleLines){
+   if(root.equalsIgnoreCase(visiblePath)&&visibleLines==rootLines)return project(result);
    int[] sizes=new int[visibleLines],lo=new int[visibleLines],hi=new int[visibleLines];
    boolean[] inst=new boolean[visibleLines];
    for(int i=0;i<positions.size();i++){
