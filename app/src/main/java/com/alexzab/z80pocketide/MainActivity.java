@@ -1405,6 +1405,8 @@ public class MainActivity extends Activity {
         menu.add(0, 15, 100, t("Editor settings", "Настройки редактора"));
         menu.add(0, 24, 101, t("Choose INCLUDE project folder…", "Папка проекта INCLUDE…"));
         menu.add(0, 25, 102, t("Open INCLUDE…", "Открыть INCLUDE…"));
+        menu.add(0, 26, 103, t("Set current file as project root", "Сделать файл корнем проекта"));
+        menu.add(0, 27, 104, t("Auto-detect main.asm root", "Корень проекта: авто main.asm"));
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -1429,6 +1431,8 @@ public class MainActivity extends Activity {
                 case 15: showEditorSettings(); break;
                 case 24: chooseIncludeFolder(); break;
                 case 25: showIncludeFiles(); break;
+                case 26: selectCurrentRoot(); break;
+                case 27: useAutoRoot(); break;
                 case 16: showEmulatorDialog(); break;
                 case 17:
                     if (editor.uppercaseEntireDocument()) {
@@ -1519,6 +1523,29 @@ public class MainActivity extends Activity {
         loadActiveDocument();
     }
 
+    private void selectCurrentRoot() {
+        if (!hasActiveDocument()) return;
+        captureCurrentDocument();
+        String path = AndroidIncludeFiles.relativePath(this, currentDocument());
+        AndroidIncludeFiles.setRoot(this, path);
+        invalidateProjectBuilds();
+        setStatus(t("Project root: ", "Корневой файл: ") + path, Color.rgb(30, 110, 70));
+    }
+
+    private void useAutoRoot() {
+        AndroidIncludeFiles.setRoot(this, null);
+        invalidateProjectBuilds();
+        setStatus(t("Project root: automatic main.asm", "Корень проекта: main.asm автоматически"),
+                Color.rgb(30, 110, 70));
+    }
+
+    private void invalidateProjectBuilds() {
+        for (EditorDocument tab : documents) tab.invalidateBuild();
+        if (saveTap != null) saveTap.setEnabled(false);
+        scheduleWorkspaceSave();
+        scheduleAnalysis();
+    }
+
     private void chooseIncludeFolder() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -1606,22 +1633,69 @@ public class MainActivity extends Activity {
         return sources;
     }
 
-    private SourceIncludes.Expanded expandIncludes(EditorDocument root, String text,
-                                                   Map<String, String> buffers) {
-        String sourcePath = AndroidIncludeFiles.relativePath(this, root);
-        return SourceIncludes.expand(text, sourcePath,
-                path -> AndroidIncludeFiles.load(this, root, path, buffers));
+    /**
+     * One assembly unit is the root and its reachable INCLUDE graph.
+     * main.asm is the default when available; the menu can select another root.
+     * Unrelated files in the folder are NOT silently compiled together.
+     */
+    private static final class ProjectSource {
+        final String rootPath, visiblePath;
+        final SourceIncludes.Expanded expanded;
+        ProjectSource(String rootPath, String visiblePath, SourceIncludes.Expanded expanded) {
+            this.rootPath = rootPath;
+            this.visiblePath = visiblePath;
+            this.expanded = expanded;
+        }
+        AssemblyResult metrics(AssemblyResult full, String visibleText) {
+            return expanded.projectFor(full, visiblePath,
+                    visibleText.replace("\r", "").split("\n", -1).length);
+        }
+        String error(String message) {
+            return expanded.explainErrorFor(message, visiblePath);
+        }
+    }
+
+    private ProjectSource projectFor(EditorDocument visible, String source,
+                                     Map<String, String> buffers) throws Exception {
+        String visiblePath = AndroidIncludeFiles.relativePath(this, visible);
+        String rootPath = AndroidIncludeFiles.selectedRoot(this);
+        String rootText = null;
+        if (rootPath == null || rootPath.isEmpty()) {
+            if (visiblePath.equalsIgnoreCase("main.asm")) {
+                rootPath = visiblePath;
+                rootText = source;
+            } else {
+                rootPath = "main.asm";
+                rootText = AndroidIncludeFiles.load(this, visible, rootPath, buffers);
+                if (rootText == null) {
+                    rootPath = visiblePath;
+                    rootText = source;
+                }
+            }
+        } else {
+            rootText = rootPath.equalsIgnoreCase(visiblePath) ? source
+                    : AndroidIncludeFiles.load(this, visible, rootPath, buffers);
+            if (rootText == null)
+                throw new IllegalArgumentException("Project root unavailable: "
+                        + rootPath + " (open it or choose a project folder)");
+        }
+        final EditorDocument rootDocument = visible;
+        SourceIncludes.Expanded expanded = SourceIncludes.expand(rootText, rootPath,
+                path -> AndroidIncludeFiles.load(this, rootDocument, path, buffers));
+        return new ProjectSource(rootPath, visiblePath, expanded);
     }
 
     private List<AssemblyDiagnostics.Issue> includeIssues(SourceIncludes.Expanded expanded,
-                                                           String raw) {
+                                                           String raw, String visiblePath) {
         List<AssemblyDiagnostics.Issue> found = new ArrayList<>();
         if (expanded != null) {
-            for (AssemblyDiagnostics.Issue issue : AssemblyDiagnostics.collect(expanded.source, 8)) {
+            for (AssemblyDiagnostics.Issue issue :
+                    AssemblyDiagnostics.collect(expanded.source, 8)) {
                 SourceIncludes.Location location = expanded.location(issue.line);
-                found.add(new AssemblyDiagnostics.Issue(
-                        location == null ? issue.line : location.rootLine,
-                        expanded.explainError(issue.message)));
+                int localLine = location != null
+                        && location.path.equalsIgnoreCase(visiblePath) ? location.line : 0;
+                found.add(new AssemblyDiagnostics.Issue(localLine,
+                        expanded.explainErrorFor(issue.message, visiblePath)));
             }
         }
         if (found.isEmpty())
@@ -2213,9 +2287,11 @@ public class MainActivity extends Activity {
         if (requestCode == REQUEST_INCLUDE_FOLDER) {
             if (resultCode == RESULT_OK && data != null && data.getData() != null) {
                 try {
+                    Uri previous = AndroidIncludeFiles.projectTree(this);
                     AndroidIncludeFiles.rememberTree(this, data);
-                    for (EditorDocument doc : documents) doc.invalidateBuild();
-                    scheduleAnalysis();
+                    if (previous == null || !previous.equals(data.getData()))
+                        AndroidIncludeFiles.setRoot(this, null);
+                    invalidateProjectBuilds();
                     setStatus(t("INCLUDE folder selected", "Папка INCLUDE выбрана"),
                             Color.rgb(0, 110, 45));
                     if (pendingIncludeName != null) {
