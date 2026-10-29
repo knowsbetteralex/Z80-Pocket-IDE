@@ -50,6 +50,7 @@ import android.widget.Toast;
 import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyDiagnostics;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
+import com.alexzab.z80pocketide.assembler.SourceIncludes;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
 import com.alexzab.z80pocketide.editor.SourceScrollRail;
 import com.alexzab.z80pocketide.editor.SourceSearch;
@@ -69,6 +70,7 @@ import com.alexzab.z80pocketide.i18n.LanguageSettings;
 import com.alexzab.z80pocketide.i18n.Texts;
 import com.alexzab.z80pocketide.source.SourceFileNames;
 import com.alexzab.z80pocketide.source.ExternalSourceIntent;
+import com.alexzab.z80pocketide.source.AndroidIncludeFiles;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
@@ -107,6 +109,8 @@ public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_SOURCE_AS = 1004;
     private static final int REQUEST_TOOLS = 1005;
     private static final int REQUEST_RESELECT_WRITABLE_SOURCE = 1006;
+    private static final int REQUEST_INCLUDE_FOLDER = 1007;
+    private String pendingIncludeName;
 
     private static final String STATE_TITLES = "tab_titles";
     private static final String STATE_TEXTS = "tab_texts";
@@ -287,6 +291,7 @@ public class MainActivity extends Activity {
         findButtonParams.setMargins(dp(1), 0, dp(1), 0);
         findButton.setLayoutParams(findButtonParams);
         Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
+        Button includeButton = headerButton("↗", t("Open INCLUDE", "Открыть INCLUDE"), false);
         ImageButton converterButton = new ImageButton(this);
         converterButton.setContentDescription(t("Tools", "Инструменты"));
         converterButton.setImageResource(R.drawable.ic_header_tools);
@@ -305,11 +310,13 @@ public class MainActivity extends Activity {
         quickActions.addView(findButton);
         quickActions.addView(converterButton);
         quickActions.addView(languageButton);
+        quickActions.addView(includeButton);
         quickActions.addView(referenceButton);
         topBar.addView(mainMenuButton);
         root.addView(topBar);
 
         referenceButton.setOnClickListener(v -> openReference());
+        includeButton.setOnClickListener(v -> showIncludeFiles());
         converterButton.setOnClickListener(v -> openTools());
         languageButton.setOnClickListener(v -> toggleLanguage());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
@@ -1385,6 +1392,8 @@ public class MainActivity extends Activity {
         edit.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
 
         menu.add(0, 15, 100, t("Editor settings", "Настройки редактора"));
+        menu.add(0, 24, 101, t("Choose INCLUDE project folder…", "Папка проекта INCLUDE…"));
+        menu.add(0, 25, 102, t("Open INCLUDE…", "Открыть INCLUDE…"));
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
@@ -1407,6 +1416,8 @@ public class MainActivity extends Activity {
                     scheduleAnalysis();
                     break;
                 case 15: showEditorSettings(); break;
+                case 24: chooseIncludeFolder(); break;
+                case 25: showIncludeFiles(); break;
                 case 16: showEmulatorDialog(); break;
                 case 17:
                     if (editor.uppercaseEntireDocument()) {
@@ -1495,6 +1506,117 @@ public class MainActivity extends Activity {
         activeIndex = documents.size() - 1;
         renderTabs();
         loadActiveDocument();
+    }
+
+    private void chooseIncludeFolder() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try {
+            startActivityForResult(intent, REQUEST_INCLUDE_FOLDER);
+        } catch (ActivityNotFoundException ex) {
+            setStatus(t("Folder picker unavailable", "Выбор папки недоступен"),
+                    Color.rgb(180, 30, 30));
+        }
+    }
+
+    private void showIncludeFiles() {
+        if (!hasActiveDocument() || editor == null) return;
+        String[] lines = editor.getSourceText().replace("\\r", "").split("\\n", -1);
+        List<String> names = new ArrayList<>();
+        String underCursor = null;
+        int cursor = Math.max(0, editor.getSelectionStart());
+        int start = 0;
+        for (String line : lines) {
+            String name = SourceIncludes.includePath(line);
+            if (name != null) {
+                if (cursor >= start && cursor <= start + line.length()) underCursor = name;
+                if (!names.contains(name)) names.add(name);
+            }
+            start += line.length() + 1;
+        }
+        if (underCursor != null) {
+            openIncludeFile(underCursor);
+        } else if (names.isEmpty()) {
+            setStatus(t("No INCLUDE directives in this source",
+                    "В этом файле нет директив INCLUDE"), Color.rgb(120, 85, 0));
+        } else {
+            String[] options = names.toArray(new String[0]);
+            new AlertDialog.Builder(this)
+                    .setTitle(t("Open INCLUDE", "Открыть INCLUDE"))
+                    .setItems(options, (dialog, index) -> openIncludeFile(options[index]))
+                    .setNeutralButton(t("Choose project folder", "Папка проекта"),
+                            (dialog, index) -> chooseIncludeFolder())
+                    .show();
+        }
+    }
+
+    private void openIncludeFile(String name) {
+        if (!hasActiveDocument()) return;
+        captureCurrentDocument();
+        EditorDocument parent = currentDocument();
+        String path;
+        try {
+            path = SourceIncludes.resolve(AndroidIncludeFiles.relativePath(this, parent), name);
+            for (int i = 0; i < documents.size(); i++) {
+                if (path.equals(AndroidIncludeFiles.relativePath(this, documents.get(i)))) {
+                    selectTab(i);
+                    return;
+                }
+            }
+            Uri uri = AndroidIncludeFiles.locate(this, parent, path);
+            if (uri != null) {
+                openSourceUri(uri, null);
+                return;
+            }
+            pendingIncludeName = name;
+            new AlertDialog.Builder(this)
+                    .setTitle(t("Project folder needed", "Нужна папка проекта"))
+                    .setMessage(t("Choose the folder containing your ASM files to open and assemble INCLUDE sources.",
+                            "Выбери папку проекта ASM для открытия и сборки подключаемых файлов."))
+                    .setPositiveButton(t("Choose folder", "Выбрать папку"),
+                            (dialog, which) -> chooseIncludeFolder())
+                    .setNegativeButton(t("Cancel", "Отмена"),
+                            (dialog, which) -> pendingIncludeName = null)
+                    .show();
+        } catch (Exception ex) {
+            String error = t("INCLUDE open error · ", "Ошибка INCLUDE · ") + safeMessage(ex);
+            setStatus(error, Color.rgb(180, 30, 30));
+            Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private Map<String, String> includeBuffers() {
+        captureCurrentDocument();
+        Map<String, String> sources = new LinkedHashMap<>();
+        for (EditorDocument tab : documents)
+            sources.put(AndroidIncludeFiles.relativePath(this, tab), tab.text);
+        return sources;
+    }
+
+    private SourceIncludes.Expanded expandIncludes(EditorDocument root, String text,
+                                                   Map<String, String> buffers) {
+        String sourcePath = AndroidIncludeFiles.relativePath(this, root);
+        return SourceIncludes.expand(text, sourcePath,
+                path -> AndroidIncludeFiles.load(this, root, path, buffers));
+    }
+
+    private List<AssemblyDiagnostics.Issue> includeIssues(SourceIncludes.Expanded expanded,
+                                                           String raw) {
+        List<AssemblyDiagnostics.Issue> found = new ArrayList<>();
+        if (expanded != null) {
+            for (AssemblyDiagnostics.Issue issue : AssemblyDiagnostics.collect(expanded.source, 8)) {
+                SourceIncludes.Location location = expanded.location(issue.line);
+                found.add(new AssemblyDiagnostics.Issue(
+                        location == null ? issue.line : location.rootLine,
+                        expanded.explainError(issue.message)));
+            }
+        }
+        if (found.isEmpty())
+            found.add(new AssemblyDiagnostics.Issue(diagnosticLine(raw),
+                    raw == null ? "Assembler error" : raw));
+        return found;
     }
 
     private void openSourceFilePicker() {
@@ -2064,6 +2186,26 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
+        if (requestCode == REQUEST_INCLUDE_FOLDER) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                try {
+                    AndroidIncludeFiles.rememberTree(this, data);
+                    for (EditorDocument doc : documents) doc.invalidateBuild();
+                    scheduleAnalysis();
+                    setStatus(t("INCLUDE folder selected", "Папка INCLUDE выбрана"),
+                            Color.rgb(0, 110, 45));
+                    if (pendingIncludeName != null) {
+                        String name = pendingIncludeName;
+                        pendingIncludeName = null;
+                        openIncludeFile(name);
+                    }
+                } catch (Exception ex) {
+                    setStatus(t("Cannot use INCLUDE folder · ", "Нет доступа к папке · ")
+                            + safeMessage(ex), Color.rgb(180, 30, 30));
+                }
+            } else pendingIncludeName = null;
+            return;
+        }
         if (requestCode == REQUEST_TOOLS) {
             if (resultCode == RESULT_OK && data != null)
                 insertToolSource(data.getStringExtra(ToolsActivity.EXTRA_INSERT_SOURCE));
