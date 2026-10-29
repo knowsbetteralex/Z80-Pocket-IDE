@@ -291,7 +291,7 @@ public class MainActivity extends Activity {
         findButtonParams.setMargins(dp(1), 0, dp(1), 0);
         findButton.setLayoutParams(findButtonParams);
         Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
-        Button includeButton = headerButton("↗", t("Open INCLUDE", "Открыть INCLUDE"), false);
+        Button includeButton = headerButton("INC", t("Open INCLUDE", "Открыть INCLUDE"), false);
         ImageButton converterButton = new ImageButton(this);
         converterButton.setContentDescription(t("Tools", "Инструменты"));
         converterButton.setImageResource(R.drawable.ic_header_tools);
@@ -1562,7 +1562,7 @@ public class MainActivity extends Activity {
         try {
             path = SourceIncludes.resolve(AndroidIncludeFiles.relativePath(this, parent), name);
             for (int i = 0; i < documents.size(); i++) {
-                if (path.equals(AndroidIncludeFiles.relativePath(this, documents.get(i)))) {
+                if (path.equalsIgnoreCase(AndroidIncludeFiles.relativePath(this, documents.get(i)))) {
                     selectTab(i);
                     return;
                 }
