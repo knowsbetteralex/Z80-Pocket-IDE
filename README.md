@@ -284,3 +284,27 @@ Example lib/graphics.asm:
 DRAW_SCREEN:
     RET
 ```
+
+
+## v0.31.0 Project-wide symbols and root file
+
+- Assembly, live validation, syntax highlighting, and label completion now share the same project symbol universe: the **root ASM file** plus every file reachable through recursive INCLUDE directives. Labels, EQU constants, and forward references defined in other included files are resolved through the normal two-pass assembler rather than compiling each editor tab in isolation.
+- The default root is **main.asm** when it exists in the selected project folder or is already open; otherwise, the active source is treated as a standalone root. For a differently named entry point (game.asm, demo.asm, etc.), open its tab and choose **Menu > Set current file as project root / Сделать файл корнем проекта**. To return to main.asm detection, choose **Menu > Auto-detect main.asm root / Корень проекта: авто main.asm**.
+- Picking a new project folder resets an explicit root chosen for the previous folder, avoiding accidental cross-project symbol resolution.
+- Opening an INCLUDE keeps the original project-relative path in its tab, including when the document provider uses opaque identifiers. The path is saved in workspace snapshots (backward compatible with earlier stored tabs).
+- Live byte/T-state metrics and error lines are projected onto the active source. A compiler error originating in another module is displayed with that module's filename and line, rather than highlighting an unrelated line of the current tab.
+- In the root editor, byte/T-state totals from nested include files continue to be assigned to the containing INCLUDE line.
+- The project is **not** an arbitrary concatenation of every ASM file in a folder: only the selected entry point and its INCLUDE graph form the assembly unit. This avoids duplicate labels from unrelated programs or old source files.
+- Added regression tests for cross-module labels, forward references, source-mapped diagnostics, and the included-file byte/T-state metrics.
+
+Example:
+```asm
+; main.asm
+ORG 32768
+JP DRAW_SHIP
+INCLUDE "src/ship.asm"
+START: RET
+
+; src/ship.asm
+DRAW_SHIP: JP START
+```
