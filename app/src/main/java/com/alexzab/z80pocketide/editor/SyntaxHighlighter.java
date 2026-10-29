@@ -112,7 +112,7 @@ public final class SyntaxHighlighter {
             // Snapshot is taken only after typing stops, not once per keystroke.
             final String visible=text.subSequence(from,to).toString();
             final String complete=editor instanceof CodeEditorView
-                    ? ((CodeEditorView)editor).getSourceText():text.toString();
+                    ? ((CodeEditorView)editor).getHighlightSource():text.toString();
             final int offset=from,expectedLength=length,revision=generation;
             WORKER.execute(() -> {
                 List<SyntaxTokenPlanner.Token> tokens=
