@@ -115,6 +115,7 @@ public class MainActivity extends Activity {
     private static final String STATE_TITLES = "tab_titles";
     private static final String STATE_TEXTS = "tab_texts";
     private static final String STATE_URIS = "tab_uris";
+    private static final String STATE_PROJECT_PATHS = "tab_project_paths";
     private static final String STATE_DIRTY = "tab_dirty";
     private static final String STATE_CURSORS = "tab_cursors";
     private static final String STATE_SCROLL_X = "tab_scroll_x";
@@ -647,6 +648,7 @@ public class MainActivity extends Activity {
         ArrayList<String> titles = new ArrayList<>();
         ArrayList<String> texts = new ArrayList<>();
         ArrayList<String> uris = new ArrayList<>();
+        ArrayList<String> projectPaths = new ArrayList<>();
         ArrayList<Integer> dirty = new ArrayList<>();
         ArrayList<Integer> cursors = new ArrayList<>();
         ArrayList<Integer> scrollX = new ArrayList<>();
@@ -656,6 +658,7 @@ public class MainActivity extends Activity {
             titles.add(doc.title);
             texts.add(doc.text);
             uris.add(doc.uriString == null ? "" : doc.uriString);
+            projectPaths.add(doc.projectPath == null ? "" : doc.projectPath);
             dirty.add(doc.dirty ? 1 : 0);
             cursors.add(doc.cursor);
             scrollX.add(doc.scrollX);
@@ -665,6 +668,7 @@ public class MainActivity extends Activity {
         outState.putStringArrayList(STATE_TITLES, titles);
         outState.putStringArrayList(STATE_TEXTS, texts);
         outState.putStringArrayList(STATE_URIS, uris);
+        outState.putStringArrayList(STATE_PROJECT_PATHS, projectPaths);
         outState.putIntegerArrayList(STATE_DIRTY, dirty);
         outState.putIntegerArrayList(STATE_CURSORS, cursors);
         outState.putIntegerArrayList(STATE_SCROLL_X, scrollX);
@@ -714,6 +718,7 @@ public class MainActivity extends Activity {
             ArrayList<String> titles = state.getStringArrayList(STATE_TITLES);
             ArrayList<String> texts = state.getStringArrayList(STATE_TEXTS);
             ArrayList<String> uris = state.getStringArrayList(STATE_URIS);
+            ArrayList<String> projectPaths = state.getStringArrayList(STATE_PROJECT_PATHS);
             ArrayList<Integer> dirty = state.getIntegerArrayList(STATE_DIRTY);
             ArrayList<Integer> cursors = state.getIntegerArrayList(STATE_CURSORS);
             ArrayList<Integer> scrollX = state.getIntegerArrayList(STATE_SCROLL_X);
@@ -725,6 +730,8 @@ public class MainActivity extends Activity {
                     EditorDocument doc = new EditorDocument(
                             titles.get(i), texts.get(i), uri == null || uri.isEmpty() ? null : uri,
                             dirty != null && i < dirty.size() && dirty.get(i) != 0);
+                    doc.projectPath = projectPaths != null && i < projectPaths.size()
+                            && !projectPaths.get(i).isEmpty() ? projectPaths.get(i) : null;
                     doc.cursor = cursors != null && i < cursors.size() ? cursors.get(i) : 0;
                     doc.scrollX = scrollX != null && i < scrollX.size() ? scrollX.get(i) : 0;
                     doc.scrollY = scrollY != null && i < scrollY.size() ? scrollY.get(i) : 0;
@@ -761,6 +768,7 @@ public class MainActivity extends Activity {
             tab.title = doc.title;
             tab.source = doc.text;
             tab.uri = doc.uriString == null ? "" : doc.uriString;
+            tab.projectPath = doc.projectPath == null ? "" : doc.projectPath;
             tab.dirty = doc.dirty;
             tab.cursor = doc.cursor;
             tab.scrollX = doc.scrollX;
@@ -848,6 +856,7 @@ public class MainActivity extends Activity {
             for (WorkspaceStore.Tab tab : session.tabs) {
                 EditorDocument doc = new EditorDocument(tab.title, tab.source,
                         tab.uri.isEmpty() ? null : tab.uri, tab.dirty);
+                doc.projectPath = tab.projectPath.isEmpty() ? null : tab.projectPath;
                 doc.cursor = Math.max(0, Math.min(tab.cursor, tab.source.length()));
                 doc.scrollX = Math.max(0, tab.scrollX);
                 doc.scrollY = Math.max(0, tab.scrollY);
@@ -1569,7 +1578,7 @@ public class MainActivity extends Activity {
             }
             Uri uri = AndroidIncludeFiles.locate(this, parent, path);
             if (uri != null) {
-                openSourceUri(uri, null);
+                openSourceUri(uri, null, path);
                 return;
             }
             pendingIncludeName = name;
@@ -1780,11 +1789,17 @@ public class MainActivity extends Activity {
     }
 
     private void openSourceUri(Uri uri, Intent resultIntent) {
+        openSourceUri(uri, resultIntent, null);
+    }
+
+    private void openSourceUri(Uri uri, Intent resultIntent, String projectPath) {
         if (uri == null) return;
         String uriText = uri.toString();
         for (int i = 0; i < documents.size(); i++) {
             if (uriText.equals(documents.get(i).uriString)) {
+                if (projectPath != null) documents.get(i).projectPath = projectPath;
                 selectTab(i);
+                scheduleAnalysis();
                 setStatus(t("File is already open", "Файл уже открыт"), Color.rgb(90, 90, 90));
                 return;
             }
@@ -1796,6 +1811,11 @@ public class MainActivity extends Activity {
             String name = displayName(uri);
             if (name == null || name.trim().isEmpty()) name = t("Opened file.asm", "Открытый файл.asm");
             addSourceTab(name, text, uriText, false);
+            if (projectPath != null) {
+                currentDocument().projectPath = projectPath;
+                scheduleWorkspaceSave();
+                scheduleAnalysis();
+            }
             setStatus(t("Opened · ", "Открыт · ") + name, Color.rgb(0, 110, 45));
         } catch (Exception ex) {
             String message = t("Open error · ", "Ошибка открытия · ") + safeMessage(ex);
