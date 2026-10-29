@@ -85,6 +85,19 @@ public class CodeEditorView extends EditText {
     private float fontSp;
 
     private EditorPreferences.Snapshot editorPreferences;
+    private String projectSymbolsSource;
+
+    /** Project definitions are supplied by the root INCLUDE graph, not the current tab. */
+    public void setProjectSymbolsSource(String source) {
+        if (java.util.Objects.equals(projectSymbolsSource, source)) return;
+        projectSymbolsSource = source;
+        SyntaxHighlighter.refreshViewport(this);
+    }
+
+    public String getHighlightSource() {
+        return projectSymbolsSource == null ? getSourceText() : projectSymbolsSource;
+    }
+
     private boolean autoFormatting;
     private boolean presentationChange;
     private boolean replayingHistory;
