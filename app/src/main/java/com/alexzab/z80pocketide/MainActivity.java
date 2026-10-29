@@ -1170,7 +1170,7 @@ public class MainActivity extends Activity {
                 result = project.metrics(assembled, source);
             } catch (Exception ex) {
                 String raw = ex.getMessage() == null ? "Assembler error" : ex.getMessage();
-                error = project == null ? raw : project.error(raw);
+                error = projectFailure(ex, project, tab);
                 if (revision == analysisRevision && !Thread.currentThread().isInterrupted())
                     issues = includeIssues(project == null ? null : project.expanded,
                             error, project == null ? "" : project.visiblePath);
@@ -1694,6 +1694,19 @@ public class MainActivity extends Activity {
         return new ProjectSource(rootPath, visiblePath, expanded);
     }
 
+    private String projectFailure(Exception ex, ProjectSource project, EditorDocument visible) {
+        String raw = ex.getMessage() == null ? "Assembler error" : ex.getMessage();
+        if (project != null) return project.error(raw);
+        if (ex instanceof SourceIncludes.IncludeError) {
+            SourceIncludes.IncludeError failure = (SourceIncludes.IncludeError) ex;
+            if (failure.path.equalsIgnoreCase(AndroidIncludeFiles.relativePath(this, visible)))
+                return "line " + failure.line + ": " + raw;
+            // An error in another source must not jump to this tab's same line number.
+            return raw;
+        }
+        return raw;
+    }
+
     private List<AssemblyDiagnostics.Issue> includeIssues(SourceIncludes.Expanded expanded,
                                                            String raw, String visiblePath) {
         List<AssemblyDiagnostics.Issue> found = new ArrayList<>();
@@ -2179,7 +2192,7 @@ public class MainActivity extends Activity {
         } catch (Exception ex) {
             runTap.setEnabled(true);
             String raw = ex.getMessage();
-            String explained = project == null ? raw : project.error(raw);
+            String explained = projectFailure(ex, project, doc);
             analysisError = Texts.localizeAssemblerError(language, explained);
             analysisIssues = includeIssues(project == null ? null : project.expanded,
                     explained, project == null ? "" : project.visiblePath);
