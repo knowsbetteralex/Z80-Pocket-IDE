@@ -27,7 +27,7 @@ public final class SyntaxTokenPlanner {
             "(?i)\\b(?:ADC|ADD|AND|BIT|CALL|CCF|CP|CPD|CPDR|CPI|CPIR|CPL|DAA|DEC|DI|DJNZ|EI|EX|EXX|HALT|IM|IN|INC|IND|INDR|INI|INIR|JP|JR|LD|LDD|LDDR|LDI|LDIR|NEG|NOP|OR|OTDR|OTIR|OUT|OUTD|OUTI|POP|PUSH|RES|RET|RETI|RETN|RL|RLA|RLC|RLCA|RLD|RR|RRA|RRC|RRCA|RRD|RST|SBC|SCF|SET|SLA|SRA|SRL|SUB|XOR)\\b");
     private static final Pattern P_REGISTER = Pattern.compile(
             "(?i)(?<![A-Z0-9_])(?:AF'|AF|BC|DE|HL|SP|IX|IY|A|B|C|D|E|H|L|I|R)(?![A-Z0-9_'])");
-    private static final Pattern P_DIRECTIVE = Pattern.compile("(?i)\\b(?:ORG|EQU|DB|DW|DS)\\b");
+    private static final Pattern P_DIRECTIVE = Pattern.compile("(?i)\\b(?:ORG|EQU|DB|DW|DS|INCLUDE)\\b");
     private static final Pattern P_NUMBER = Pattern.compile(
             "(?i)(?<![A-Z0-9_])(?:\\$[0-9A-F]+|#[0-9A-F]+|%[01]+|[0-9A-F]+H|[01]+B|[0-9]+)(?![A-Z0-9_])");
     private static final Pattern P_LABEL_COLON = Pattern.compile(
