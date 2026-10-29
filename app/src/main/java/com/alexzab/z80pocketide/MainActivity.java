@@ -1051,6 +1051,8 @@ public class MainActivity extends Activity {
         analyzedSource = null;
         analysisError = null;
         analyzeHandler.removeCallbacks(delayedAnalyze);
+        editor.setProjectSymbolsSource(null);
+        if (editorInputBar != null) editorInputBar.setProjectSymbolsSource(null);
         editor.setSourceText(doc.text);
         editor.setUndoHistory(doc.history, this::updateUndoRedoButtons);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
@@ -1159,19 +1161,22 @@ public class MainActivity extends Activity {
         runningAnalysis = analysisExecutor.submit(() -> {
             if (Thread.currentThread().isInterrupted() || revision != analysisRevision) return;
             AssemblyResult result = null;
-            SourceIncludes.Expanded expanded = null;
+            ProjectSource project = null;
             String error = null;
             List<AssemblyDiagnostics.Issue> issues = new ArrayList<>();
             try {
-                expanded = expandIncludes(tab, source, openBuffers);
-                result = expanded.project(new Assembler().assemble(expanded.source));
-            } catch (RuntimeException ex) {
+                project = projectFor(tab, source, openBuffers);
+                AssemblyResult assembled = new Assembler().assemble(project.expanded.source);
+                result = project.metrics(assembled, source);
+            } catch (Exception ex) {
                 String raw = ex.getMessage() == null ? "Assembler error" : ex.getMessage();
-                error = expanded == null ? raw : expanded.explainError(raw);
+                error = project == null ? raw : project.error(raw);
                 if (revision == analysisRevision && !Thread.currentThread().isInterrupted())
-                    issues = includeIssues(expanded, error);
+                    issues = includeIssues(project == null ? null : project.expanded,
+                            error, project == null ? "" : project.visiblePath);
             }
 
+            final ProjectSource finishedProject = project;
             final AssemblyResult finished = result;
             final String finishedError = error;
             final List<AssemblyDiagnostics.Issue> found = issues;
@@ -1187,6 +1192,10 @@ public class MainActivity extends Activity {
                 analysisError = finishedError == null
                         ? null : Texts.localizeAssemblerError(language, finishedError);
                 analysisIssues = found;
+                String definitions = finishedProject == null
+                        ? null : finishedProject.expanded.source;
+                editor.setProjectSymbolsSource(definitions);
+                if (editorInputBar != null) editorInputBar.setProjectSymbolsSource(definitions);
                 SyntaxHighlighter.setErrorLine(editor,
                         finishedError == null || editor.isFolded()
                                 ? 0 : diagnosticLine(finishedError));
@@ -2133,19 +2142,22 @@ public class MainActivity extends Activity {
         saveTap.setEnabled(false);
         doc.invalidateBuild();
 
-        SourceIncludes.Expanded expanded = null;
+        ProjectSource project = null;
         try {
-            expanded = expandIncludes(doc, doc.text, includeBuffers());
-            AssemblyResult rawResult = new Assembler().assemble(expanded.source);
-            AssemblyResult result = expanded.project(rawResult);
+            project = projectFor(doc, doc.text, includeBuffers());
+            AssemblyResult rawResult = new Assembler().assemble(project.expanded.source);
+            AssemblyResult result = project.metrics(rawResult, doc.text);
             doc.lastTap = new TapWriter().programTap(
-                    tapProgramName(doc.title), result.getOrigin(), result.getBytes());
+                    tapProgramName(project.rootPath), result.getOrigin(), result.getBytes());
             doc.lastBuiltSource = doc.text;
             liveAnalysis = result;
             resultRevision = analysisRevision;
             analyzedSource = doc.text;
             analysisError = null;
             analysisIssues.clear();
+            editor.setProjectSymbolsSource(project.expanded.source);
+            if (editorInputBar != null)
+                editorInputBar.setProjectSymbolsSource(project.expanded.source);
             SyntaxHighlighter.setErrorLine(editor, 0);
             editor.setInstructionMetrics(result.getLineSizes(),
                     result.getLineMinCyclesArray(), result.getLineMaxCyclesArray(),
@@ -2167,9 +2179,10 @@ public class MainActivity extends Activity {
         } catch (RuntimeException ex) {
             runTap.setEnabled(true);
             String raw = ex.getMessage();
-            String explained = expanded == null ? raw : expanded.explainError(raw);
+            String explained = project == null ? raw : project.error(raw);
             analysisError = Texts.localizeAssemblerError(language, explained);
-            analysisIssues = includeIssues(expanded, explained);
+            analysisIssues = includeIssues(project == null ? null : project.expanded,
+                    explained, project == null ? "" : project.visiblePath);
             SyntaxHighlighter.setErrorLine(editor, editor.isFolded() ? 0 : diagnosticLine(explained));
             updateStatistics();
             String detail = Texts.localizeAssemblerError(language, explained);
@@ -2206,7 +2219,9 @@ public class MainActivity extends Activity {
         captureCurrentDocument();
         if (!hasActiveDocument()) return;
         EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent() || SourceIncludes.containsInclude(doc.text)) {
+        if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
+                || AndroidIncludeFiles.selectedRoot(this) != null
+                || SourceIncludes.containsInclude(doc.text)) {
             if (!buildSource()) return;
             doc = currentDocument();
         }
@@ -2267,7 +2282,9 @@ public class MainActivity extends Activity {
         captureCurrentDocument();
         if (!hasActiveDocument()) return;
         EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent() || SourceIncludes.containsInclude(doc.text)) {
+        if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
+                || AndroidIncludeFiles.selectedRoot(this) != null
+                || SourceIncludes.containsInclude(doc.text)) {
             if (!buildSource()) return;
             doc = currentDocument();
         }
