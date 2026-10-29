@@ -29,6 +29,7 @@ public final class WorkspaceStoreTest {
         WorkspaceStore.Tab file = new WorkspaceStore.Tab();
         file.title = "hero.asm";
         file.uri = "content://example/documents/hero";
+        file.projectPath = "src/hero.asm";
         file.source = "ORG $8000\nSTART:\n  LD A,1\n";
         file.cursor = 18;
         file.scrollX = 25;
@@ -55,6 +56,7 @@ public final class WorkspaceStoreTest {
         assertEquals(2, recovered.tabs.size());
         assertEquals(1, recovered.activeIndex);
         assertEquals(file.uri, recovered.tabs.get(0).uri);
+        assertEquals("src/hero.asm", recovered.tabs.get(0).projectPath);
         assertEquals(file.source, recovered.tabs.get(0).source);
         assertEquals(25, recovered.tabs.get(0).scrollX);
         assertEquals(48, recovered.tabs.get(0).scrollY);
@@ -124,5 +126,40 @@ public final class WorkspaceStoreTest {
         } catch (IOException expected) {
             assertTrue(expected.getMessage().contains("length"));
         }
+    }
+
+    @Test public void readsVersionOneSnapshotWithoutLosingSource() throws Exception {
+        ByteArrayOutputStream payload = new ByteArrayOutputStream();
+        DataOutputStream body = new DataOutputStream(payload);
+        body.writeInt(0x5A383057); // Z80W
+        body.writeInt(1); // persisted by earlier app releases
+        body.writeInt(1); // tabs
+        body.writeInt(0); // active index
+        for (String value : new String[]{"main.asm", "ORG 32768\nRET",
+                "content://sample/main"}) {
+            byte[] bytes = value.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            body.writeInt(bytes.length);
+            body.write(bytes);
+        }
+        body.writeBoolean(false);
+        body.writeInt(2); // caret
+        body.writeInt(0); // scroll x
+        body.writeInt(0); // scroll y
+        byte[] history = historyBytes(new UndoHistory());
+        body.writeInt(history.length);
+        body.write(history);
+        body.flush();
+        byte[] raw = payload.toByteArray();
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update(raw);
+        ByteArrayOutputStream container = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(container);
+        out.writeInt(raw.length);
+        out.write(raw);
+        out.writeInt((int) crc.getValue());
+        out.flush();
+        WorkspaceStore.Session old = WorkspaceStore.decode(container.toByteArray());
+        assertEquals("ORG 32768\nRET", old.tabs.get(0).source);
+        assertEquals("", old.tabs.get(0).projectPath);
     }
 }
