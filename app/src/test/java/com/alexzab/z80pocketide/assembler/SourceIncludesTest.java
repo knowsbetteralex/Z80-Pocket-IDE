@@ -82,6 +82,10 @@ public class SourceIncludesTest {
         assertEquals(1,ship.getLineSize(1));
         assertEquals(4,ship.getLineCount()==2?ship.getLineSize(0)+ship.getLineSize(1):0);
         assertTrue(project.containsPath("LIB/SHIP.ASM"));
+        java.util.List<com.alexzab.z80pocketide.editor.LabelCompletion.Match> names =
+                com.alexzab.z80pocketide.editor.LabelCompletion.suggest(
+                        project.source, "JP MAIN_EN", 10, 7);
+        assertTrue(names.stream().anyMatch(match -> "MAIN_END".equals(match.label)));
     }
 
     @Test public void errorsNavigateOnlyWithinActualSourceFile() {
