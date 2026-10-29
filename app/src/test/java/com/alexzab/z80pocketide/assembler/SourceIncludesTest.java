@@ -58,4 +58,39 @@ public class SourceIncludesTest {
                     .startsWith("line 2: broken.asm:1:"));
         }
     }
+
+    @Test public void rootSymbolsAreVisibleInsideNestedModulesAndForwardReferences() {
+        Map<String,String> files = new HashMap<>();
+        files.put("lib/ship.asm", "SHIP_DRAW: JP MAIN_END\nDB VALUE");
+        files.put("lib/constants.asm", "VALUE EQU 9");
+        String root = "ORG 32768\nJP SHIP_DRAW\nINCLUDE \"lib/ship.asm\"\nINCLUDE \"lib/constants.asm\"\nMAIN_END: RET";
+        SourceIncludes.Expanded project =
+                SourceIncludes.expand(root, "main.asm", files::get);
+        AssemblyResult built = new Assembler().assemble(project.source);
+        assertArrayEquals(new byte[]{
+                (byte)0xC3,3,(byte)0x80,
+                (byte)0xC3,7,(byte)0x80,
+                9,(byte)0xC9},built.getBytes());
+        assertTrue(com.alexzab.z80pocketide.editor.SourceSymbols
+                .definedLabels(project.source).contains("MAIN_END"));
+        assertTrue(com.alexzab.z80pocketide.editor.SourceSymbols
+                .definedLabels(project.source).contains("SHIP_DRAW"));
+        assertTrue(com.alexzab.z80pocketide.editor.SourceSymbols
+                .definedLabels(project.source).contains("VALUE"));
+        AssemblyResult ship = project.projectFor(built,"lib/ship.asm",2);
+        assertEquals(3,ship.getLineSize(0));
+        assertEquals(1,ship.getLineSize(1));
+        assertEquals(4,ship.getLineCount()==2?ship.getLineSize(0)+ship.getLineSize(1):0);
+        assertTrue(project.containsPath("LIB/SHIP.ASM"));
+    }
+
+    @Test public void errorsNavigateOnlyWithinActualSourceFile() {
+        SourceIncludes.Expanded project = SourceIncludes.expand(
+                "ORG 32768\nINCLUDE \"lib/ship.asm\"",
+                "main.asm",name -> "JP ABSENT");
+        String mapped = project.explainErrorFor("line 2: unknown symbol ABSENT","lib/ship.asm");
+        assertEquals("line 1: unknown symbol ABSENT",mapped);
+        assertEquals("lib/ship.asm:1: unknown symbol ABSENT",
+                project.explainErrorFor("line 2: unknown symbol ABSENT","main.asm"));
+    }
 }
