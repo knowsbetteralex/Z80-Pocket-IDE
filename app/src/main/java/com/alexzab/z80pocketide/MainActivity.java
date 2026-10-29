@@ -2176,7 +2176,7 @@ public class MainActivity extends Activity {
             setStatus(message, Color.rgb(0, 110, 45));
             Toast.makeText(this, t("Build OK", "Сборка успешна"), Toast.LENGTH_SHORT).show();
             return true;
-        } catch (RuntimeException ex) {
+        } catch (Exception ex) {
             runTap.setEnabled(true);
             String raw = ex.getMessage();
             String explained = project == null ? raw : project.error(raw);
