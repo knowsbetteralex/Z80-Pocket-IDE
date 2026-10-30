@@ -95,4 +95,19 @@ public final class LabelCompletionTest {
         assertFalse(LabelCompletion.suggest(source,
                 "    JR re", "    JR re".length(), 6).isEmpty());
     }
+
+    @Test public void completesLeadingDotAndQualifiedDottedLabels() {
+        String source = "SHIP:\n.loop: DJNZ .loop\nsprite.draw: RET\n";
+        String local = "    JR .lo";
+        List<LabelCompletion.Match> locals = LabelCompletion.suggest(
+                source, local, local.length(), 7);
+        assertEquals(1, locals.size());
+        assertEquals(".loop", locals.get(0).label);
+        assertEquals(local.indexOf('.'), locals.get(0).start);
+        String global = "    CALL sprite.dr";
+        List<LabelCompletion.Match> globals = LabelCompletion.suggest(
+                source, global, global.length(), 7);
+        assertEquals(1, globals.size());
+        assertEquals("sprite.draw", globals.get(0).label);
+    }
 }
