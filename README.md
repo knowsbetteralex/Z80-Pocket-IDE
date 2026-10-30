@@ -308,3 +308,25 @@ START: RET
 ; src/ship.asm
 DRAW_SHIP: JP START
 ```
+
+
+## v0.32.0 — Dotted labels and procedure-local labels
+
+- Labels with embedded dots, such as `sprite.draw:` and `enemy.update:`, are normal globally visible symbols and can be used in `JP`, `JR`, `DJNZ`, expressions, `DB`, `DW`, and `EQU`.
+- Names starting with a dot, for example `.loop:` or `.done:`, are local to the closest preceding global colon label. `PLAYER: / .loop:` resolves to `PLAYER.loop`; a second `.loop:` under `ENEMY:` is a distinct symbol. Global `EQU` definitions do not change the local scope.
+- Dot-label scope follows actual assembly order, including recursively expanded `INCLUDE` files. A global label in an included source starts a new scope just as it would if its text were pasted into the main file.
+- References can use `.loop` inside the current scope or qualified `PLAYER.loop` anywhere in the project, including forward references. A leading-dot reference before any global label produces a clear line-numbered error.
+- String literals and comments are not modified by local-label qualification. The editor recognizes dot labels in syntax highlighting, completion, formatting, and folding.
+- Regression tests cover repeated local names in different routines, forward labels, dotted globals, local EQU constants, DB strings, relative branches, and shared scopes across INCLUDE files.
+
+Example:
+```asm
+    ORG 32768
+PLAYER:
+.loop:
+    DJNZ .loop
+ENEMY:
+.loop:
+    JR .loop
+    JP PLAYER.loop
+```
