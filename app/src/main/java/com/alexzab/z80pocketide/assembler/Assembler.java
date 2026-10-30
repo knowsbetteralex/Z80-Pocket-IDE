@@ -201,8 +201,22 @@ public final class Assembler {
     }
 
     private static List<ParsedLine> parseSource(String source) {
-        String[] raw=source.replace("\r","").split("\n",-1); List<ParsedLine> out=new ArrayList<>();
-        for (int i=0;i<raw.length;i++) out.add(parseLine(raw[i],i+1));
+        String[] raw=source.replace("\r","").split("\n",-1);
+        List<ParsedLine> out=new ArrayList<>();
+        String scope=null;
+        for (int i=0;i<raw.length;i++) {
+            ParsedLine parsed=parseLine(raw[i],i+1);
+            // Only an ordinary colon label changes the local-label scope.
+            // EQU (including global EQU) must not change it.
+            if (parsed.label!=null && !parsed.label.startsWith("."))
+                scope=parsed.label;
+            String label=LocalLabels.declaration(parsed.label,scope,parsed.number);
+            String equ=LocalLabels.declaration(parsed.equName,scope,parsed.number);
+            String code=LocalLabels.references(parsed.code,scope,parsed.number);
+            String expression=parsed.equExpr==null?null
+                    :LocalLabels.references(parsed.equExpr,scope,parsed.number);
+            out.add(new ParsedLine(parsed.number,label,code,equ,expression));
+        }
         return out;
     }
 
