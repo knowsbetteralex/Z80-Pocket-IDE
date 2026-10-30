@@ -82,4 +82,21 @@ public class SourceSymbolsTest {
         assertFalse(SourceSymbols.definedLabels(folded).contains("INNER"));
         assertEquals(1, SourceSymbols.labelRanges(folded, definitions).length);
     }
+
+    @Test public void highlightsDottedReferencesAndIgnoresLiteralDots() {
+        String source = "SHIP:\n.loop:\n    JR .loop\n"
+                + "sprite.draw: RET\n    JP sprite.draw\n"
+                + "    DB \".loop\" ; .fake:\n";
+        Set<String> definitions = SourceSymbols.definedLabels(source);
+        assertTrue(definitions.contains(".LOOP"));
+        assertTrue(definitions.contains("SPRITE.DRAW"));
+        assertFalse(definitions.contains(".FAKE"));
+        int refs = 0;
+        for (int[] range : SourceSymbols.labelRanges(source,definitions)) {
+            String name = source.substring(range[0],range[1]);
+            if (name.equalsIgnoreCase(".loop") || name.equalsIgnoreCase("sprite.draw"))
+                refs++;
+        }
+        assertEquals(4,refs);
+    }
 }
