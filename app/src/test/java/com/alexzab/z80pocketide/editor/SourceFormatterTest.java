@@ -27,4 +27,10 @@ public class SourceFormatterTest {
         assertEquals("\t",
                 SourceFormatter.indentationForNewLine("LOOP:", 4, false));
     }
+
+    @Test public void preservesLeadingDotLabelsInFormattedSource() {
+        String source = "ship:\n.loop:\ndjnz .loop\nsprite.draw:\nret\n";
+        assertEquals("ship:\n.loop:\n    DJNZ .loop\nsprite.draw:\n    RET\n",
+                SourceFormatter.formatDocument(source,true,true,4,true));
+    }
 }
