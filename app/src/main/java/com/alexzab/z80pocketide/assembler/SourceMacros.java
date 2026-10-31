@@ -139,7 +139,7 @@ public final class SourceMacros {
             if(word.startsWith("."))word=word.substring(1);
             String args=code.substring(space).trim();
             boolean active=conditions.isEmpty() || conditions.peek().active;
-            if(word.equals("IF") || word.equals("IFDEF") || word.equals("IFNDEF")){
+            if(word.equals("IF") || word.equals("IFN") || word.equals("IFDEF") || word.equals("IFNDEF")){
                 if(args.isEmpty())throw error(at,word+" requires a condition");
                 boolean matches=active && condition(word,args,symbols,at);
                 conditions.push(new Condition(active,matches));
@@ -180,6 +180,7 @@ public final class SourceMacros {
 
     private static boolean condition(String op,String args,
                                      Map<String,Integer> symbols,SourceIncludes.Location at) {
+        if(op.equals("IFN"))return !condition("IF",args,symbols,at);
         if(op.equals("IFDEF") || op.equals("IFNDEF")){
             if(!args.matches(IDENT))throw error(at,op+" needs a symbol name");
             boolean exists=symbols.containsKey(key(args));
