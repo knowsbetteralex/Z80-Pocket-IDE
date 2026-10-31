@@ -1710,8 +1710,13 @@ public class MainActivity extends Activity {
     private Map<String, String> includeBuffers() {
         captureCurrentDocument();
         Map<String, String> sources = new LinkedHashMap<>();
-        for (EditorDocument tab : documents)
+        boolean project = AndroidIncludeFiles.projectTree(this) != null;
+        for (EditorDocument tab : documents) {
+            if(project && (tab.projectPath == null || tab.projectPath.isEmpty())
+                    && !AndroidIncludeFiles.isProjectDocument(this, tab.uriString))
+                continue;
             sources.put(AndroidIncludeFiles.relativePath(this, tab), tab.text);
+        }
         return sources;
     }
 
@@ -2392,8 +2397,14 @@ public class MainActivity extends Activity {
                 try {
                     Uri previous = AndroidIncludeFiles.projectTree(this);
                     AndroidIncludeFiles.rememberTree(this, data);
-                    if (previous == null || !previous.equals(data.getData()))
+                    if (previous == null || !previous.equals(data.getData())) {
                         AndroidIncludeFiles.setRoot(this, null);
+                        // Keep previous tabs and drafts intact, but don't let
+                        // their names override files in the newly opened project.
+                        for (EditorDocument tab : documents)
+                            if (!AndroidIncludeFiles.isProjectDocument(this,tab.uriString))
+                                tab.projectPath = null;
+                    }
                     invalidateProjectBuilds();
                     if (requestCode == REQUEST_OPEN_PROJECT) {
                         pendingIncludeName = null;
