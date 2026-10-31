@@ -16,6 +16,8 @@ public final class SourceMacros {
     private static final Pattern PREFIX=Pattern.compile(
             "^\\.?MACRO\\s+("+IDENT+")(?:\\s*,\\s*|\\s+)(.+)?$",Pattern.CASE_INSENSITIVE);
     private static final Pattern END=Pattern.compile("^\\.?ENDM(?:ACRO)?$",Pattern.CASE_INSENSITIVE);
+    private static final Pattern EQU=Pattern.compile(
+            "^("+IDENT+")\\s*:?\\s+EQU\\s+(.+)$",Pattern.CASE_INSENSITIVE);
     private static final int MAX_DEPTH=24, MAX_LINES=100000, MAX_CHARACTERS=4*1024*1024;
     private SourceMacros() {}
 
@@ -94,18 +96,148 @@ public final class SourceMacros {
         int[] serial={0};
         Set<String> stack=new HashSet<>();
         int[] chars={0};
+        List<String> visible=new ArrayList<>();
+        List<SourceIncludes.Location> origins=new ArrayList<>();
         for(int i=0;i<lines.length;i++){
-            if(!definitions[i])
-                emit(lines[i],input.location(i+1),macros,stack,serial,0,out,positions,chars);
+            if(!definitions[i]){
+                visible.add(lines[i]);
+                origins.add(input.location(i+1));
+            }
         }
+        processBlock(visible,origins,macros,stack,serial,0,out,positions,chars,
+                new HashMap<String,Integer>());
         return new SourceIncludes.Expanded(
                 String.join("\n",out),input.root,input.rootLines,positions);
+    }
+
+
+    /** State is per expanded block: a macro's IF cannot consume its caller's ENDIF. */
+    private static final class Condition {
+        final boolean parent;
+        boolean active, taken, elseSeen;
+        Condition(boolean parent,boolean selected) {
+            this.parent=parent;
+            this.active=parent && selected;
+            this.taken=this.active;
+        }
+    }
+
+    private static void processBlock(List<String> lines,
+                                     List<SourceIncludes.Location> from,
+                                     Map<String,Definition> macros,Set<String> stack,
+                                     int[] serial,int depth,List<String> out,
+                                     List<SourceIncludes.Location> locations,
+                                     int[] chars,Map<String,Integer> symbols) {
+        Deque<Condition> conditions=new ArrayDeque<>();
+        for(int i=0;i<lines.size();i++){
+            String line=lines.get(i);
+            SourceIncludes.Location at=from.get(i);
+            String code=stripComment(line).trim();
+            int space=0;
+            while(space<code.length()&&!Character.isWhitespace(code.charAt(space)))space++;
+            String word=code.substring(0,space).toUpperCase(Locale.ROOT);
+            if(word.startsWith("."))word=word.substring(1);
+            String args=code.substring(space).trim();
+            boolean active=conditions.isEmpty() || conditions.peek().active;
+            if(word.equals("IF") || word.equals("IFDEF") || word.equals("IFNDEF")){
+                if(args.isEmpty())throw error(at,word+" requires a condition");
+                boolean matches=active && condition(word,args,symbols,at);
+                conditions.push(new Condition(active,matches));
+                continue;
+            }
+            if(word.equals("ELSEIF") || word.equals("ELIF")){
+                if(conditions.isEmpty())throw error(at,word+" without IF");
+                Condition state=conditions.peek();
+                if(state.elseSeen)throw error(at,word+" after ELSE");
+                if(args.isEmpty())throw error(at,word+" requires an expression");
+                boolean matches=state.parent && !state.taken
+                        && condition("IF",args,symbols,at);
+                state.active=matches;
+                state.taken|=matches;
+                continue;
+            }
+            if(word.equals("ELSE")){
+                if(conditions.isEmpty())throw error(at,"ELSE without IF");
+                if(!args.isEmpty())throw error(at,"ELSE cannot have arguments");
+                Condition state=conditions.peek();
+                if(state.elseSeen)throw error(at,"duplicate ELSE");
+                state.elseSeen=true;
+                state.active=state.parent && !state.taken;
+                state.taken|=state.active;
+                continue;
+            }
+            if(word.equals("ENDIF")){
+                if(conditions.isEmpty())throw error(at,"ENDIF without IF");
+                if(!args.isEmpty())throw error(at,"ENDIF cannot have arguments");
+                conditions.pop();
+                continue;
+            }
+            if(active)emit(line,at,macros,stack,serial,depth,out,locations,chars,symbols);
+        }
+        if(!conditions.isEmpty() && !from.isEmpty())
+            throw error(from.get(from.size()-1),"missing ENDIF");
+    }
+
+    private static boolean condition(String op,String args,
+                                     Map<String,Integer> symbols,SourceIncludes.Location at) {
+        if(op.equals("IFDEF") || op.equals("IFNDEF")){
+            if(!args.matches(IDENT))throw error(at,op+" needs a symbol name");
+            boolean exists=symbols.containsKey(key(args));
+            return op.equals("IFDEF")?exists:!exists;
+        }
+        try {
+            int depth=0;
+            for(int i=0;i<args.length();i++){
+                char c=args.charAt(i);
+                if(c=='('){depth++;continue;}
+                if(c==')'){depth--;continue;}
+                if(depth!=0)continue;
+                String comparison=null;
+                for(String candidate:new String[]{"==","!=",">=","<=","<>","=","<",">"}){
+                    if(!args.startsWith(candidate,i))continue;
+                    if((candidate.equals("<")||candidate.equals(">"))
+                            && ((i+1<args.length()&&args.charAt(i+1)==c)
+                                || (i>0&&args.charAt(i-1)==c)))continue;
+                    comparison=candidate;
+                    break;
+                }
+                if(comparison==null)continue;
+                int left=ExpressionEvaluator.eval(args.substring(0,i),symbols);
+                int right=ExpressionEvaluator.eval(
+                        args.substring(i+comparison.length()),symbols);
+                switch(comparison){
+                    case "=":case "==":return left==right;
+                    case "!=":case "<>":return left!=right;
+                    case ">":return left>right;
+                    case "<":return left<right;
+                    case ">=":return left>=right;
+                    case "<=":return left<=right;
+                    default:break;
+                }
+            }
+            return ExpressionEvaluator.eval(args,symbols)!=0;
+        }catch(IllegalArgumentException problem) {
+            throw error(at,"IF condition '"+args+"': "+problem.getMessage());
+        }
+    }
+
+    /** Only already-resolved EQU constants affect preprocessing IF expressions. */
+    private static void rememberEqu(String line, Map<String,Integer> symbols) {
+        Matcher match=EQU.matcher(stripComment(line).trim());
+        if(!match.matches())return;
+        try {
+            symbols.put(key(match.group(1)),
+                    ExpressionEvaluator.eval(match.group(2),symbols));
+        }catch(IllegalArgumentException ignored) {
+            // The assembler's second pass still validates unresolved EQU.
+        }
     }
 
     private static void emit(String line,SourceIncludes.Location at,
                              Map<String,Definition> macros,Set<String> stack,
                              int[] serial,int depth,List<String> out,
-                             List<SourceIncludes.Location> locations,int[] chars){
+                             List<SourceIncludes.Location> locations,int[] chars,
+                             Map<String,Integer> symbols){
         String code=stripComment(line).trim();
         if(code.isEmpty()){
             append(line,at,out,locations,chars);
@@ -125,6 +257,7 @@ public final class SourceMacros {
         Definition macro=macros.get(key(name));
         if(macro==null){
             append(line,at,out,locations,chars);
+            rememberEqu(line,symbols);
             return;
         }
         if(label!=null)append(label+":",at,out,locations,chars);
@@ -143,16 +276,16 @@ public final class SourceMacros {
                 replace.put(String.valueOf(j+1),values.get(j).trim());
             }
             int id=++serial[0];
+            List<String> expandedLines=new ArrayList<>();
+            List<SourceIncludes.Location> mappedLines=new ArrayList<>();
             for(int j=0;j<macro.body.size();j++){
-                String expanded=substitute(macro.body.get(j),replace,id);
-                // Attribute emitted bytes to call site, but errors to the macro's
-                // actual definition file and line.
+                expandedLines.add(substitute(macro.body.get(j),replace,id));
                 SourceIncludes.Location origin=macro.positions.get(j);
-                SourceIncludes.Location mapped=new SourceIncludes.Location(
-                        origin.path,origin.line,at.rootLine);
-                emit(expanded,mapped,macros,stack,serial,depth+1,
-                        out,locations,chars);
+                mappedLines.add(new SourceIncludes.Location(
+                        origin.path,origin.line,at.rootLine));
             }
+            processBlock(expandedLines,mappedLines,macros,stack,serial,depth+1,
+                    out,locations,chars,symbols);
         }finally {
             stack.remove(key(name));
         }
