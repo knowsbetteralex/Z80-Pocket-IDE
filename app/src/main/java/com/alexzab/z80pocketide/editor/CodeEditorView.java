@@ -34,6 +34,9 @@ import java.util.regex.Pattern;
 public class CodeEditorView extends EditText {
     private static final String PREFS = "code_editor";
     private static final String PREF_FONT_SP = "font_sp";
+    private static final String PREF_COMPACT_GUTTER = "compact_gutter";
+    private static final int GUTTER_REGULAR_DP = 46;
+    private static final int GUTTER_COMPACT_DP = 26;
     private static final float DEFAULT_FONT_SP = 16f;
     private static final float MIN_FONT_SP = 10f;
     private static final float MAX_FONT_SP = 30f;
@@ -71,6 +74,7 @@ public class CodeEditorView extends EditText {
     private int foldLine = -1;
     private final Paint foldPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private int gutterWidth;
+    private boolean compactGutter;
 
     private float downX;
     private float downY;
@@ -126,7 +130,8 @@ public class CodeEditorView extends EditText {
         setVerticalScrollBarEnabled(true);
         setOverScrollMode(OVER_SCROLL_NEVER);
 
-        gutterWidth = dp(46);
+        compactGutter = preferences().getBoolean(PREF_COMPACT_GUTTER, false);
+        gutterWidth = dp(compactGutter ? GUTTER_COMPACT_DP : GUTTER_REGULAR_DP);
         gutterPaint.setColor(Color.rgb(242, 245, 243));
         lineNumberPaint.setTextAlign(Paint.Align.RIGHT);
         foldPaint.setTextAlign(Paint.Align.LEFT);
@@ -363,6 +368,28 @@ public class CodeEditorView extends EditText {
         }
         if (onHistoryChanged != null) onHistoryChanged.run();
         return true;
+    }
+
+    /** Compact numbering leaves 20 dp more space for the code canvas. */
+    public boolean isGutterCompact() {
+        return compactGutter;
+    }
+
+    public void setGutterCompact(boolean compact) {
+        if (compactGutter == compact) return;
+        compactGutter = compact;
+        gutterWidth = dp(compact ? GUTTER_COMPACT_DP : GUTTER_REGULAR_DP);
+        preferences().edit().putBoolean(PREF_COMPACT_GUTTER, compact).apply();
+        syncGutterPadding();
+        post(this::clampScrollPosition);
+    }
+
+    /** Called after the activity sets standard editor padding. */
+    public void syncGutterPadding() {
+        setPadding(gutterWidth + dp(8), getPaddingTop(),
+                getPaddingRight(), getPaddingBottom());
+        requestLayout();
+        invalidate();
     }
 
     public void refreshPreferences() {
@@ -886,7 +913,7 @@ public class CodeEditorView extends EditText {
         if (layout == null) return;
 
         canvas.drawRect(sx, sy, sx + gutterWidth, sy + getHeight(), gutterPaint);
-        lineNumberPaint.setTextSize(getTextSize() * 0.67f);
+        lineNumberPaint.setTextSize(getTextSize() * (compactGutter ? 0.53f : 0.67f));
         int first = layout.getLineForVertical(Math.max(0, sy - getTotalPaddingTop()));
         int last = layout.getLineForVertical(Math.max(0,
                 sy + getHeight() - getTotalPaddingTop()));
@@ -906,8 +933,8 @@ public class CodeEditorView extends EditText {
                     ? Color.rgb(47, 125, 88) : Color.rgb(125, 147, 133));
             lineNumberPaint.setFakeBoldText(i == currentLine || selectedLines.contains(i));
             canvas.drawText(String.valueOf(i + 1),
-                    sx + gutterWidth - dp(7), baseline, lineNumberPaint);
-            if (isFoldableLine(i, layout, visibleSource)) {
+                    sx + gutterWidth - dp(compactGutter ? 3 : 7), baseline, lineNumberPaint);
+            if (!compactGutter && isFoldableLine(i, layout, visibleSource)) {
                 foldPaint.setTextSize(dp(15));
                 canvas.drawText(isFoldedLine(i, layout, visibleSource) ? "▸" : "▾",
                         sx + dp(5), baseline, foldPaint);
@@ -923,7 +950,7 @@ public class CodeEditorView extends EditText {
             canvas.drawRoundRect(sx + dp(4), cy - dp(16),
                     sx + gutterWidth - dp(4), cy + dp(16),
                     dp(10), dp(10), clearSelectionPaint);
-            clearSelectionPaint.setTextSize(dp(22));
+            clearSelectionPaint.setTextSize(dp(compactGutter ? 17 : 22));
             clearSelectionPaint.setColor(Color.WHITE);
             canvas.drawText("×", cx, cy + dp(7), clearSelectionPaint);
         }
@@ -990,7 +1017,7 @@ public class CodeEditorView extends EditText {
         if (action == MotionEvent.ACTION_DOWN
                 && event.getX() <= gutterWidth && getLayout() != null) {
             int row = gestureLine(event);
-            foldGutterTouch = event.getX() <= dp(25) && isFoldableLine(row);
+            foldGutterTouch = !compactGutter && event.getX() <= dp(25) && isFoldableLine(row);
             foldLine = row;
             gutterTouched = true;
             gutterDragging = false;
