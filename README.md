@@ -398,3 +398,21 @@ ENDM
 CHECK 0
 CHECK 5
 ```
+
+
+## v0.36.0 — Quoted character literals in Z80 expressions
+
+Character immediates are now accepted everywhere the assembler expects a numeric expression: `LD A,'1'`, `LD B,'a'`, `CP 'Z'`, `DB 'A'+1`, `DW '0'+1`, and `KEY EQU 'x'`. One character in single quotes resolves to its 8-bit code (`'1'` = 49 / `31h`; `'a'` = 97 / `61h`). Character case is preserved independently of case-insensitive mnemonic, register, and label recognition.
+
+Supported character escapes: `\n`, `\r`, `\t`, `\0`, `\\`, `\'`, `\"`, `\xHH` (two hex digits). Empty or multi-character operands used as expressions, invalid escapes, and Unicode characters outside 0..255 produce clear assembler errors instead of silent truncation. Multi-character strings such as `DB 'Hello'` continue to work as data strings.
+
+The operand parser preserves quoted text, including commas and spaces, while uppercasing registers and symbols. The editor highlights single-quoted literals, and macro substitution / conditional IF expressions accept character values. `AF'` remains a Z80 alternate register, not a quoted character.
+
+```asm
+ORG $8000
+LD A,'1'       ; LD A,$31
+LD B,'a'       ; LD B,$61
+CP 'Z'         ; CP $5A
+NEWLINE EQU '\n'
+DB 'B'+1,NEWLINE
+```
