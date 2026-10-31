@@ -1775,6 +1775,13 @@ public class MainActivity extends Activity {
     private String projectFailure(Exception ex, ProjectSource project, EditorDocument visible) {
         String raw = ex.getMessage() == null ? "Assembler error" : ex.getMessage();
         if (project != null) return project.error(raw);
+        if (ex instanceof SourceMacros.MacroError) {
+            SourceMacros.MacroError failure=(SourceMacros.MacroError) ex;
+            if(failure.path.equalsIgnoreCase(
+                    AndroidIncludeFiles.relativePath(this,visible)))
+                return "line "+failure.line+": "+raw;
+            return raw;
+        }
         if (ex instanceof SourceIncludes.IncludeError) {
             SourceIncludes.IncludeError failure = (SourceIncludes.IncludeError) ex;
             if (failure.path.equalsIgnoreCase(AndroidIncludeFiles.relativePath(this, visible)))
