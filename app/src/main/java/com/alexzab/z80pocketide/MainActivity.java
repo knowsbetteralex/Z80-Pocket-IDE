@@ -375,6 +375,21 @@ public class MainActivity extends Activity {
                 dp(40), dp(40));
         foldParams.setMargins(dp(3), 0, dp(1), 0);
         workspaceBar.addView(foldAllButton, foldParams);
+
+        Button gutterWidthButton = headerButton("⇤",
+                t("Narrow line numbers", "Сузить номера строк"), false);
+        gutterWidthButton.setTextSize(19);
+        LinearLayout.LayoutParams gutterButtonParams = new LinearLayout.LayoutParams(
+                dp(37), dp(40));
+        gutterButtonParams.setMargins(dp(2), 0, dp(1), 0);
+        workspaceBar.addView(gutterWidthButton, gutterButtonParams);
+        gutterWidthButton.setOnClickListener(v -> {
+            if (editor == null) return;
+            editor.setGutterCompact(!editor.isGutterCompact());
+            updateGutterWidthButton(gutterWidthButton);
+            if (sourceScrollRail != null) sourceScrollRail.onViewportChanged();
+        });
+
         foldAllButton.setOnClickListener(v -> {
             if (editor == null) return;
             boolean changed;
@@ -420,6 +435,8 @@ public class MainActivity extends Activity {
         // Keep normal editor padding: the Run button overlays only its own
         // circular bounds, without a full-width empty strip below the code.
         editor.setPadding(dp(54), dp(12), dp(14), dp(12));
+        editor.syncGutterPadding();
+        updateGutterWidthButton(gutterWidthButton);
         editor.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -1510,6 +1527,15 @@ public class MainActivity extends Activity {
             setStatus(t("Editor settings applied", "Настройки редактора применены"),
                     Color.rgb(45, 80, 150));
         });
+    }
+
+    private void updateGutterWidthButton(Button button) {
+        if (editor == null) return;
+        boolean narrow = editor.isGutterCompact();
+        button.setText(narrow ? "⇥" : "⇤");
+        button.setContentDescription(narrow
+                ? t("Widen line number column", "Расширить столбец номеров строк")
+                : t("Narrow line number column", "Сузить столбец номеров строк"));
     }
 
     private void refreshEditorTools() {
