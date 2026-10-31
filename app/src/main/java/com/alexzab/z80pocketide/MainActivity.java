@@ -51,6 +51,7 @@ import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyDiagnostics;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.assembler.SourceIncludes;
+import com.alexzab.z80pocketide.assembler.SourceMacros;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
 import com.alexzab.z80pocketide.editor.SourceScrollRail;
 import com.alexzab.z80pocketide.editor.SourceSearch;
@@ -110,6 +111,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_TOOLS = 1005;
     private static final int REQUEST_RESELECT_WRITABLE_SOURCE = 1006;
     private static final int REQUEST_INCLUDE_FOLDER = 1007;
+    private static final int REQUEST_OPEN_PROJECT = 1008;
     private String pendingIncludeName;
 
     private static final String STATE_TITLES = "tab_titles";
@@ -268,7 +270,7 @@ public class MainActivity extends Activity {
         saveParams.setMargins(dp(1), 0, dp(1), 0);
         saveSourceButton.setLayoutParams(saveParams);
         ImageButton openSourceButton = new ImageButton(this);
-        openSourceButton.setContentDescription(t("Open .asm", "Открыть .asm"));
+        openSourceButton.setContentDescription(t("Open file or project", "Открыть файл или проект"));
         openSourceButton.setImageResource(R.drawable.ic_header_open);
         openSourceButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         openSourceButton.setPadding(dp(7), dp(7), dp(7), dp(7));
@@ -322,7 +324,17 @@ public class MainActivity extends Activity {
         languageButton.setOnClickListener(v -> toggleLanguage());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
         saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
-        openSourceButton.setOnClickListener(v -> openSourceFilePicker());
+        openSourceButton.setOnClickListener(v -> {
+            PopupMenu choices = new PopupMenu(this, openSourceButton);
+            choices.getMenu().add(0, 1, 0, t("Open file…", "Открыть файл…"));
+            choices.getMenu().add(0, 2, 1, t("Open project…", "Открыть проект…"));
+            choices.setOnMenuItemClickListener(item -> {
+                if(item.getItemId()==1)openSourceFilePicker();
+                else if(item.getItemId()==2)chooseProjectFolder();
+                return true;
+            });
+            choices.show();
+        });
         undoButton.setOnClickListener(v -> undoOrRedo(true));
         redoButton.setOnClickListener(v -> undoOrRedo(false));
         findButton.setOnClickListener(v -> {
@@ -1393,7 +1405,8 @@ public class MainActivity extends Activity {
 
         Menu files = menu.addSubMenu(t("Files", "Файлы"));
         files.add(0, 1, 0, t("New tab", "Новая вкладка"));
-        files.add(0, 2, 1, t("Open .asm…", "Открыть .asm…"));
+        files.add(0, 2, 1, t("Open file…", "Открыть файл…"));
+        files.add(0, 28, 2, t("Open project…", "Открыть проект…"));
         files.add(0, 3, 2, t("Save source", "Сохранить исходник"));
         files.add(0, 4, 3, t("Save as…", "Сохранить как…"));
         files.add(0, 5, 4, t("Close tab", "Закрыть вкладку"));
@@ -1421,6 +1434,7 @@ public class MainActivity extends Activity {
             switch (item.getItemId()) {
                 case 1: newTab(); break;
                 case 2: openSourceFilePicker(); break;
+                case 28: chooseProjectFolder(); break;
                 case 3: saveDocument(activeIndex, false); break;
                 case 4: requestSaveAs(activeIndex, false); break;
                 case 5: requestCloseTab(activeIndex); break;
@@ -1464,7 +1478,8 @@ public class MainActivity extends Activity {
     private void showFileMenu() {
         String[] items = {
                 t("New tab", "Новая вкладка"),
-                t("Open .asm…", "Открыть .asm…"),
+                t("Open file…", "Открыть файл…"),
+                t("Open project…", "Открыть проект…"),
                 t("Save source", "Сохранить исходник"),
                 t("Save source as…", "Сохранить исходник как…"),
                 t("Close tab", "Закрыть вкладку"),
@@ -1476,10 +1491,11 @@ public class MainActivity extends Activity {
                     switch (which) {
                         case 0: newTab(); break;
                         case 1: openSourceFilePicker(); break;
-                        case 2: saveDocument(activeIndex, false); break;
-                        case 3: requestSaveAs(activeIndex, false); break;
-                        case 4: requestCloseTab(activeIndex); break;
-                        case 5: showEditorSettings(); break;
+                        case 2: chooseProjectFolder(); break;
+                        case 3: saveDocument(activeIndex, false); break;
+                        case 4: requestSaveAs(activeIndex, false); break;
+                        case 5: requestCloseTab(activeIndex); break;
+                        case 6: showEditorSettings(); break;
                         default: break;
                     }
                 })
@@ -1555,16 +1571,73 @@ public class MainActivity extends Activity {
         scheduleAnalysis();
     }
 
+    private void chooseProjectFolder() {
+        requestProjectFolder(REQUEST_OPEN_PROJECT);
+    }
+
     private void chooseIncludeFolder() {
+        requestProjectFolder(REQUEST_INCLUDE_FOLDER);
+    }
+
+    private void requestProjectFolder(int requestCode) {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try {
-            startActivityForResult(intent, REQUEST_INCLUDE_FOLDER);
+            startActivityForResult(intent, requestCode);
         } catch (ActivityNotFoundException ex) {
             setStatus(t("Folder picker unavailable", "Выбор папки недоступен"),
                     Color.rgb(180, 30, 30));
+        }
+    }
+
+    /** The project folder is selected; choose the ASM entry point before analysis. */
+    private void offerProjectRoots() {
+        final List<String> candidates;
+        try {
+            candidates=AndroidIncludeFiles.sourceFiles(this);
+        } catch(Exception ex) {
+            setStatus(t("Cannot list project · ", "Не удалось прочитать проект · ")
+                    +safeMessage(ex),Color.rgb(180,30,30));
+            return;
+        }
+        if(candidates.isEmpty()){
+            setStatus(t("No ASM files in selected folder", "В папке проекта нет ASM-файлов"),
+                    Color.rgb(180,30,30));
+            return;
+        }
+        String main=null;
+        for(String path:candidates) {
+            if(path.equalsIgnoreCase("main.asm")) {main=path;break;}
+        }
+        if(main!=null) {
+            openProjectRoot(main);
+            return;
+        }
+        if(candidates.size()==1) {
+            openProjectRoot(candidates.get(0));
+            return;
+        }
+        String[] labels=candidates.toArray(new String[0]);
+        new AlertDialog.Builder(this)
+                .setTitle(t("Choose project root ASM", "Выберите корневой ASM-файл"))
+                .setItems(labels,(dialog,which)->openProjectRoot(labels[which]))
+                .setNegativeButton(t("Cancel", "Отмена"),null)
+                .show();
+    }
+
+    private void openProjectRoot(String relativePath) {
+        try {
+            Uri uri=AndroidIncludeFiles.locate(this,null,relativePath);
+            if(uri==null)throw new IOException("Missing project root: "+relativePath);
+            AndroidIncludeFiles.setRoot(this,relativePath);
+            invalidateProjectBuilds();
+            openSourceUri(uri,null,relativePath);
+            setStatus(t("Project: ", "Проект: ")+relativePath,Color.rgb(0,110,45));
+        } catch(Exception ex) {
+            setStatus(t("Cannot open project · ", "Ошибка открытия проекта · ")
+                    +safeMessage(ex),Color.rgb(180,30,30));
         }
     }
 
@@ -1689,9 +1762,9 @@ public class MainActivity extends Activity {
                         + rootPath + " (open it or choose a project folder)");
         }
         final EditorDocument rootDocument = visible;
-        SourceIncludes.Expanded expanded = SourceIncludes.expand(rootText, rootPath,
+        SourceIncludes.Expanded included = SourceIncludes.expand(rootText, rootPath,
                 path -> AndroidIncludeFiles.load(this, rootDocument, path, buffers));
-        return new ProjectSource(rootPath, visiblePath, expanded);
+        return new ProjectSource(rootPath, visiblePath, SourceMacros.expand(included));
     }
 
     private String projectFailure(Exception ex, ProjectSource project, EditorDocument visible) {
@@ -2314,7 +2387,7 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == REQUEST_INCLUDE_FOLDER) {
+        if (requestCode == REQUEST_INCLUDE_FOLDER || requestCode == REQUEST_OPEN_PROJECT) {
             if (resultCode == RESULT_OK && data != null && data.getData() != null) {
                 try {
                     Uri previous = AndroidIncludeFiles.projectTree(this);
@@ -2322,6 +2395,11 @@ public class MainActivity extends Activity {
                     if (previous == null || !previous.equals(data.getData()))
                         AndroidIncludeFiles.setRoot(this, null);
                     invalidateProjectBuilds();
+                    if (requestCode == REQUEST_OPEN_PROJECT) {
+                        pendingIncludeName = null;
+                        offerProjectRoots();
+                        return;
+                    }
                     setStatus(t("INCLUDE folder selected", "Папка INCLUDE выбрана"),
                             Color.rgb(0, 110, 45));
                     if (pendingIncludeName != null) {
