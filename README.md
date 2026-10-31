@@ -381,3 +381,20 @@ EMIT_VALUE 0
 ### Number gutter toggle
 
 A new `⇤`/`⇥` button beside the fold-all button on the tab bar toggles line-number column width between 46dp and a compact 26dp. It updates editor left padding, retains line numbers with a smaller font in compact mode, and saves the selection in the app's editor preferences across restarts. Inline fold arrows are hidden in compact mode to avoid overlapping line numbers; the toolbar fold-all button remains available.
+
+## v0.35.0 — IFN conditional assembly
+
+The assembler now accepts `IFN expression` and `.IFN expression` with `ELSE`, `ELSEIF`/`ELIF` and `ENDIF`/`.ENDIF`. As in SjASMPlus, the IFN branch is assembled only if the expression evaluates to **zero**; otherwise the ELSE/ELSEIF branch runs. IFN is available within macro bodies and normal ASM sources (including INCLUDE), supports nested conditions and macro arguments, and honors previously resolved EQU constants. Unresolved expressions and unclosed IFN blocks report preprocessor errors. `IFN` is also recognized by syntax highlighting and keyword formatting.
+
+```asm
+CHECK MACRO value
+    IFN value
+        XOR A
+    ELSE
+        LD A,value
+    ENDIF
+ENDM
+
+CHECK 0
+CHECK 5
+```
