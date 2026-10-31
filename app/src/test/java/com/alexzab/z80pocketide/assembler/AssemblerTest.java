@@ -156,7 +156,7 @@ public class AssemblerTest {
     @Test
     public void alternateAfRegisterStillWorksWithComments() {
         AssemblyResult result = new Assembler().assemble(
-                "ORG $8000\nEX AF,AF'\n");
+                "ORG $8000\nEX AF,AF' ; swap alternate flags\n");
         assertArrayEquals(new byte[]{0x08},result.getBytes());
     }
 }
