@@ -184,4 +184,61 @@ public final class SourceMacrosTest {
         assertArrayEquals(new byte[]{0,0},
                 assemble(source,new HashMap<>()).getBytes());
     }
+
+    @Test public void ifnAssemblesOnlyWhenExpressionIsZero() {
+        String source = "ORG 32768\n"
+                + "IFN 0\n DB 11\nELSE\n DB 99\nENDIF\n"
+                + "IFN 1\n DB 99\nELSE\n DB 22\nENDIF\n"
+                + "IFN 2-2\n DB 33\nENDIF\n";
+        assertArrayEquals(new byte[]{11,22,33},
+                assemble(source,new HashMap<>()).getBytes());
+    }
+
+    @Test public void ifnSupportsComparisonsElseifAndDefinedConstants() {
+        String source="ORG 32768\n"
+                + "FLAG EQU 5\n"
+                + "IFN FLAG=5\n DB 99\nELSEIF FLAG>4\n DB 44\nENDIF\n"
+                + "IFN FLAG-6\n DB 99\nELSE\n DB 55\nENDIF\n"
+                + ".IFN FLAG-5\n DB 66\n.ENDIF\n";
+        assertArrayEquals(new byte[]{44,55,66},
+                assemble(source,new HashMap<>()).getBytes());
+    }
+
+    @Test public void ifnWorksWithMacroArgumentsNestedIfAndIncludes() {
+        Map<String,String> files = new HashMap<>();
+        files.put("logic.inc","VALUE MACRO arg\n"
+                + "  IFN arg\n"
+                + "    DB 0\n"
+                + "  ELSE\n"
+                + "    IFN arg-3\n"
+                + "      DB 3\n"
+                + "    ELSE\n"
+                + "      DB arg\n"
+                + "    ENDIF\n"
+                + "  ENDIF\n"
+                + "ENDM");
+        String source="ORG 32768\n"
+                + "INCLUDE \"logic.inc\"\n"
+                + "VALUE 0\nVALUE 3\nVALUE 7";
+        assertArrayEquals(new byte[]{0,3,7},assemble(source,files).getBytes());
+    }
+
+    @Test public void ifnDoesNotEvaluateInactiveNestedExpression() {
+        String source="ORG 32768\n"
+                + "IF 0\n IFN UNDEFINED\n BADOP\n ENDIF\n"
+                + "ELSE\n DB 10\nENDIF";
+        assertArrayEquals(new byte[]{10},
+                assemble(source,new HashMap<>()).getBytes());
+    }
+
+    @Test public void ifnWithMissingOrUnresolvedConditionShowsError() {
+        for(String source:new String[]{
+                "ORG 32768\nIFN\n NOP\nENDIF",
+                "ORG 32768\nIFN UNDEFINED\n NOP\nENDIF",
+                "ORG 32768\nIFN 1\n NOP"
+        }) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> assemble(source,new HashMap<>()));
+        }
+    }
 }
