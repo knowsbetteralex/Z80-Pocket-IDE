@@ -58,4 +58,16 @@ public final class SyntaxTokenPlannerTest {
     @Test public void blankVisibleWindowReturnsNoTokens() {
         assertEquals(0,SyntaxTokenPlanner.plan("","CODE:\n",120).size());
     }
+
+    @Test public void highlightsSingleQuotedCharactersAndEscapes() {
+        String source = "    LD A,'1'\n    LD B,'a'\n    LD C,'\\n'\nEX AF,AF'\n";
+        List<SyntaxTokenPlanner.Token> tokens =
+                SyntaxTokenPlanner.plan(source,source,0);
+        for(String literal : new String[]{"'1'","'a'","'\\n'"}) {
+            int from=source.indexOf(literal);
+            assertTrue(literal,has(tokens,SyntaxTokenPlanner.STRING,from,from+literal.length()));
+        }
+        int register=source.indexOf("AF'");
+        assertFalse(has(tokens,SyntaxTokenPlanner.STRING,register,register+3));
+    }
 }
