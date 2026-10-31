@@ -101,6 +101,8 @@ final class ExpressionEvaluator {
         }
         if (eof()) throw new IllegalArgumentException("incomplete expression");
 
+        if (peek() == '\'') return parseCharacterLiteral();
+
         if (peek() == '$' || peek() == '#') {
             char prefix = text.charAt(pos++);
             int start = pos;
@@ -136,6 +138,51 @@ final class ExpressionEvaluator {
             return value;
         }
         throw new IllegalArgumentException("unexpected '" + peek() + "' in expression");
+    }
+
+    /**
+     * A quoted character in an expression denotes its 8-bit code, not a
+     * symbol. Keep the character's original case; the encoder must not
+     * uppercase the contents of single quotes.
+     */
+    private int parseCharacterLiteral() {
+        pos++; // opening apostrophe
+        if (eof()) throw new IllegalArgumentException("unterminated character literal");
+        int code;
+        char ch=text.charAt(pos++);
+        if (ch=='\\') {
+            if(eof())throw new IllegalArgumentException("unterminated character escape");
+            char escaped=text.charAt(pos++);
+            switch(escaped) {
+                case 'n': code='\n'; break;
+                case 'r': code='\r'; break;
+                case 't': code='\t'; break;
+                case '0': code=0; break;
+                case '\\': code='\\'; break;
+                case '\'': code='\''; break;
+                case '"': code='"'; break;
+                case 'x': case 'X': {
+                    if(pos+2>text.length()
+                            || !isHex(text.charAt(pos))
+                            || !isHex(text.charAt(pos+1)))
+                        throw new IllegalArgumentException("character escape needs two hex digits");
+                    code=(Character.digit(text.charAt(pos),16)<<4)
+                            | Character.digit(text.charAt(pos+1),16);
+                    pos+=2;
+                    break;
+                }
+                default:
+                    throw new IllegalArgumentException("unknown character escape: \\"+escaped);
+            }
+        } else {
+            code=ch;
+        }
+        if(eof() || text.charAt(pos)!='\'')
+            throw new IllegalArgumentException("character literal must contain exactly one character");
+        pos++;
+        if(code>255)
+            throw new IllegalArgumentException("character code out of 8-bit range: "+code);
+        return code;
     }
 
     private boolean eof() { return pos >= text.length(); }
