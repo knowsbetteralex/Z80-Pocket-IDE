@@ -62,6 +62,47 @@ public final class AndroidIncludeFiles {
         return doc.title;
     }
 
+    /** Lists ASM entry-point candidates from the granted project tree. */
+    public static java.util.List<String> sourceFiles(Context context) throws Exception {
+        Uri tree=projectTree(context);
+        java.util.List<String> files=new java.util.ArrayList<>();
+        if(tree==null)return files;
+        String id=DocumentsContract.getTreeDocumentId(tree);
+        java.util.Set<String> visited=new java.util.HashSet<>();
+        collectSources(context,tree,id,"",0,visited,files);
+        files.sort(String.CASE_INSENSITIVE_ORDER);
+        return files;
+    }
+
+    private static void collectSources(Context context,Uri tree,String folderId,
+                                      String prefix,int depth,java.util.Set<String> visited,
+                                      java.util.List<String> found) throws Exception {
+        if(depth>8 || found.size()>=256 || !visited.add(folderId))return;
+        Uri children=DocumentsContract.buildChildDocumentsUriUsingTree(tree,folderId);
+        try(Cursor cursor=context.getContentResolver().query(children,
+                new String[]{Document.COLUMN_DOCUMENT_ID,Document.COLUMN_DISPLAY_NAME,
+                        Document.COLUMN_MIME_TYPE},null,null,null)){
+            if(cursor==null)throw new IOException("Cannot browse project folder");
+            int id=cursor.getColumnIndexOrThrow(Document.COLUMN_DOCUMENT_ID);
+            int name=cursor.getColumnIndexOrThrow(Document.COLUMN_DISPLAY_NAME);
+            int mime=cursor.getColumnIndexOrThrow(Document.COLUMN_MIME_TYPE);
+            while(cursor.moveToNext() && found.size()<256){
+                String filename=cursor.getString(name);
+                String childId=cursor.getString(id);
+                String type=cursor.getString(mime);
+                if(filename==null || childId==null)continue;
+                String path=prefix+filename;
+                if(Document.MIME_TYPE_DIR.equals(type)){
+                    if(depth<8)collectSources(context,tree,childId,path+"/",depth+1,
+                            visited,found);
+                }else if(filename.toLowerCase(java.util.Locale.ROOT).matches(
+                        ".*\\.(asm|z80|s)$")){
+                    found.add(path);
+                }
+            }
+        }
+    }
+
     /** Safely enumerates each folder segment rather than guessing document IDs. */
     public static Uri locate(Context context,EditorDocument root,String relative) throws Exception{
         Uri tree=projectTree(context);
