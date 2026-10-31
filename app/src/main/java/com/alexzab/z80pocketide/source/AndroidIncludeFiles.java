@@ -70,8 +70,10 @@ public final class AndroidIncludeFiles {
             Uri doc=Uri.parse(uriString);
             if(!tree.getAuthority().equals(doc.getAuthority()))return false;
             String root=DocumentsContract.getTreeDocumentId(tree);
-            if(DocumentsContract.isTreeUri(doc)
-                    && root.equals(DocumentsContract.getTreeDocumentId(doc)))return true;
+            try {
+                if(root.equals(DocumentsContract.getTreeDocumentId(doc)))return true;
+            }catch(IllegalArgumentException ignored) { }
+
             String id=DocumentsContract.getDocumentId(doc);
             return root.equals(id) || id.startsWith(root+"/");
         }catch(RuntimeException exception){return false;}
