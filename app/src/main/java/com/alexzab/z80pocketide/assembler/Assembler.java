@@ -241,9 +241,18 @@ public final class Assembler {
         for (int i=0;i<s.length();i++) {
             char c=s.charAt(i);
             if (quote!=0) { if (esc) esc=false; else if (c=='\\') esc=true; else if (c==quote) quote=0; }
+            else if (c=='\'' && isAfRegisterTick(s,i)) { /* alternate AF register */ }
             else if (c=='\''||c=='\"') quote=c; else if (c==';') return s.substring(0,i);
         }
         return s;
+    }
+    private static boolean isAfRegisterTick(String line,int at) {
+        if(at<2 || !line.regionMatches(true,at-2,"AF",0,2))return false;
+        if(at>2 && (Character.isLetterOrDigit(line.charAt(at-3))
+                || line.charAt(at-3)=='_'))return false;
+        return at+1==line.length() || line.charAt(at+1)==';'
+                || line.charAt(at+1)==',' || line.charAt(at+1)==')'
+                || Character.isWhitespace(line.charAt(at+1));
     }
     private static boolean validIdent(String s) { return s.matches("[A-Za-z_@.][A-Za-z0-9_@.$]*"); }
     private static String key(String s) { return s.toUpperCase(Locale.ROOT); }
