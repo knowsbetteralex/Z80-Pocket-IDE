@@ -174,4 +174,14 @@ public final class SourceMacrosTest {
             assertThrows(IllegalArgumentException.class,
                     () -> assemble(source,new HashMap<>()));
     }
+
+    @Test public void prefixMacroWithoutParametersAndConditionalBody() {
+        String source="ORG 32768\n"
+                +"MACRO WAVE\n"
+                +" IF 1\n  NOP\n ENDIF\n"
+                +"ENDM\n"
+                +"WAVE\nWAVE";
+        assertArrayEquals(new byte[]{0,0},
+                assemble(source,new HashMap<>()).getBytes());
+    }
 }
