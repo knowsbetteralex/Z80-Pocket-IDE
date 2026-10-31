@@ -198,7 +198,7 @@ public final class SourceMacrosTest {
         String source="ORG 32768\n"
                 + "FLAG EQU 5\n"
                 + "IFN FLAG=5\n DB 99\nELSEIF FLAG>4\n DB 44\nENDIF\n"
-                + "IFN FLAG-6\n DB 99\nELSE\n DB 55\nENDIF\n"
+                + "IFN FLAG-4\n DB 99\nELSE\n DB 55\nENDIF\n"
                 + ".IFN FLAG-5\n DB 66\n.ENDIF\n";
         assertArrayEquals(new byte[]{44,55,66},
                 assemble(source,new HashMap<>()).getBytes());
