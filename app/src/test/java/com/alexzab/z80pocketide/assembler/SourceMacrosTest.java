@@ -99,4 +99,79 @@ public final class SourceMacrosTest {
         assertThrows(IllegalArgumentException.class,
                 () -> assemble(invalid,new HashMap<>()));
     }
+
+    @Test public void conditionalMacroChoosesCorrectBranchAndNestedBlocks() {
+        String source="ORG 32768\n"
+                +"EMIT MACRO count\n"
+                +" IF count > 0\n"
+                +"  IF count == 2\n"
+                +"   LD B,2\n"
+                +"  ELSE\n"
+                +"   LD B,count\n"
+                +"  ENDIF\n"
+                +" ELSE\n"
+                +"  LD B,0\n"
+                +" ENDIF\n"
+                +"ENDM\n"
+                +"EMIT 2\nEMIT 5\nEMIT 0";
+        assertArrayEquals(new byte[]{6,2,6,5,6,0},
+                assemble(source,new HashMap<>()).getBytes());
+    }
+
+    @Test public void elseifAndBitwiseConditionsWorkWithConstantEqu() {
+        String source="ORG 32768\nFLAG EQU 2\n"
+                +"IF FLAG = 1\n DB 11\n"
+                +"ELSEIF FLAG >= 2\n DB 22\n"
+                +"ELSE\n DB 33\nENDIF\n"
+                +"IF (FLAG & 2)\n DB 44\nENDIF\n"
+                +"IF FLAG << 1\n DB 55\nENDIF";
+        assertArrayEquals(new byte[]{22,44,55},
+                assemble(source,new HashMap<>()).getBytes());
+    }
+
+    @Test public void ifdefAndIfndefReflectAlreadyResolvedEqu() {
+        String source="ORG 32768\nVALUE EQU 7\n"
+                +"IFDEF VALUE\n DB VALUE\nENDIF\n"
+                +"IFNDEF ABSENT\n DB 8\nENDIF\n"
+                +"IFDEF ABSENT\n BADOP\nELSE\n DB 9\nENDIF";
+        assertArrayEquals(new byte[]{7,8,9},
+                assemble(source,new HashMap<>()).getBytes());
+    }
+
+    @Test public void excludedBranchesDoNotEvaluateUnknownSymbolsOrRecurse() {
+        String source="ORG 32768\n"
+                +"FOREVER MACRO\n FOREVER\nENDM\n"
+                +"IF 0\n IF UNKNOWN >= 999\n FOREVER\n ENDIF\n"
+                +"ELSE\n DB 1\nENDIF\n"
+                +"IF 1\n DB 2\nELSE\n UNKNOWN\nENDIF";
+        assertArrayEquals(new byte[]{1,2},
+                assemble(source,new HashMap<>()).getBytes());
+    }
+
+    @Test public void conditionsInIncludedMacroAndSourceLineMapping() {
+        Map<String,String> files=new HashMap<>();
+        files.put("macros.asm","CHOOSE MACRO flag\nIF flag\n DB 10\nELSE\n DB 20\nENDIF\nENDM");
+        String source="ORG 32768\nINCLUDE \"macros.asm\"\nCHOOSE 0\nCHOOSE 1";
+        SourceIncludes.Expanded expanded=SourceMacros.expand(
+                SourceIncludes.expand(source,"main.asm",files::get));
+        AssemblyResult binary=new Assembler().assemble(expanded.source);
+        assertArrayEquals(new byte[]{20,10},binary.getBytes());
+        assertEquals(1,expanded.project(binary).getLineSize(2));
+        assertEquals(1,expanded.project(binary).getLineSize(3));
+    }
+
+    @Test public void malformedConditionalBlocksAreRejected() {
+        String[] invalid={
+                "ORG 32768\nIF 1\nNOP",
+                "ORG 32768\nENDIF",
+                "ORG 32768\nELSE",
+                "ORG 32768\nIF 1\nELSE\nELSE\nENDIF",
+                "ORG 32768\nIF MISSING\nNOP\nENDIF",
+                "ORG 32768\nIF 0\nELSEIF 1\nELSEIF 2\nELSE\nENDIF\nENDIF",
+                "ORG 32768\nIF 1\nELSE\nELSEIF 1\nENDIF"
+        };
+        for(String source:invalid)
+            assertThrows(IllegalArgumentException.class,
+                    () -> assemble(source,new HashMap<>()));
+    }
 }
