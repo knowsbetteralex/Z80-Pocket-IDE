@@ -377,7 +377,8 @@ public final class SourceMacros {
                 if(escape)escape=false;
                 else if(c=='\\')escape=true;
                 else if(c==quote)quote=0;
-            }else if(c=='"' || c=='\''){quote=c;}
+            }else if(c=='\'' && isAfRegisterTick(src,i)){ /* alternate AF register */ }
+            else if(c=='"' || c=='\''){quote=c;}
             else if(c==';')return src.substring(0,i);
         }
         return src;
@@ -400,7 +401,7 @@ public final class SourceMacros {
                 if(escape)escape=false;
                 else if(c=='\\')escape=true;
                 else if(c==quote)quote=0;
-            }else if(c=='\'' && isAfRegisterTick(src,i)){ /* alternate AF register */ }
+            }else if(c=='\'' && isAfRegisterTick(raw,i)){ /* alternate AF register */ }
             else if(c=='"' || c=='\'')quote=c;
             else if(c=='(' || c=='[')depth++;
             else if(c==')' || c==']')depth--;
