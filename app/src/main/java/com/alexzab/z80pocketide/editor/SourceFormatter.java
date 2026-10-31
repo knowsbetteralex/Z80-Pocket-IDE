@@ -16,7 +16,7 @@ public final class SourceFormatter {
             "NEG","NOP","OR","OTDR","OTIR","OUT","OUTD","OUTI","POP","PUSH","RES",
             "RET","RETI","RETN","RL","RLA","RLC","RLCA","RLD","RR","RRA","RRC",
             "RRCA","RRD","RST","SBC","SCF","SET","SLA","SRA","SRL","SUB","XOR",
-            "ORG","EQU","DB","DW","DS","INCLUDE",
+            "ORG","EQU","DB","DW","DS","INCLUDE","MACRO","ENDM","ENDMACRO",
             "AF","AF'","BC","DE","HL","SP","IX","IY","A","B","C","D","E","H","L","I","R",
             "NZ","Z","NC","PO","PE","P","M"
     ));
