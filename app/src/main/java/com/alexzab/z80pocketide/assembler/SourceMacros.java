@@ -14,7 +14,7 @@ public final class SourceMacros {
     private static final Pattern NAMED=Pattern.compile(
             "^("+IDENT+")\\s+MACRO(?:\\s+(.+))?$",Pattern.CASE_INSENSITIVE);
     private static final Pattern PREFIX=Pattern.compile(
-            "^\\.?MACRO\\s+("+IDENT+")(?:\\s*,?\\s+(.+))?$",Pattern.CASE_INSENSITIVE);
+            "^\\.?MACRO\\s+("+IDENT+")(?:\\s*,\\s*|\\s+)(.+)?$",Pattern.CASE_INSENSITIVE);
     private static final Pattern END=Pattern.compile("^\\.?ENDM(?:ACRO)?$",Pattern.CASE_INSENSITIVE);
     private static final int MAX_DEPTH=24, MAX_LINES=100000, MAX_CHARACTERS=4*1024*1024;
     private SourceMacros() {}
