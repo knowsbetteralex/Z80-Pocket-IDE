@@ -19,14 +19,26 @@ public final class SourceMacros {
     private static final int MAX_DEPTH=24, MAX_LINES=100000, MAX_CHARACTERS=4*1024*1024;
     private SourceMacros() {}
 
+    public static final class MacroError extends IllegalArgumentException {
+        public final String path;
+        public final int line;
+        MacroError(SourceIncludes.Location at,String message) {
+            super(at.path+":"+at.line+": "+message);
+            path=at.path;
+            line=at.line;
+        }
+    }
+
     private static final class Definition {
         final String name;
+        final SourceIncludes.Location declaration;
         final List<String> params;
         final List<String> body=new ArrayList<>();
         final List<SourceIncludes.Location> positions=new ArrayList<>();
-        Definition(String name,List<String> params) {
+        Definition(String name,List<String> params,SourceIncludes.Location at) {
             this.name=name;
             this.params=params;
+            this.declaration=at;
         }
     }
     private static final class Directive {
@@ -71,10 +83,10 @@ public final class SourceMacros {
                     params.add(param);
                 }
             }
-            current=new Definition(d.name,params);
+            current=new Definition(d.name,params,at);
             macros.put(name,current);
         }
-        if(current!=null)throw new IllegalArgumentException(
+        if(current!=null)throw error(current.declaration,
                 "MACRO "+current.name+" has no ENDM");
 
         List<String> out=new ArrayList<>();
@@ -214,7 +226,7 @@ public final class SourceMacros {
     }
     private static String key(String s){return s.toUpperCase(Locale.ROOT);}
     private static IllegalArgumentException error(SourceIncludes.Location at,String message){
-        return new IllegalArgumentException(at.path+":"+at.line+": "+message);
+        return new MacroError(at,message);
     }
     private static Directive definition(String code){
         Matcher prefix=PREFIX.matcher(code);
