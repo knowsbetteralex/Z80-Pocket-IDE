@@ -382,6 +382,15 @@ public final class SourceMacros {
         }
         return src;
     }
+    private static boolean isAfRegisterTick(String line,int at) {
+        if(at<2 || !line.regionMatches(true,at-2,"AF",0,2))return false;
+        if(at>2 && (Character.isLetterOrDigit(line.charAt(at-3))
+                || line.charAt(at-3)=='_'))return false;
+        return at+1==line.length() || line.charAt(at+1)==';'
+                || line.charAt(at+1)==',' || line.charAt(at+1)==')'
+                || Character.isWhitespace(line.charAt(at+1));
+    }
+
     private static List<String> splitArgs(String raw){
         List<String> values=new ArrayList<>();
         int start=0,depth=0;char quote=0;boolean escape=false;
@@ -391,7 +400,8 @@ public final class SourceMacros {
                 if(escape)escape=false;
                 else if(c=='\\')escape=true;
                 else if(c==quote)quote=0;
-            }else if(c=='"' || c=='\'')quote=c;
+            }else if(c=='\'' && isAfRegisterTick(src,i)){ /* alternate AF register */ }
+            else if(c=='"' || c=='\'')quote=c;
             else if(c=='(' || c=='[')depth++;
             else if(c==')' || c==']')depth--;
             else if(c==','&&depth==0){
