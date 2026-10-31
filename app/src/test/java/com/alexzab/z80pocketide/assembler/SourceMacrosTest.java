@@ -84,8 +84,8 @@ public final class SourceMacrosTest {
         SourceIncludes.Expanded expanded=SourceMacros.expand(included);
         AssemblyResult result=new Assembler().assemble(expanded.source);
         assertArrayEquals(new byte[]{1,2},result.getBytes());
-        assertEquals(2,expanded.project(result).getLineSize(7));
-        assertEquals(8,expanded.rootLines);
+        assertEquals(2,expanded.project(result).getLineSize(8));
+        assertEquals(9,expanded.rootLines);
     }
 
     @Test public void invalidMacroIsReportedWithoutHanging() {
