@@ -33,4 +33,9 @@ public class SourceFormatterTest {
         assertEquals("ship:\n.loop:\n    DJNZ .loop\nsprite.draw:\n    RET\n",
                 SourceFormatter.formatDocument(source,true,true,4,true));
     }
+
+    @Test public void uppercaseKeywordsKeepsCharacterCase() {
+        assertEquals("LD A,'a' ; lowercase literal",
+                SourceFormatter.uppercaseKeywordsInLine("ld a,'a' ; lowercase literal"));
+    }
 }
