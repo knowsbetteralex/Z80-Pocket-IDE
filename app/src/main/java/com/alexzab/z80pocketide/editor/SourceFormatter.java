@@ -17,7 +17,7 @@ public final class SourceFormatter {
             "RET","RETI","RETN","RL","RLA","RLC","RLCA","RLD","RR","RRA","RRC",
             "RRCA","RRD","RST","SBC","SCF","SET","SLA","SRA","SRL","SUB","XOR",
             "ORG","EQU","DB","DW","DS","INCLUDE","MACRO","ENDM","ENDMACRO",
-            "IF","ELSE","ELSEIF","ELIF","ENDIF","IFDEF","IFNDEF",
+            "IF","IFN","ELSE","ELSEIF","ELIF","ENDIF","IFDEF","IFNDEF",
             "AF","AF'","BC","DE","HL","SP","IX","IY","A","B","C","D","E","H","L","I","R",
             "NZ","Z","NC","PO","PE","P","M"
     ));
