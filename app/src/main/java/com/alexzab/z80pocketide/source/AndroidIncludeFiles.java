@@ -62,6 +62,21 @@ public final class AndroidIncludeFiles {
         return doc.title;
     }
 
+    /** True for a document URI belonging to the currently granted folder. */
+    public static boolean isProjectDocument(Context context,String uriString) {
+        Uri tree=projectTree(context);
+        if(tree==null || uriString==null)return false;
+        try {
+            Uri doc=Uri.parse(uriString);
+            if(!tree.getAuthority().equals(doc.getAuthority()))return false;
+            String root=DocumentsContract.getTreeDocumentId(tree);
+            if(DocumentsContract.isTreeUri(doc)
+                    && root.equals(DocumentsContract.getTreeDocumentId(doc)))return true;
+            String id=DocumentsContract.getDocumentId(doc);
+            return root.equals(id) || id.startsWith(root+"/");
+        }catch(RuntimeException exception){return false;}
+    }
+
     /** Lists ASM entry-point candidates from the granted project tree. */
     public static java.util.List<String> sourceFiles(Context context) throws Exception {
         Uri tree=projectTree(context);
