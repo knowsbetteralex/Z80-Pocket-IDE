@@ -241,4 +241,19 @@ public final class SourceMacrosTest {
                     () -> assemble(source,new HashMap<>()));
         }
     }
+
+    @Test public void characterLiteralArgumentWorksInMacroAndIf() {
+        String source="ORG 32768\n"
+                + "WRITE MACRO value\n"
+                + " IF value = 'a'\n"
+                + "  LD A,value\n"
+                + " ELSE\n"
+                + "  LD A,'?'\n"
+                + " ENDIF\n"
+                + "ENDM\n"
+                + "WRITE 'a'\n"
+                + "WRITE 'b'\n";
+        assertArrayEquals(new byte[]{0x3e,0x61,0x3e,0x3f},
+                assemble(source,new HashMap<>()).getBytes());
+    }
 }
