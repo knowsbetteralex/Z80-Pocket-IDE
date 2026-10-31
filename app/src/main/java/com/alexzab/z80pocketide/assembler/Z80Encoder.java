@@ -351,7 +351,8 @@ final class Z80Encoder {
         Indexed(int prefix, String displacement) { this.prefix=prefix; this.displacement=displacement; }
         static Indexed parse(String operand) {
             if (!operand.startsWith("(") || !operand.endsWith(")")) return null;
-            String s = operand.substring(1, operand.length()-1).replace(" ", "").toUpperCase(Locale.ROOT);
+            String s = Parsed.normalizeOperand(
+                    operand.substring(1, operand.length()-1), true);
             int pre;
             if (s.startsWith("IX")) pre=0xDD; else if (s.startsWith("IY")) pre=0xFD; else return null;
             String rest=s.substring(2);
@@ -375,22 +376,66 @@ final class Z80Encoder {
             String tail=t.substring(sp).trim();
             if (tail.isEmpty()) return new Parsed(m,new String[0]);
             String[] raw=splitOperands(tail);
-            for (int i=0;i<raw.length;i++) raw[i]=raw[i].trim().toUpperCase(Locale.ROOT);
+            for (int i=0;i<raw.length;i++)
+                raw[i]=normalizeOperand(raw[i].trim(), false);
             return new Parsed(m,raw);
         }
-        private static String[] splitOperands(String s) {
-            int depth=0; boolean quote=false;
-            java.util.List<String> out=new java.util.ArrayList<>();
-            int start=0;
-            for (int i=0;i<s.length();i++) {
-                char c=s.charAt(i);
-                if (c=='\'' || c=='\"') quote=!quote;
-                if (!quote) {
-                    if (c=='(') depth++; else if (c==')') depth--;
-                    else if (c==',' && depth==0) { out.add(s.substring(start,i)); start=i+1; }
+
+        /** Uppercase registers and symbols without changing character literals. */
+        static String normalizeOperand(String input,boolean removeSpaces) {
+            StringBuilder normalized=new StringBuilder(input.length());
+            char quote=0;
+            boolean escaped=false;
+            for(int i=0;i<input.length();i++) {
+                char c=input.charAt(i);
+                if(quote!=0) {
+                    normalized.append(c);
+                    if(escaped)escaped=false;
+                    else if(c=='\\')escaped=true;
+                    else if(c==quote)quote=0;
+                } else if(c=='"' || (c=='\'' && !afTick(input,i))) {
+                    quote=c;
+                    normalized.append(c);
+                } else if(!removeSpaces || !Character.isWhitespace(c)) {
+                    normalized.append(Character.toUpperCase(c));
                 }
             }
-            out.add(s.substring(start));
+            return normalized.toString();
+        }
+
+        /** AF' is the alternate register, not an opening single quote. */
+        private static boolean afTick(String code,int at) {
+            if(at<2 || !code.regionMatches(true,at-2,"AF",0,2))return false;
+            if(at>2 && (Character.isLetterOrDigit(code.charAt(at-3))
+                    || code.charAt(at-3)=='_'))return false;
+            return at+1==code.length() || code.charAt(at+1)==',' ||
+                    code.charAt(at+1)==')' || Character.isWhitespace(code.charAt(at+1));
+        }
+
+        private static String[] splitOperands(String source) {
+            int depth=0;char quote=0;boolean escaped=false;
+            java.util.List<String> out=new java.util.ArrayList<>();
+            int start=0;
+            for(int i=0;i<source.length();i++) {
+                char c=source.charAt(i);
+                if(quote!=0) {
+                    if(escaped)escaped=false;
+                    else if(c=='\\')escaped=true;
+                    else if(c==quote)quote=0;
+                    continue;
+                }
+                if(c=='"' || (c=='\'' && !afTick(source,i))) {
+                    quote=c;
+                    continue;
+                }
+                if(c=='(')depth++;
+                else if(c==')')depth--;
+                else if(c==',' && depth==0) {
+                    out.add(source.substring(start,i));
+                    start=i+1;
+                }
+            }
+            out.add(source.substring(start));
             return out.toArray(new String[0]);
         }
     }
