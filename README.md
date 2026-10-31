@@ -330,3 +330,27 @@ ENEMY:
     JR .loop
     JP PLAYER.loop
 ```
+
+## v0.33.0 — MACRO support and Open Project
+
+The top toolbar **Open** icon now opens a two-item menu: **Open file / Открыть файл** and **Open project / Открыть проект**. Open Project requests a Storage Access Framework folder grant. It opens `main.asm` when present, selects the only ASM candidate, or shows a root-source chooser for multiple `.asm`, `.z80`, and `.s` files (including nested folders). The selected root is used for assembly and INCLUDE resolution. Existing editor tabs are preserved without mixing unrelated files into another project's symbols.
+
+### MACRO syntax
+
+Both `NAME MACRO param1,param2` and `MACRO NAME param1,param2` are supported. End definitions using `ENDM` or `ENDMACRO`. Macro calls accept comma-separated arguments. Parameters substitute by whole identifier (e.g. `LD dst,value`), explicit `\value`, or positional `\1` and `\2`. Quoted strings and comments are not substituted. `@@name` labels are unique to each invocation.
+
+```asm
+ORG 32768
+DELAY MACRO value
+    LD B,value
+@@again:
+    DJNZ @@again
+ENDM
+
+    DELAY 8
+    DELAY 12
+```
+
+Definitions may come from recursive INCLUDE files or appear after the call site. Macros can invoke other macros, but direct/indirect recursion, oversized expansion, and malformed argument counts are rejected with source diagnostics. Expansion occurs after INCLUDE and before the assembler's two passes, preserving forward labels, EQU and byte/T-state metrics. The preprocessor never modifies the original source in editor tabs.
+
+Not yet implemented: conditional assembly, default/variadic macro parameters, token pasting, nested MACRO definitions.
