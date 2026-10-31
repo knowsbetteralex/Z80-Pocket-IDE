@@ -354,3 +354,30 @@ ENDM
 Definitions may come from recursive INCLUDE files or appear after the call site. Macros can invoke other macros, but direct/indirect recursion, oversized expansion, and malformed argument counts are rejected with source diagnostics. Expansion occurs after INCLUDE and before the assembler's two passes, preserving forward labels, EQU and byte/T-state metrics. The preprocessor never modifies the original source in editor tabs.
 
 Not yet implemented: conditional assembly, default/variadic macro parameters, token pasting, nested MACRO definitions.
+
+
+## v0.34.0 — Conditional macro assembly and compact line numbers
+
+### Preprocessor conditionals
+
+Conditional assembly is supported both inside `MACRO` definitions and in ordinary project sources (after recursive INCLUDE expansion): `IF`, `ELSE`, `ELSEIF`/`ELIF`, `ENDIF`, `IFDEF`, and `IFNDEF`; leading-dot directive names (`.IF`, `.ENDIF`, etc.) are also accepted. Blocks may be nested. Only the chosen branch is sent to the Z80 assembler; unknown instructions or unexpanded macro calls in skipped branches are ignored. Unmatched or duplicate directives, missing arguments, and unresolved expressions produce source diagnostics.
+
+`IF` accepts numeric expressions and comparisons `=`, `==`, `!=`, `<>`, `<`, `>`, `<=`, `>=`. The expression evaluator supports numeric literals and arithmetic/bit operations. Conditions can reference macro parameters after substitution and preceding resolvable `EQU` constants. `IFDEF`/`IFNDEF` check those `EQU` constants. As this is an early preprocessor stage, conditions cannot depend on forward labels or final code addresses.
+
+```asm
+ORG 32768
+EMIT_VALUE MACRO value
+    IF value > 0
+        LD A,value
+    ELSE
+        XOR A
+    ENDIF
+ENDM
+
+EMIT_VALUE 5
+EMIT_VALUE 0
+```
+
+### Number gutter toggle
+
+A new `⇤`/`⇥` button beside the fold-all button on the tab bar toggles line-number column width between 46dp and a compact 26dp. It updates editor left padding, retains line numbers with a smaller font in compact mode, and saves the selection in the app's editor preferences across restarts. Inline fold arrows are hidden in compact mode to avoid overlapping line numbers; the toolbar fold-all button remains available.
