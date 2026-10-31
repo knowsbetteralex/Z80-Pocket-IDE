@@ -35,6 +35,8 @@ public final class SyntaxTokenPlanner {
     private static final Pattern P_LABEL_EQU = Pattern.compile(
             "(?im)^\\s*([A-Za-z_.$?][A-Za-z0-9_.$?]*)(?=\\s+EQU\\b)");
     private static final Pattern P_STRING = Pattern.compile("\"(?:\\\\.|[^\"\\\\])*\"");
+    private static final Pattern P_SINGLE_QUOTED = Pattern.compile(
+            "'(?:\\\\.|[^'\\\\\\r\\n])*'");
     private static final Pattern P_COMMENT = Pattern.compile("(?m);.*$");
 
     private SyntaxTokenPlanner() {}
@@ -50,6 +52,7 @@ public final class SyntaxTokenPlanner {
         paint(result, visibleWindow, windowOffset, P_LABEL_COLON, LABEL,true,1);
         paint(result, visibleWindow, windowOffset, P_LABEL_EQU, LABEL,true,1);
         paint(result, visibleWindow, windowOffset, P_STRING, STRING,false,0);
+        paint(result, visibleWindow, windowOffset, P_SINGLE_QUOTED, STRING,false,0);
         paint(result, visibleWindow, windowOffset, P_COMMENT, COMMENT,false,0);
         Set<String> known=SourceSymbols.definedLabels(completeSource);
         for(int[] range:SourceSymbols.labelRanges(visibleWindow,known))
