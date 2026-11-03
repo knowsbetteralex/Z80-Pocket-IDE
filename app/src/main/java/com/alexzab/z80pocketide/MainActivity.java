@@ -1586,12 +1586,28 @@ public class MainActivity extends Activity {
         captureCurrentDocument();
         String path = AndroidIncludeFiles.relativePath(this, currentDocument());
         AndroidIncludeFiles.setRoot(this, path);
+        if(AndroidIncludeFiles.projectTree(this)!=null) {
+            try {
+                projectConfiguration=configuration().withRoot(path);
+                ProjectSettingsStore.save(this,projectConfiguration);
+            }catch(Exception ex) {
+                Toast.makeText(this,safeMessage(ex),Toast.LENGTH_LONG).show();
+            }
+        }
         invalidateProjectBuilds();
         setStatus(t("Project root: ", "Корневой файл: ") + path, Color.rgb(30, 110, 70));
     }
 
     private void useAutoRoot() {
         AndroidIncludeFiles.setRoot(this, null);
+        if(AndroidIncludeFiles.projectTree(this)!=null) {
+            try {
+                projectConfiguration=configuration().withRoot("main.asm");
+                ProjectSettingsStore.save(this,projectConfiguration);
+            }catch(Exception ex) {
+                Toast.makeText(this,safeMessage(ex),Toast.LENGTH_LONG).show();
+            }
+        }
         invalidateProjectBuilds();
         setStatus(t("Project root: automatic main.asm", "Корень проекта: main.asm автоматически"),
                 Color.rgb(30, 110, 70));
@@ -1703,7 +1719,7 @@ public class MainActivity extends Activity {
                 }
             }
         }catch(Exception ex) {
-            projectConfiguration=null;
+            projectConfiguration=ProjectConfiguration.defaults("PROJECT",null);
             Toast.makeText(this,t("Project settings warning: ","Ошибка настроек проекта: ")
                     +safeMessage(ex),Toast.LENGTH_LONG).show();
         }
