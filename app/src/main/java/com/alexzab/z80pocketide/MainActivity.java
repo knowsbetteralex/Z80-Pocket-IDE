@@ -116,6 +116,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_RESELECT_WRITABLE_SOURCE = 1006;
     private static final int REQUEST_INCLUDE_FOLDER = 1007;
     private static final int REQUEST_OPEN_PROJECT = 1008;
+    private static final int REQUEST_SCREEN_EDITOR = 1009;
     private String pendingIncludeName;
     private ProjectConfiguration projectConfiguration;
 
@@ -1644,7 +1645,7 @@ public class MainActivity extends Activity {
         Intent screen=new Intent(this,ScreenEditorActivity.class);
         if(relativePath!=null && !relativePath.isEmpty())
             screen.putExtra(ScreenEditorActivity.EXTRA_PROJECT_PATH,relativePath);
-        startActivity(screen);
+        startActivityForResult(screen,REQUEST_SCREEN_EDITOR);
     }
 
     private void showProjectSettings() {
@@ -2594,6 +2595,13 @@ public class MainActivity extends Activity {
             } else pendingIncludeName = null;
             return;
         }
+        if (requestCode == REQUEST_SCREEN_EDITOR) {
+            if(resultCode==RESULT_OK) {
+                projectConfiguration=null;
+                invalidateProjectBuilds();
+            }
+            return;
+        }
         if (requestCode == REQUEST_TOOLS) {
             if (resultCode == RESULT_OK && data != null)
                 insertToolSource(data.getStringExtra(ToolsActivity.EXTRA_INSERT_SOURCE));
@@ -2663,7 +2671,7 @@ public class MainActivity extends Activity {
                     screen.putExtra(ScreenEditorActivity.EXTRA_DOCUMENT_URI,uri.toString());
                     screen.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                             |Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                    startActivity(screen);
+                    startActivityForResult(screen,REQUEST_SCREEN_EDITOR);
                 } else openSourceUri(uri,data);
             }
             return;
