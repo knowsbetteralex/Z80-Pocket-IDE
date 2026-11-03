@@ -626,6 +626,17 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         restoreWorkspace(savedInstanceState);
+        // Honor a portable project root changed by Git or on another device.
+        // Do not force an explicit root for standalone tabs with no chosen root.
+        if(AndroidIncludeFiles.projectTree(this)!=null
+                && AndroidIncludeFiles.selectedRoot(this)!=null) {
+            try {
+                projectConfiguration=ProjectSettingsStore.load(this);
+                AndroidIncludeFiles.setRoot(this,projectConfiguration.root);
+            }catch(Exception ex) {
+                Log.w("Z80Project","Could not restore project settings",ex);
+            }
+        }
         // Only consume a launch document on first creation. Rotation restores
         // the workspace and should not reopen/switch to the original file.
         if (savedInstanceState == null) openExternalSourceIntent(getIntent());
