@@ -75,6 +75,9 @@ import com.alexzab.z80pocketide.source.AndroidIncludeFiles;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
+import com.alexzab.z80pocketide.project.ProjectConfiguration;
+import com.alexzab.z80pocketide.project.ProjectSettingsDialog;
+import com.alexzab.z80pocketide.project.ProjectSettingsStore;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -113,6 +116,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_INCLUDE_FOLDER = 1007;
     private static final int REQUEST_OPEN_PROJECT = 1008;
     private String pendingIncludeName;
+    private ProjectConfiguration projectConfiguration;
 
     private static final String STATE_TITLES = "tab_titles";
     private static final String STATE_TEXTS = "tab_texts";
@@ -1423,13 +1427,18 @@ public class MainActivity extends Activity {
         Menu files = menu.addSubMenu(t("Files", "Файлы"));
         files.add(0, 1, 0, t("New tab", "Новая вкладка"));
         files.add(0, 2, 1, t("Open file…", "Открыть файл…"));
-        files.add(0, 28, 2, t("Open project…", "Открыть проект…"));
         files.add(0, 3, 2, t("Save source", "Сохранить исходник"));
         files.add(0, 4, 3, t("Save as…", "Сохранить как…"));
         files.add(0, 5, 4, t("Close tab", "Закрыть вкладку"));
-        files.add(0, 20, 6, t("Build source", "Собрать"));
-        files.add(0, 21, 7, t("Save .tap", "Сохранить .tap"));
-        files.add(0, 22, 8, t("Build and run", "Собрать и запустить"));
+        Menu projectMenu = menu.addSubMenu(t("Project", "Проект"));
+        projectMenu.add(0, 28, 0, t("Open project…", "Открыть проект…"));
+        projectMenu.add(0, 29, 1, t("Project settings…", "Настройки проекта…"));
+        projectMenu.add(0, 26, 2, t("Set current file as project root", "Сделать файл корнем проекта"));
+        projectMenu.add(0, 27, 3, t("Auto-detect main.asm root", "Корень проекта: авто main.asm"));
+        projectMenu.add(0, 24, 4, t("Choose project folder…", "Выбрать папку проекта…"));
+        projectMenu.add(0, 20, 5, t("Build project", "Собрать проект"));
+        projectMenu.add(0, 22, 6, t("Build and run", "Собрать и запустить"));
+        projectMenu.add(0, 21, 7, t("Export TAP…", "Экспортировать TAP…"));
 
         menu.add(0, 10, 10, t("Examples / Routines", "Примеры / Подпрограммы"));
         menu.add(0, 11, 11, t("Z80 / Spectrum reference", "Справочник Z80 / Spectrum"));
@@ -1442,16 +1451,14 @@ public class MainActivity extends Activity {
         edit.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
 
         menu.add(0, 15, 100, t("Editor settings", "Настройки редактора"));
-        menu.add(0, 24, 101, t("Choose INCLUDE project folder…", "Папка проекта INCLUDE…"));
         menu.add(0, 25, 102, t("Open INCLUDE…", "Открыть INCLUDE…"));
-        menu.add(0, 26, 103, t("Set current file as project root", "Сделать файл корнем проекта"));
-        menu.add(0, 27, 104, t("Auto-detect main.asm root", "Корень проекта: авто main.asm"));
 
         popup.setOnMenuItemClickListener(item -> {
             switch (item.getItemId()) {
                 case 1: newTab(); break;
                 case 2: openSourceFilePicker(); break;
                 case 28: chooseProjectFolder(); break;
+                case 29: showProjectSettings(); break;
                 case 3: saveDocument(activeIndex, false); break;
                 case 4: requestSaveAs(activeIndex, false); break;
                 case 5: requestCloseTab(activeIndex); break;
@@ -1597,6 +1604,59 @@ public class MainActivity extends Activity {
         scheduleAnalysis();
     }
 
+    private ProjectConfiguration configuration() throws Exception {
+        if(projectConfiguration==null)
+            projectConfiguration=ProjectSettingsStore.load(this);
+        return projectConfiguration;
+    }
+
+    private void showProjectSettings() {
+        if(AndroidIncludeFiles.projectTree(this)==null) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("Project settings", "Настройки проекта"))
+                    .setMessage(t("Open a project folder first.",
+                            "Сначала откройте папку проекта."))
+                    .setNegativeButton(t("Cancel", "Отмена"),null)
+                    .setPositiveButton(t("Open project", "Открыть проект"),
+                            (dialog,which)->chooseProjectFolder())
+                    .show();
+            return;
+        }
+        try {
+            captureCurrentDocument();
+            ProjectConfiguration settings=configuration();
+            List<String> roots=AndroidIncludeFiles.sourceFiles(this);
+            List<String> screens=AndroidIncludeFiles.screenFiles(this);
+            ProjectSettingsDialog.show(this,language==AppLanguage.RU,settings,roots,screens,
+                    path -> ProjectSettingsStore.readScreen(this,path),
+                    selected -> {
+                        try {
+                            boolean inFolder=ProjectSettingsStore.save(this,selected);
+                            projectConfiguration=selected;
+                            AndroidIncludeFiles.setRoot(this,selected.root);
+                            invalidateProjectBuilds();
+                            Uri rootFile=AndroidIncludeFiles.locate(this,null,selected.root);
+                            if(rootFile!=null)openSourceUri(rootFile,null,selected.root);
+                            setStatus(inFolder
+                                    ?t("Project settings saved", "Настройки проекта сохранены")
+                                    :t("Settings saved locally (project is read-only)",
+                                       "Настройки сохранены локально (папка только для чтения)"),
+                                    inFolder?Color.rgb(0,110,45):Color.rgb(150,105,36));
+                            return true;
+                        } catch(Exception ex) {
+                            setStatus(t("Cannot save project settings · ",
+                                    "Не удалось сохранить настройки · ")+safeMessage(ex),
+                                    Color.rgb(180,30,30));
+                            return false;
+                        }
+                    });
+        }catch(Exception ex) {
+            setStatus(t("Cannot open project settings · ",
+                    "Ошибка настроек проекта · ")+safeMessage(ex),Color.rgb(180,30,30));
+            Toast.makeText(this,safeMessage(ex),Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void chooseProjectFolder() {
         requestProjectFolder(REQUEST_OPEN_PROJECT);
     }
@@ -1633,6 +1693,20 @@ public class MainActivity extends Activity {
                     Color.rgb(180,30,30));
             return;
         }
+        // A project-local settings file takes precedence over main.asm.
+        try {
+            projectConfiguration=ProjectSettingsStore.load(this);
+            for(String path:candidates) {
+                if(path.equalsIgnoreCase(projectConfiguration.root)) {
+                    openProjectRoot(path);
+                    return;
+                }
+            }
+        }catch(Exception ex) {
+            projectConfiguration=null;
+            Toast.makeText(this,t("Project settings warning: ","Ошибка настроек проекта: ")
+                    +safeMessage(ex),Toast.LENGTH_LONG).show();
+        }
         String main=null;
         for(String path:candidates) {
             if(path.equalsIgnoreCase("main.asm")) {main=path;break;}
@@ -1658,6 +1732,12 @@ public class MainActivity extends Activity {
             Uri uri=AndroidIncludeFiles.locate(this,null,relativePath);
             if(uri==null)throw new IOException("Missing project root: "+relativePath);
             AndroidIncludeFiles.setRoot(this,relativePath);
+            if(projectConfiguration==null)
+                projectConfiguration=ProjectSettingsStore.load(this);
+            if(!relativePath.equalsIgnoreCase(projectConfiguration.root)) {
+                projectConfiguration=projectConfiguration.withRoot(relativePath);
+                ProjectSettingsStore.save(this,projectConfiguration);
+            }
             invalidateProjectBuilds();
             openSourceUri(uri,null,relativePath);
             setStatus(t("Project: ", "Проект: ")+relativePath,Color.rgb(0,110,45));
@@ -2271,8 +2351,19 @@ public class MainActivity extends Activity {
             project = projectFor(doc, doc.text, includeBuffers());
             AssemblyResult rawResult = new Assembler().assemble(project.expanded.source);
             AssemblyResult result = project.metrics(rawResult, doc.text);
-            doc.lastTap = new TapWriter().programTap(
-                    tapProgramName(project.rootPath), result.getOrigin(), result.getBytes());
+            ProjectConfiguration settings=AndroidIncludeFiles.projectTree(this)==null
+                    ?null:configuration();
+            byte[] game=result.getBytes();
+            if(settings!=null && settings.screenEnabled) {
+                ProjectConfiguration.checkScreenConflict(result.getOrigin(),game.length);
+                byte[] loadingScreen=ProjectSettingsStore.readScreen(this,settings.screenPath);
+                doc.lastTap=new TapWriter().programTapWithScreen(
+                        tapProgramName(project.rootPath),result.getOrigin(),game,
+                        loadingScreen,settings.pauseFrames);
+            } else {
+                doc.lastTap=new TapWriter().programTap(
+                        tapProgramName(project.rootPath),result.getOrigin(),game);
+            }
             doc.lastBuiltSource = doc.text;
             liveAnalysis = result;
             resultRevision = analysisRevision;
@@ -2431,6 +2522,7 @@ public class MainActivity extends Activity {
                     Uri previous = AndroidIncludeFiles.projectTree(this);
                     AndroidIncludeFiles.rememberTree(this, data);
                     if (previous == null || !previous.equals(data.getData())) {
+                        projectConfiguration=null;
                         AndroidIncludeFiles.setRoot(this, null);
                         // Keep previous tabs and drafts intact, but don't let
                         // their names override files in the newly opened project.
