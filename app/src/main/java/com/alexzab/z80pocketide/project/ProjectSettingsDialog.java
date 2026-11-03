@@ -25,12 +25,13 @@ import java.util.Locale;
 /** Native Android settings dialog with ZX SCREEN$ preview; no AndroidX. */
 public final class ProjectSettingsDialog {
     public interface ScreenLoader { byte[] load(String relativePath) throws Exception; }
+    public interface ScreenEditAction { void edit(String relativePath); }
     public interface OnSave { boolean save(ProjectConfiguration config); }
     private ProjectSettingsDialog() {}
 
     public static void show(Activity activity,boolean ru,ProjectConfiguration initial,
                             List<String> roots,List<String> screens,
-                            ScreenLoader loader,OnSave onSave) {
+                            ScreenLoader loader,ScreenEditAction editAction,OnSave onSave) {
         int pad=dp(activity,14);
         ScrollView scroll=new ScrollView(activity);
         scroll.setFillViewport(false);
@@ -141,6 +142,14 @@ public final class ProjectSettingsDialog {
                     }).show();
         });
         updatePreview.run();
+        Button editScreen=new Button(activity);
+        editScreen.setText(ru?"✎ Редактировать заставку":"✎ Edit loading screen");
+        editScreen.setAllCaps(false);
+        body.addView(editScreen,new LinearLayout.LayoutParams(-1,dp(activity,44)));
+        editScreen.setOnClickListener(v->{
+            // Open current selection without silently saving changed project settings.
+            editAction.edit(screenPath[0]);
+        });
 
         heading(activity,body,ru?"Когда запускать игру":"Start game after loading");
         final int[] intervals={0,50,100,150,250,-1};
