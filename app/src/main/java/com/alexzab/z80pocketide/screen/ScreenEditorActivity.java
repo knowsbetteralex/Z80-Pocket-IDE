@@ -75,7 +75,7 @@ public final class ScreenEditorActivity extends Activity {
     private void configureWindow(){
         getWindow().setStatusBarColor(0xFF142B20);
         getWindow().setNavigationBarColor(0xFF15251B);
-        if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(true);
+        if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
         if(state.landscape)getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
     }
@@ -84,6 +84,14 @@ public final class ScreenEditorActivity extends Activity {
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(0xFF15251B);
+        if(Build.VERSION.SDK_INT>=30) {
+            root.setOnApplyWindowInsetsListener((view,insets)->{
+                android.graphics.Insets safe=insets.getInsets(
+                        WindowInsets.Type.systemBars());
+                view.setPadding(safe.left,safe.top,safe.right,safe.bottom);
+                return insets;
+            });
+        }
         HorizontalScrollView toolbarScroll=new HorizontalScrollView(this);
         toolbarScroll.setHorizontalScrollBarEnabled(false);
         toolbarScroll.setFillViewport(true);
