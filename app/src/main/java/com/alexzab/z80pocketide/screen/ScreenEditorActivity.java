@@ -92,7 +92,14 @@ public final class ScreenEditorActivity extends Activity {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackgroundColor(0xFF223B2D);
         toolbarScroll.addView(bar,new HorizontalScrollView.LayoutParams(-2,-2));
-        root.addView(toolbarScroll,new LinearLayout.LayoutParams(-1,dp(49)));
+        LinearLayout toolbar=new LinearLayout(this);
+        toolbar.setOrientation(LinearLayout.HORIZONTAL);
+        toolbar.setBackgroundColor(0xFF223B2D);
+        toolbar.addView(toolbarScroll,new LinearLayout.LayoutParams(0,dp(49),1));
+        LinearLayout fixedActions=new LinearLayout(this);
+        fixedActions.setGravity(Gravity.CENTER_VERTICAL);
+        toolbar.addView(fixedActions,new LinearLayout.LayoutParams(dp(100),dp(49)));
+        root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(49)));
 
         action(bar,"‹",ru?"Назад":"Back",v->requestExit());
         action(bar,"📂",ru?"Открыть":"Open",v->requestOpen());
@@ -105,8 +112,8 @@ public final class ScreenEditorActivity extends Activity {
             if(state.history.redo(state.doc)){canvas.refreshPixels();updateUi();}
         });
         action(bar,"⊡",ru?"Вписать":"Fit",v->canvas.fitToScreen());
-        action(bar,"⤢",ru?"Сменить ориентацию":"Toggle orientation",v->toggleOrientation());
-        lock=action(bar,"🔒",ru?"Блокировка":"Lock",v->{
+        action(fixedActions,"⤢",ru?"Сменить ориентацию":"Toggle orientation",v->toggleOrientation());
+        lock=action(fixedActions,"🔒",ru?"Блокировка":"Lock",v->{
             state.locked=!state.locked;canvas.setLocked(state.locked);updateUi();
         });
 
