@@ -444,3 +444,20 @@ Example:
 **Validation:** screen file must be exactly 6912 bytes; invalid/missing resources stop the build. Game CODE must not overlap `$4000-$5AFF` while loading SCREEN$ is enabled, or exceed the 64K address space. The normal BASIC ROM loader may still display its status messages over the lower screen; a custom clean loader is deliberately postponed.
 
 Tests cover loader block sequence/addresses/tokens, optional PAUSE, invalid screen sizes, screen memory conflicts, project path validation and ZX pixel/attribute layout. These changes are backward-compatible with legacy projects.
+
+
+## v0.38.0 — Full-screen ZX Spectrum SCREEN$ editor
+
+A dedicated native-Java SCREEN$ editor is now accessible from **Project → Screen editor** and the **SCR** button in the Tools workshop. In **Project → Project settings**, tap **Edit loading screen** next to the existing SCREEN$ preview to open the chosen project image; if no file is selected, start a blank screen. On return, the project loads the saved screen bytes into TAP. The main **Open file** dialog also routes .scr and .bin files to the screen editor instead of trying to read binary bytes as assembler source.
+
+**Canvas:** faithful 256×192 bitmap with Spectrum's physical pixel address ordering, 32×24 independent 8×8 INK/PAPER attributes and shared BRIGHT/FLASH flags. One-finger brush when unlocked; pinch zoom and two-finger pan; locked mode allows safe one-finger pan. Tap the padlock to switch modes. The first finger of a multi-touch gesture does not draw a dot. Grids appear at appropriate zoom levels. Portrait/landscape toggle retains viewport and unsaved changes, with system-bar safe insets.
+
+**Floating palette:** semi-transparent upper-right swatches, selectable INK vs PAPER, BRIGHT and FLASH checkboxes, Draw / Attribute / Pick / Erase tools. Tap the chevron to collapse it to a small chip. Only the 8×8 tile under the brush changes; BRIGHT and FLASH are preserved unless the brush explicitly overrides them. Picking reads the selected cell without painting. The other colors in the tile behave exactly as Spectrum hardware dictates.
+
+**File support:** open an existing 6912-byte .scr or .bin, or import a data-only .asm/.z80/.s source containing DB/DEFB plus labels and EQU constants. The ASM importer explicitly rejects executable code, includes, unsupported directives and anything that does not produce exactly 6912 bytes. **Save** updates an existing SCR/BIN via Android's Storage Access Framework; **Save as** creates a .scr or .bin; **Export ASM** emits human-readable labels SCREEN_BITMAP / SCREEN_ATTRS and 6912 DB bytes. Importing ASM never overwrites the source file. Newly created screens inside the selected SAF project folder can be offered as the project's loading screen. Cancelled writes and errors keep the unsaved document.
+
+**Editing safety:** stroke-level byte-diff Undo/Redo (up to 100 steps), accurate saved-vs-current dirty detection, Save/Discard/Cancel on Back, drawing lock on startup, recovery of document bytes and brush/zoom/orientation flags after activity recreation. Unmodified SCR import/export is byte-for-byte identical.
+
+**Tests:** unit coverage for interleaved screen bitmap addressing, edge pixels, tile-local INK/PAPER/BRIGHT/FLASH, pixel-versus-attribute brush semantics, byte-exact SCR↔ASM roundtrip, malformed ASM, one-stroke Undo/Redo and saved-revision tracking. Physical-device gestures and external SAF provider behaviors still require manual verification.
+
+Implementation requirements and test checklist are in [docs/SCREEN_EDITOR_V0.38.0.md](docs/SCREEN_EDITOR_V0.38.0.md).
