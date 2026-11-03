@@ -2654,7 +2654,18 @@ public class MainActivity extends Activity {
         }
 
         if (requestCode == REQUEST_OPEN_SOURCE) {
-            if (resultCode == RESULT_OK && data != null) openSourceUri(data.getData(), data);
+            if (resultCode == RESULT_OK && data != null && data.getData()!=null) {
+                Uri uri=data.getData();
+                String filename=displayName(uri).toLowerCase(Locale.ROOT);
+                if(filename.endsWith(".scr") || filename.endsWith(".bin")) {
+                    takePersistablePermission(uri,data);
+                    Intent screen=new Intent(this,ScreenEditorActivity.class);
+                    screen.putExtra(ScreenEditorActivity.EXTRA_DOCUMENT_URI,uri.toString());
+                    screen.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            |Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    startActivity(screen);
+                } else openSourceUri(uri,data);
+            }
             return;
         }
 
