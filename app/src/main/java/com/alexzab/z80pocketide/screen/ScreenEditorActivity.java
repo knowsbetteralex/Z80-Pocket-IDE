@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.*;
 import android.provider.OpenableColumns;
+import android.provider.DocumentsContract;
 import android.view.*;
 import android.widget.*;
 import android.widget.FrameLayout.LayoutParams;
@@ -355,7 +356,9 @@ public final class ScreenEditorActivity extends Activity {
                 state.history.markSaved(state.doc);
                 updateUi();
             }
+            if(!kind.equals("asm"))setResult(RESULT_OK);
             Toast.makeText(this,ru?"Файл сохранён":"File saved",Toast.LENGTH_SHORT).show();
+            if(newFile && !kind.equals("asm") && !closeAfterSave)offerAsProjectScreen(uri);
             if(closeAfterSave && !kind.equals("asm")){
                 retained=null;finish();
             }
@@ -365,6 +368,38 @@ public final class ScreenEditorActivity extends Activity {
             showError(ex);
         }
     }
+    /** Offer project integration only if SAF returned a file inside the chosen tree. */
+    private void offerAsProjectScreen(Uri saved) {
+        Uri tree=AndroidIncludeFiles.projectTree(this);
+        if(tree==null || !AndroidIncludeFiles.isProjectDocument(this,saved.toString()))return;
+        final String relative;
+        try {
+            String root=DocumentsContract.getTreeDocumentId(tree);
+            String id=DocumentsContract.getDocumentId(saved);
+            if(!id.startsWith(root+"/"))return;
+            relative=id.substring(root.length()+1);
+            if(!ProjectConfiguration.safeRelativeFile(relative))return;
+        }catch(Exception ex){return;}
+        new AlertDialog.Builder(this)
+                .setMessage(ru?"Использовать "+relative+" как заставку проекта?"
+                        :"Use "+relative+" as the project loading screen?")
+                .setNegativeButton(ru?"Нет":"No",null)
+                .setPositiveButton(ru?"Использовать":"Use",(dialog,which)->{
+                    try {
+                        ProjectConfiguration old=ProjectSettingsStore.load(this);
+                        ProjectConfiguration updated=new ProjectConfiguration(old.name,
+                                old.root,true,relative,old.pauseFrames);
+                        boolean projectSaved=ProjectSettingsStore.save(this,updated);
+                        Toast.makeText(this,projectSaved
+                                ?(ru?"Заставка проекта обновлена":"Project screen updated")
+                                :(ru?"Сохранено локально: папка только для чтения"
+                                    :"Settings saved locally: project folder read-only"),
+                                Toast.LENGTH_LONG).show();
+                        state.projectPath=relative;
+                    }catch(Exception ex){showError(ex);}
+                }).show();
+    }
+
     private void requestExit(){
         if(!state.history.isDirty(state.doc)){retained=null;finish();return;}
         new AlertDialog.Builder(this)
