@@ -17,7 +17,9 @@ public final class ScreenEditorCanvasView extends View {
     private Listener listener;
     private final Paint pixels=new Paint(),grid=new Paint(Paint.ANTI_ALIAS_FLAG);
     private Bitmap image;
-    private boolean pixelsDirty=true,locked=true,transforming,painting;
+    private boolean pixelsDirty=true,locked=true,transforming,painting,pendingStroke;
+    private float downX,downY;
+    private final int touchSlop;
     private SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
     private SpectrumScreenDocument.Side side=SpectrumScreenDocument.Side.INK;
     private int color=7;
@@ -30,6 +32,7 @@ public final class ScreenEditorCanvasView extends View {
     public ScreenEditorCanvasView(Context context,SpectrumScreenDocument initial) {
         super(context);
         doc=initial;
+        touchSlop=ViewConfiguration.get(context).getScaledTouchSlop();
         setBackgroundColor(0xFF17241D);
         pixels.setFilterBitmap(false);
         scaleDetector=new ScaleGestureDetector(context,
@@ -49,7 +52,9 @@ public final class ScreenEditorCanvasView extends View {
         this.doc=value;pixelsDirty=true;fitToScreen();
     }
     public void refreshPixels(){pixelsDirty=true;invalidate();}
-    public void setLocked(boolean value){locked=value;painting=false;previousX=previousY=-1;}
+    public void setLocked(boolean value){
+        locked=value;painting=false;pendingStroke=false;previousX=previousY=-1;
+    }
     public boolean isLocked(){return locked;}
     public void setBrush(SpectrumScreenDocument.Tool tool,
                          SpectrumScreenDocument.Side side,int color,Boolean bright,Boolean flash){
@@ -137,12 +142,16 @@ public final class ScreenEditorCanvasView extends View {
             transforming=false;
             painting=false;
             previousX=previousY=-1;
-            lastX=event.getX();lastY=event.getY();
+            lastX=downX=event.getX();
+            lastY=downY=event.getY();
+            pendingStroke=!locked;
             if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(true);
-            if(!locked)beginStroke(event.getX(),event.getY());
+            // Defer one-finger paint until movement or confirmed tap, so the
+            // first finger of a pinch cannot leave an unwanted dot.
             return true;
         }
         if(action==MotionEvent.ACTION_POINTER_DOWN) {
+            pendingStroke=false;
             finishStroke();
             transforming=true;
             focusX=averageX(event);focusY=averageY(event);
@@ -157,16 +166,25 @@ public final class ScreenEditorCanvasView extends View {
                 originX+=event.getX()-lastX;
                 originY+=event.getY()-lastY;
                 invalidate();
-            }else if(!transforming && painting) {
-                paintAt(event.getX(),event.getY());
+            }else if(!transforming) {
+                if(pendingStroke && (Math.abs(event.getX()-downX)>touchSlop
+                        || Math.abs(event.getY()-downY)>touchSlop)) {
+                    pendingStroke=false;
+                    beginStroke(downX,downY);
+                }
+                if(painting)paintAt(event.getX(),event.getY());
             }
             lastX=event.getX();lastY=event.getY();
             return true;
         }
         if(action==MotionEvent.ACTION_POINTER_UP) {
+            pendingStroke=false;
             transforming=true;finishStroke();return true;
         }
         if(action==MotionEvent.ACTION_CANCEL || action==MotionEvent.ACTION_UP) {
+            if(action==MotionEvent.ACTION_UP && pendingStroke && !transforming)
+                beginStroke(downX,downY);
+            pendingStroke=false;
             finishStroke();
             previousX=previousY=-1;
             transforming=false;
