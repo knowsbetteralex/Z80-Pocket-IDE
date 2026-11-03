@@ -97,6 +97,11 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     public void setCollapsed(boolean folded) {
         collapsed=folded;
         content.setVisibility(folded?View.GONE:View.VISIBLE);
+        android.view.ViewGroup.LayoutParams params=getLayoutParams();
+        if(params!=null){
+            params.width=dp(folded?108:211);
+            setLayoutParams(params);
+        }
         collapse.setText(folded?"▾  "+(ru?"Цвета":"Colors"):"▴");
         collapse.setContentDescription(folded
                 ?(ru?"Развернуть палетку":"Expand palette")
