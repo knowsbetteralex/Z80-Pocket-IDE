@@ -26,15 +26,17 @@ public final class ProjectSettingsStore {
         defaultName=defaultName.substring(slash+1);
         if(defaultName.isEmpty())defaultName="PROJECT";
 
-        String json=null;
+        SharedPreferences prefs=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
+        String json=prefs.getBoolean("override:"+tree.toString(),false)
+                ?prefs.getString(tree.toString(),null):null;
         try {
-            Uri file=AndroidIncludeFiles.locate(context,null,ProjectConfiguration.FILE_NAME);
+            Uri file=json==null
+                    ?AndroidIncludeFiles.locate(context,null,ProjectConfiguration.FILE_NAME):null;
             if(file!=null)json=AndroidIncludeFiles.read(context,file);
         } catch(SecurityException | IOException ex) {
             // A provider may temporarily be read-only; use the per-folder backup.
         }
-        if(json==null)json=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE)
-                .getString(tree.toString(),null);
+        if(json==null)json=prefs.getString(tree.toString(),null);
         if(json==null)return ProjectConfiguration.defaults(defaultName,legacyRoot);
         try {
             JSONObject root=new JSONObject(json);
@@ -85,9 +87,12 @@ public final class ProjectSettingsStore {
                 output.write(content.getBytes(StandardCharsets.UTF_8));
                 output.flush();
             }
+            prefs.edit().putBoolean("override:"+tree.toString(),false).apply();
             return true;
         } catch(SecurityException | IOException | UnsupportedOperationException ex) {
-            // Only the per-folder backup could be saved; caller should show a warning.
+            // Keep the local edit active after app restarts even if an old JSON
+            // file exists but the SAF provider no longer permits writes.
+            prefs.edit().putBoolean("override:"+tree.toString(),true).apply();
             return false;
         }
     }
