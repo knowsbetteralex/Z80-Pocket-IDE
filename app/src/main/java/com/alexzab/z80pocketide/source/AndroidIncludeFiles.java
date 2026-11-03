@@ -86,14 +86,25 @@ public final class AndroidIncludeFiles {
         if(tree==null)return files;
         String id=DocumentsContract.getTreeDocumentId(tree);
         java.util.Set<String> visited=new java.util.HashSet<>();
-        collectSources(context,tree,id,"",0,visited,files);
+        collectSources(context,tree,id,"",0,visited,files,false);
+        files.sort(String.CASE_INSENSITIVE_ORDER);
+        return files;
+    }
+
+    /** Discover .scr/.bin assets within the SAF project, including subfolders. */
+    public static java.util.List<String> screenFiles(Context context) throws Exception {
+        Uri tree=projectTree(context);
+        java.util.List<String> files=new java.util.ArrayList<>();
+        if(tree==null)return files;
+        String id=DocumentsContract.getTreeDocumentId(tree);
+        collectSources(context,tree,id,"",0,new java.util.HashSet<>(),files,true);
         files.sort(String.CASE_INSENSITIVE_ORDER);
         return files;
     }
 
     private static void collectSources(Context context,Uri tree,String folderId,
                                       String prefix,int depth,java.util.Set<String> visited,
-                                      java.util.List<String> found) throws Exception {
+                                      java.util.List<String> found,boolean screens) throws Exception {
         if(depth>8 || found.size()>=256 || !visited.add(folderId))return;
         Uri children=DocumentsContract.buildChildDocumentsUriUsingTree(tree,folderId);
         try(Cursor cursor=context.getContentResolver().query(children,
@@ -111,9 +122,9 @@ public final class AndroidIncludeFiles {
                 String path=prefix+filename;
                 if(Document.MIME_TYPE_DIR.equals(type)){
                     if(depth<8)collectSources(context,tree,childId,path+"/",depth+1,
-                            visited,found);
+                            visited,found,screens);
                 }else if(filename.toLowerCase(java.util.Locale.ROOT).matches(
-                        ".*\\.(asm|z80|s)$")){
+                        screens ? ".*\\.(scr|bin)$" : ".*\\.(asm|z80|s)$")){
                     found.add(path);
                 }
             }
