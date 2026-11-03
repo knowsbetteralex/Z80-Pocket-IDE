@@ -7,6 +7,8 @@ import java.util.Arrays;
 /** ZX Spectrum .tap writer with an optional autostart BASIC loader. */
 public final class TapWriter {
     private static final int TOKEN_CODE = 0xAF;
+    private static final int TOKEN_SCREEN = 0xAA;
+    private static final int TOKEN_PAUSE = 0xF2;
     private static final int TOKEN_VAL = 0xB0;
     private static final int TOKEN_USR = 0xC0;
     private static final int TOKEN_LOAD = 0xEF;
@@ -30,6 +32,79 @@ public final class TapWriter {
         writeFile(tap, 0, "RUN", loader, 10, loader.length);
         writeFile(tap, 3, name, code, loadAddress, 0x8000);
         return tap.toByteArray();
+    }
+
+    /**
+     * Autostart TAP: BASIC loader, 6912-byte SCREEN$ at $4000, then game CODE.
+     * A delay of -1 waits for a key (PAUSE 0), 0 omits PAUSE entirely.
+     */
+    public byte[] programTapWithScreen(String name,int loadAddress,byte[] code,
+                                       byte[] screen,int pauseFrames) {
+        if(screen==null||screen.length!=6912)
+            throw new IllegalArgumentException("SCREEN$ must contain exactly 6912 bytes");
+        if(pauseFrames < -1 || pauseFrames > 32767)
+            throw new IllegalArgumentException("Invalid SCREEN$ pause frames");
+        if(code==null || (long)loadAddress+code.length > 65536
+                || loadAddress < 0 || loadAddress > 65535)
+            throw new IllegalArgumentException("Invalid game CODE address/length");
+        if(loadAddress < 0x5B00 && (long)loadAddress+code.length > 0x4000)
+            throw new IllegalArgumentException("Game CODE overlaps SCREEN$ memory");
+        ByteArrayOutputStream tap=new ByteArrayOutputStream();
+        byte[] loader=basicLoaderWithScreen(loadAddress,pauseFrames);
+        writeFile(tap,0,"RUN",loader,10,loader.length);
+        writeFile(tap,3,"SCREEN",screen,0x4000,0x8000);
+        writeFile(tap,3,name,code,loadAddress,0x8000);
+        return tap.toByteArray();
+    }
+
+    private static byte[] basicLoaderWithScreen(int address,int pauseFrames) {
+        ByteArrayOutputStream text=new ByteArrayOutputStream();
+        appendClear(text,address);
+        text.write(':');
+        text.write(TOKEN_LOAD);
+        text.write(' ');
+        text.write('"');text.write('"');
+        text.write(' ');
+        text.write(TOKEN_SCREEN);
+        text.write(':');
+        text.write(TOKEN_LOAD);
+        text.write(' ');
+        text.write('"');text.write('"');
+        text.write(' ');
+        text.write(TOKEN_CODE);
+        if(pauseFrames!=0) {
+            text.write(':');
+            text.write(TOKEN_PAUSE);
+            text.write(' ');
+            writeValString(text,pauseFrames==-1?0:pauseFrames);
+        }
+        appendRun(text,address);
+        return basicLine(text.toByteArray());
+    }
+
+    private static void appendClear(ByteArrayOutputStream text,int address) {
+        text.write(TOKEN_CLEAR);
+        text.write(' ');
+        writeValString(text,Math.max(0,(address-1)&0xFFFF));
+    }
+
+    private static void appendRun(ByteArrayOutputStream text,int address) {
+        text.write(':');
+        text.write(TOKEN_RANDOMIZE);
+        text.write(' ');
+        text.write(TOKEN_USR);
+        text.write(' ');
+        writeValString(text,address&0xFFFF);
+    }
+
+    private static byte[] basicLine(byte[] body) {
+        ByteArrayOutputStream line=new ByteArrayOutputStream();
+        line.write(0x00);line.write(0x0A);
+        int size=body.length+1;
+        line.write(size&255);line.write((size>>>8)&255);
+        line.write(body,0,body.length);
+        line.write(0x0D);
+        return line.toByteArray();
     }
 
     private static byte[] basicLoader(int address) {
