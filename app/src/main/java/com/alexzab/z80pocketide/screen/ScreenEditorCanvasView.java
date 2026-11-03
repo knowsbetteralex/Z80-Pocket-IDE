@@ -21,7 +21,7 @@ public final class ScreenEditorCanvasView extends View {
     private SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
     private SpectrumScreenDocument.Side side=SpectrumScreenDocument.Side.INK;
     private int color=7;
-    private boolean bright,flash;
+    private Boolean bright,flash;
     private float pixelSize=1,originX,originY,lastX,lastY,focusX,focusY;
     private int previousX=-1,previousY=-1;
     private int activeX=-1,activeY=-1;
@@ -52,7 +52,7 @@ public final class ScreenEditorCanvasView extends View {
     public void setLocked(boolean value){locked=value;painting=false;previousX=previousY=-1;}
     public boolean isLocked(){return locked;}
     public void setBrush(SpectrumScreenDocument.Tool tool,
-                         SpectrumScreenDocument.Side side,int color,boolean bright,boolean flash){
+                         SpectrumScreenDocument.Side side,int color,Boolean bright,Boolean flash){
         this.tool=tool;this.side=side;this.color=color;this.bright=bright;this.flash=flash;
     }
     public float getPixelSize(){return pixelSize;}
