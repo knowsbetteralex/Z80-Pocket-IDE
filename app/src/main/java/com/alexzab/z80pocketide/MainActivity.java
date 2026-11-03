@@ -2369,16 +2369,18 @@ public class MainActivity extends Activity {
             AssemblyResult result = project.metrics(rawResult, doc.text);
             ProjectConfiguration settings=AndroidIncludeFiles.projectTree(this)==null
                     ?null:configuration();
+            String programName=tapProgramName(settings==null
+                    ?project.rootPath:settings.name);
             byte[] game=result.getBytes();
             if(settings!=null && settings.screenEnabled) {
                 ProjectConfiguration.checkScreenConflict(result.getOrigin(),game.length);
                 byte[] loadingScreen=ProjectSettingsStore.readScreen(this,settings.screenPath);
                 doc.lastTap=new TapWriter().programTapWithScreen(
-                        tapProgramName(project.rootPath),result.getOrigin(),game,
+                        programName,result.getOrigin(),game,
                         loadingScreen,settings.pauseFrames);
             } else {
                 doc.lastTap=new TapWriter().programTap(
-                        tapProgramName(project.rootPath),result.getOrigin(),game);
+                        programName,result.getOrigin(),game);
             }
             doc.lastBuiltSource = doc.text;
             liveAnalysis = result;
@@ -2524,7 +2526,11 @@ public class MainActivity extends Activity {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/octet-stream");
-        intent.putExtra(Intent.EXTRA_TITLE, tapProgramName(doc.title).toLowerCase(Locale.ROOT) + ".tap");
+        String fileName=doc.title;
+        try {
+            if(AndroidIncludeFiles.projectTree(this)!=null)fileName=configuration().name;
+        }catch(Exception ignored) { }
+        intent.putExtra(Intent.EXTRA_TITLE, tapProgramName(fileName).toLowerCase(Locale.ROOT) + ".tap");
         startActivityForResult(intent, REQUEST_SAVE_TAP);
     }
 
