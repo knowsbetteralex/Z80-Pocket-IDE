@@ -77,6 +77,7 @@ import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
 import com.alexzab.z80pocketide.project.ProjectConfiguration;
 import com.alexzab.z80pocketide.project.ProjectSettingsDialog;
+import com.alexzab.z80pocketide.screen.ScreenEditorActivity;
 import com.alexzab.z80pocketide.project.ProjectSettingsStore;
 
 import java.io.BufferedReader;
@@ -1444,6 +1445,7 @@ public class MainActivity extends Activity {
         Menu projectMenu = menu.addSubMenu(t("Project", "Проект"));
         projectMenu.add(0, 28, 0, t("Open project…", "Открыть проект…"));
         projectMenu.add(0, 29, 1, t("Project settings…", "Настройки проекта…"));
+        projectMenu.add(0, 31, 2, t("Screen editor…", "Редактор экрана…"));
         projectMenu.add(0, 26, 2, t("Set current file as project root", "Сделать файл корнем проекта"));
         projectMenu.add(0, 27, 3, t("Auto-detect main.asm root", "Корень проекта: авто main.asm"));
         projectMenu.add(0, 24, 4, t("Choose project folder…", "Выбрать папку проекта…"));
@@ -1470,6 +1472,7 @@ public class MainActivity extends Activity {
                 case 2: openSourceFilePicker(); break;
                 case 28: chooseProjectFolder(); break;
                 case 29: showProjectSettings(); break;
+                case 31: openScreenEditor(null); break;
                 case 3: saveDocument(activeIndex, false); break;
                 case 4: requestSaveAs(activeIndex, false); break;
                 case 5: requestCloseTab(activeIndex); break;
@@ -1635,6 +1638,13 @@ public class MainActivity extends Activity {
         if(projectConfiguration==null)
             projectConfiguration=ProjectSettingsStore.load(this);
         return projectConfiguration;
+    }
+
+    private void openScreenEditor(String relativePath) {
+        Intent screen=new Intent(this,ScreenEditorActivity.class);
+        if(relativePath!=null && !relativePath.isEmpty())
+            screen.putExtra(ScreenEditorActivity.EXTRA_PROJECT_PATH,relativePath);
+        startActivity(screen);
     }
 
     private void showProjectSettings() {
