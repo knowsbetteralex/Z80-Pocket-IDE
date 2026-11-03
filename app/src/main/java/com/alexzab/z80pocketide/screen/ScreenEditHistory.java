@@ -63,6 +63,7 @@ public final class ScreenEditHistory {
         return !Arrays.equals(saved,doc.toRaw());
     }
     public void markSaved(SpectrumScreenDocument doc){saved=doc.toRaw();}
+    public byte[] savedCopy(){return saved.clone();}
     public void reset(SpectrumScreenDocument doc) {
         before=null;undo.clear();redo.clear();saved=doc.toRaw();
     }
