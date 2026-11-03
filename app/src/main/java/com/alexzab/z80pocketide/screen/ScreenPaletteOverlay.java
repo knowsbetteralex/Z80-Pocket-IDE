@@ -22,11 +22,13 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private SpectrumScreenDocument.Side side=SpectrumScreenDocument.Side.INK;
     private SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
     private int color=7;
+    private boolean applyBright,applyFlash;
     private OnBrushChange listener;
 
     public ScreenPaletteOverlay(Context context,boolean ru) {
         super(context);this.ru=ru;
         setOrientation(VERTICAL);
+        setClickable(true);
         setPadding(dp(6),dp(5),dp(6),dp(6));
         GradientDrawable bg=new GradientDrawable();
         bg.setColor(0xDDF5FAF6);
@@ -69,8 +71,12 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         attrRow.addView(bright,new LayoutParams(0,dp(36),1));
         attrRow.addView(flash,new LayoutParams(0,dp(36),1));
         content.addView(attrRow);
-        bright.setOnCheckedChangeListener((v,checked)->notifyBrush());
-        flash.setOnCheckedChangeListener((v,checked)->notifyBrush());
+        bright.setOnCheckedChangeListener((v,checked)->{
+            applyBright=true;notifyBrush();
+        });
+        flash.setOnCheckedChangeListener((v,checked)->{
+            applyFlash=true;notifyBrush();
+        });
 
         LinearLayout toolRow=row();
         String[] names=ru?new String[]{"Перо","Атриб.","Пип.","Ласт."}
@@ -102,11 +108,16 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     public int color(){return color;}
     public boolean bright(){return bright.isChecked();}
     public boolean flash(){return flash.isChecked();}
+    public boolean applyBright(){return applyBright;}
+    public boolean applyFlash(){return applyFlash;}
     public void setBrush(SpectrumScreenDocument.Tool tool,
-                         SpectrumScreenDocument.Side side,int color,boolean bright,boolean flash) {
+                         SpectrumScreenDocument.Side side,int color,boolean bright,
+                         boolean flash,boolean applyBright,boolean applyFlash) {
         this.tool=tool;this.side=side;this.color=color;
         this.bright.setChecked(bright);
         this.flash.setChecked(flash);
+        this.applyBright=applyBright;
+        this.applyFlash=applyFlash;
         refresh();
     }
     public void pick(int attr,boolean pixel) {
@@ -114,6 +125,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         color=pixel?attr&7:(attr>>3)&7;
         bright.setChecked((attr&0x40)!=0);
         flash.setChecked((attr&0x80)!=0);
+        applyBright=true;applyFlash=true;
         refresh();
     }
     private void refresh(){
