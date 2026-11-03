@@ -1,6 +1,6 @@
 # Z80 Pocket IDE — SCR Screen Editor v0.38.0
 
-Status: approved design specification, implementation pending.
+Status: implementation committed in v0.38.0; automated tests/CI verified, physical-device QA pending.
 Language: Russian UI + English UI using existing AppLanguage/Texts style.
 Platform: native Android Java, minSdk 23, targetSdk 35, **no AndroidX**.
 Branch: main. Keep all existing ASM editor, sprite editor and project/TAP functions working.
