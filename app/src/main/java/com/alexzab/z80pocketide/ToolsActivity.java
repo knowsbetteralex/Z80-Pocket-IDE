@@ -29,6 +29,7 @@ import com.alexzab.z80pocketide.tools.SpectrumKeyboardPanel;
 import com.alexzab.z80pocketide.tools.SpriteToolPanel;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
+import com.alexzab.z80pocketide.screen.ScreenEditorActivity;
 
 /** Mobile workshop with number, screen address, sprite and keyboard tabs. */
 public final class ToolsActivity extends Activity {
@@ -83,6 +84,11 @@ public final class ToolsActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setPadding(dp(12),0,0,0);
         header.addView(title,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f));
+        Button screenEditor=button("SCR",false);
+        screenEditor.setContentDescription(t("Open screen editor","Редактор экрана SCREEN$"));
+        header.addView(screenEditor,new LinearLayout.LayoutParams(dp(64),dp(44)));
+        screenEditor.setOnClickListener(v->startActivity(
+                new Intent(this,ScreenEditorActivity.class)));
         root.addView(header);
         back.setOnClickListener(v->finish());
 
