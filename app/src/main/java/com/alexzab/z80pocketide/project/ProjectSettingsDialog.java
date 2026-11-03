@@ -142,12 +142,15 @@ public final class ProjectSettingsDialog {
                     }).show();
         });
         updatePreview.run();
+        final AlertDialog[] dialogToClose=new AlertDialog[1];
         Button editScreen=new Button(activity);
         editScreen.setText(ru?"✎ Редактировать заставку":"✎ Edit loading screen");
         editScreen.setAllCaps(false);
         body.addView(editScreen,new LinearLayout.LayoutParams(-1,dp(activity,44)));
         editScreen.setOnClickListener(v->{
-            // Open current selection without silently saving changed project settings.
+            // Closing the settings dialog ensures a fresh byte-accurate preview
+            // when it is reopened after returning from Screen Editor.
+            if(dialogToClose[0]!=null)dialogToClose[0].dismiss();
             editAction.edit(screenPath[0]);
         });
 
@@ -190,6 +193,7 @@ public final class ProjectSettingsDialog {
                 .setNegativeButton(ru?"Отмена":"Cancel",null)
                 .setPositiveButton(ru?"Сохранить":"Save",null)
                 .create();
+        dialogToClose[0]=dialog;
         dialog.setOnShowListener(ignored->dialog.getButton(
                 AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
             ProjectConfiguration selected=new ProjectConfiguration(
