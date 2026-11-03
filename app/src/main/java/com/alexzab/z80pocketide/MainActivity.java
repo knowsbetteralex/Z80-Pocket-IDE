@@ -1666,6 +1666,7 @@ public class MainActivity extends Activity {
             List<String> screens=AndroidIncludeFiles.screenFiles(this);
             ProjectSettingsDialog.show(this,language==AppLanguage.RU,settings,roots,screens,
                     path -> ProjectSettingsStore.readScreen(this,path),
+                    path -> openScreenEditor(path),
                     selected -> {
                         try {
                             boolean inFolder=ProjectSettingsStore.save(this,selected);
