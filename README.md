@@ -416,3 +416,31 @@ CP 'Z'         ; CP $5A
 NEWLINE EQU '\n'
 DB 'B'+1,NEWLINE
 ```
+
+
+## v0.37.0 — Project settings and ZX Spectrum loading screens
+
+The main application menu now contains **Project / Проект** with: Open project, Project settings, choose root, auto-detect `main.asm`, choose project folder, build, run and export TAP. The Open toolbar dropdown still offers Open file / Open project.
+
+**Project settings** (Android native dialog, no AndroidX): select a display name, entry-point ASM file (default `main.asm`), enable an optional `.scr` or raw `.bin` loading screen anywhere inside the selected SAF project folder, see a real Spectrum 256×192 preview, and choose a start delay: immediately, 1/2/3/5 seconds, or wait for a keypress. The preview reads the full 6912 bytes (6144 bitmap + 768 attributes), decodes Spectrum's non-linear pixel memory layout and INK/PAPER/BRIGHT palette. Flash is shown in its normal phase. Incorrect-size files are rejected.
+
+Settings are saved as a portable `.z80pocketide.json` at the project root; its project-relative paths work when the folder is moved or synchronized with Git. A separate per-folder local backup is used when Android's document provider denies writing; the app reports this clearly. Existing projects without settings continue to produce their original two-file BASIC + CODE TAP.
+
+Example:
+```json
+{
+  "name": "SpaceCan",
+  "root": "main.asm",
+  "loadingScreen": {
+    "enabled": true,
+    "file": "assets/loading.scr",
+    "pauseFrames": 100
+  }
+}
+```
+
+**When enabled**, the auto-start TAP is assembled in this order: BASIC loader, `SCREEN$` CODE block (6912 bytes at `$4000`), game CODE block (the assembler's ORG address). The loader runs `CLEAR origin-1 : LOAD "" SCREEN$ : LOAD "" CODE : [PAUSE frames] : RANDOMIZE USR origin`. The pause is in 50 Hz frames; value `0` means no delay and `-1` maps to `PAUSE 0` (wait for keypress). The screen is always included in exported TAP files, not the source ASM; no game source changes are needed.
+
+**Validation:** screen file must be exactly 6912 bytes; invalid/missing resources stop the build. Game CODE must not overlap `$4000-$5AFF` while loading SCREEN$ is enabled, or exceed the 64K address space. The normal BASIC ROM loader may still display its status messages over the lower screen; a custom clean loader is deliberately postponed.
+
+Tests cover loader block sequence/addresses/tokens, optional PAUSE, invalid screen sizes, screen memory conflicts, project path validation and ZX pixel/attribute layout. These changes are backward-compatible with legacy projects.
