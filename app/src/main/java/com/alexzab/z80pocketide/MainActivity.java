@@ -2387,11 +2387,17 @@ public class MainActivity extends Activity {
 
         ProjectSource project = null;
         try {
+            // Refresh settings on every build. A SCR editor launched from Tools,
+            // Git-sync or an external file manager may have changed the project.
+            ProjectConfiguration settings=AndroidIncludeFiles.projectTree(this)==null
+                    ?null:ProjectSettingsStore.load(this);
+            if(settings!=null) {
+                projectConfiguration=settings;
+                AndroidIncludeFiles.setRoot(this,settings.root);
+            }
             project = projectFor(doc, doc.text, includeBuffers());
             AssemblyResult rawResult = new Assembler().assemble(project.expanded.source);
             AssemblyResult result = project.metrics(rawResult, doc.text);
-            ProjectConfiguration settings=AndroidIncludeFiles.projectTree(this)==null
-                    ?null:configuration();
             String programName=tapProgramName(settings==null
                     ?project.rootPath:settings.name);
             byte[] game=result.getBytes();
