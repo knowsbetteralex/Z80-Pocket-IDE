@@ -24,4 +24,21 @@ public final class SpectrumScreenTest {
         assertThrows(IllegalArgumentException.class,
                 ()->SpectrumScreen.decodePixels(new byte[6913]));
     }
+
+    @Test public void flashSwapsInkAndPaperOnlyForFlashTile() {
+        byte[] bytes=new byte[SpectrumScreen.LENGTH];
+        bytes[0]=(byte)0x80;
+        bytes[6144]=(byte)(0x80|0x40|0x02); // flashing bright red on black
+        bytes[1]=(byte)0x80;
+        bytes[6145]=(byte)0x47; // non-flashing bright white
+        int[] normal=SpectrumScreen.decodePixels(bytes,false);
+        int[] flashed=SpectrumScreen.decodePixels(bytes,true);
+        assertEquals(0xFFFF0000,normal[0]);
+        assertEquals(0xFF000000,flashed[0]);
+        assertEquals(0xFF000000,normal[1]);
+        assertEquals(0xFFFF0000,flashed[1]);
+        assertEquals(0xFFFFFFFF,normal[8]);
+        assertEquals(normal[8],flashed[8]);
+        assertEquals(bytes[6144]&255,0xC2);
+    }
 }
