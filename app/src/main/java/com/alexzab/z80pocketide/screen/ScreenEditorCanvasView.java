@@ -164,7 +164,7 @@ public final class ScreenEditorCanvasView extends View {
             previousX=previousY=-1;
             lastX=downX=event.getX();
             lastY=downY=event.getY();
-            pendingStroke=!locked;
+            pendingStroke=!locked || tool==SpectrumScreenDocument.Tool.PICK;
             if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(true);
             // Defer one-finger paint until movement or confirmed tap, so the
             // first finger of a pinch cannot leave an unwanted dot.
@@ -183,6 +183,9 @@ public final class ScreenEditorCanvasView extends View {
                 originX+=x-focusX;originY+=y-focusY;
                 focusX=x;focusY=y;invalidate();
             }else if(locked) {
+                if(Math.abs(event.getX()-downX)>touchSlop
+                        ||Math.abs(event.getY()-downY)>touchSlop)
+                    pendingStroke=false;
                 originX+=event.getX()-lastX;
                 originY+=event.getY()-lastY;
                 invalidate();
