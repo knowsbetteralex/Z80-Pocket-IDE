@@ -12,9 +12,13 @@ public final class ScreenEditorCanvasView extends View {
         void strokeEnd();
         void changed(int x,int y);
         void picked(int x,int y,int attribute,boolean pixel);
+        void selectionChanged();
     }
     private SpectrumScreenDocument doc;
+    private ScreenSelection selection;
     private Listener listener;
+    private int selectionAnchorX,selectionAnchorY;
+    private boolean selecting;
     private final Paint pixels=new Paint(),grid=new Paint(Paint.ANTI_ALIAS_FLAG);
     private Bitmap image;
     private boolean pixelsDirty=true,locked=true,transforming,painting,pendingStroke;
@@ -59,6 +63,8 @@ public final class ScreenEditorCanvasView extends View {
             });
     }
     public void setListener(Listener listener){this.listener=listener;}
+    public void setSelection(ScreenSelection value){selection=value;invalidate();}
+    public void refreshSelection(){invalidate();}
     public void setDocument(SpectrumScreenDocument value){
         this.doc=value;pixelsDirty=true;fitToScreen();
     }
@@ -152,6 +158,19 @@ public final class ScreenEditorCanvasView extends View {
             canvas.drawRect(originX+cx*8*pixelSize,originY+cy*8*pixelSize,
                     originX+(cx+1)*8*pixelSize,originY+(cy+1)*8*pixelSize,grid);
         }
+        if(selection!=null && selection.selected()){
+            grid.setStyle(Paint.Style.STROKE);
+            grid.setStrokeWidth(Math.max(dp(1.5f),1));
+            grid.setColor(selection.preview()?0xFFFFAD21:0xFF15D5CE);
+            grid.setPathEffect(new DashPathEffect(
+                    new float[]{dp(6),dp(4)},0));
+            canvas.drawRect(
+                    originX+selection.x()*pixelSize,
+                    originY+selection.y()*pixelSize,
+                    originX+(selection.x()+selection.width())*pixelSize,
+                    originY+(selection.y()+selection.height())*pixelSize,grid);
+            grid.setPathEffect(null);
+        }
         grid.setStyle(Paint.Style.FILL);
         canvas.restore();
     }
@@ -161,16 +180,21 @@ public final class ScreenEditorCanvasView extends View {
         if(action==MotionEvent.ACTION_DOWN) {
             transforming=false;
             painting=false;
+            selecting=false;
             previousX=previousY=-1;
             lastX=downX=event.getX();
             lastY=downY=event.getY();
-            pendingStroke=!locked || tool==SpectrumScreenDocument.Tool.PICK;
+            pendingStroke=tool!=SpectrumScreenDocument.Tool.SELECT
+                    && (!locked || tool==SpectrumScreenDocument.Tool.PICK);
+            selectionAnchorX=screenX(downX);
+            selectionAnchorY=screenY(downY);
             if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(true);
             // Defer one-finger paint until movement or confirmed tap, so the
             // first finger of a pinch cannot leave an unwanted dot.
             return true;
         }
         if(action==MotionEvent.ACTION_POINTER_DOWN) {
+            selecting=false;
             pendingStroke=false;
             finishStroke();
             transforming=true;
@@ -182,7 +206,17 @@ public final class ScreenEditorCanvasView extends View {
                 float x=averageX(event),y=averageY(event);
                 originX+=x-focusX;originY+=y-focusY;
                 focusX=x;focusY=y;invalidate();
-            }else if(locked) {
+            }else if(tool==SpectrumScreenDocument.Tool.SELECT
+                    &&selection!=null&&!selection.preview()&&!transforming){
+                if(Math.abs(event.getX()-downX)>touchSlop
+                        ||Math.abs(event.getY()-downY)>touchSlop){
+                    selecting=true;
+                    selection.select(selectionAnchorX,selectionAnchorY,
+                            screenX(event.getX()),screenY(event.getY()));
+                    invalidate();
+                    if(listener!=null)listener.selectionChanged();
+                }
+            }else if(locked || (selection!=null&&selection.preview())) {
                 if(Math.abs(event.getX()-downX)>touchSlop
                         ||Math.abs(event.getY()-downY)>touchSlop)
                     pendingStroke=false;
@@ -205,9 +239,19 @@ public final class ScreenEditorCanvasView extends View {
             transforming=true;finishStroke();return true;
         }
         if(action==MotionEvent.ACTION_CANCEL || action==MotionEvent.ACTION_UP) {
+            if(action==MotionEvent.ACTION_UP&&!transforming
+                    &&tool==SpectrumScreenDocument.Tool.SELECT
+                    &&selection!=null&&!selection.preview()
+                    &&inBounds(selectionAnchorX,selectionAnchorY)){
+                selection.select(selectionAnchorX,selectionAnchorY,
+                        screenX(event.getX()),screenY(event.getY()));
+                invalidate();
+                if(listener!=null)listener.selectionChanged();
+            }
             if(action==MotionEvent.ACTION_UP && pendingStroke && !transforming)
                 beginStroke(downX,downY);
             pendingStroke=false;
+            selecting=false;
             finishStroke();
             previousX=previousY=-1;
             transforming=false;
@@ -262,7 +306,8 @@ public final class ScreenEditorCanvasView extends View {
     }
     /** Apply a newly toggled BRIGHT/FLASH to the selected 8×8 cell, undoably. */
     public boolean toggleFlagOnSelection(boolean brightFlag,boolean enabled) {
-        if(locked || doc==null || !inBounds(activeX,activeY))return false;
+        if(locked || doc==null || (selection!=null&&selection.preview())
+                || !inBounds(activeX,activeY))return false;
         int attr=doc.attribute(activeX,activeY);
         int bit=brightFlag?0x40:0x80;
         int next=enabled?attr|bit:attr&~bit;
