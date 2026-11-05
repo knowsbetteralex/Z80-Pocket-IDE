@@ -184,8 +184,9 @@ public final class ScreenEditorCanvasView extends View {
             previousX=previousY=-1;
             lastX=downX=event.getX();
             lastY=downY=event.getY();
-            pendingStroke=tool!=SpectrumScreenDocument.Tool.SELECT
-                    && (!locked || tool==SpectrumScreenDocument.Tool.PICK);
+            pendingStroke=(selection==null || !selection.preview())
+                    &&tool!=SpectrumScreenDocument.Tool.SELECT
+                    &&(!locked || tool==SpectrumScreenDocument.Tool.PICK);
             selectionAnchorX=screenX(downX);
             selectionAnchorY=screenY(downY);
             if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(true);
@@ -262,6 +263,7 @@ public final class ScreenEditorCanvasView extends View {
         return true;
     }
     private void beginStroke(float fx,float fy) {
+        if(selection!=null && selection.preview())return;
         int x=screenX(fx),y=screenY(fy);
         if(!inBounds(x,y))return;
         activeX=x;activeY=y;
