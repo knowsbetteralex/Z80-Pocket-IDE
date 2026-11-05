@@ -461,3 +461,15 @@ A dedicated native-Java SCREEN$ editor is now accessible from **Project → Scre
 **Tests:** unit coverage for interleaved screen bitmap addressing, edge pixels, tile-local INK/PAPER/BRIGHT/FLASH, pixel-versus-attribute brush semantics, byte-exact SCR↔ASM roundtrip, malformed ASM, one-stroke Undo/Redo and saved-revision tracking. Physical-device gestures and external SAF provider behaviors still require manual verification.
 
 Implementation requirements and test checklist are in [docs/SCREEN_EDITOR_V0.38.0.md](docs/SCREEN_EDITOR_V0.38.0.md).
+
+
+## v0.39.0 — SCR tab, ZX palette, flashing attributes and launcher icon
+
+- **New launcher icon:** graphite gray rounded square, a retro computer and the classic four Spectrum rainbow stripes on its screen (Android vector resource `app/src/main/res/drawable/ic_spectrum.xml`, still referenced by `android:icon` and `android:roundIcon`).
+- **Tools → Screen / Экран:** a fifth tab next to the existing sprite editor with a live 256×192 SCREEN$ drawing canvas, zoom/pan, 8×8 attribute grid, a floating palette, Undo/Redo, lock and a **full-screen** button. The Tools tab and `ScreenEditorActivity` share the same 6912-byte in-memory screen and history; Open/Save from the compact tab routes to full-screen Android SAF file operations. No bitmap copy or loss of unsaved drawing on switching views.
+- **Palette redesigned to match the sprite editor:** two separate INK/PAPER color selectors with numeric indicators, a row of eight filled Spectrum swatches and the orange outlined checkmark for the selected color. Changing **BRIGHT** immediately updates swatch brightness and, when unlocked, the currently selected 8×8 cell. **FLASH** toggles the cell's attribute and the screen visibly alternates INK and PAPER on flashing cells approximately every 320 ms (ZX Spectrum 16-frame half-period). The palette remains collapsible and semi-transparent.
+- The user-facing tools are **Pen (INK)**, **Eraser (PAPER)** and **Picker**; redundant Attribute mode was removed from the palette. The eraser clears the pixel bit and paints the chosen PAPER color only in the current 8×8 cell; existing `ATTRIBUTE` enum remains internally for compatibility. Picker samples both tile colors and flags, then automatically returns to the tool and INK/PAPER side selected before picking; that return tool survives rotation and transitions between Tools and full-screen editor. A locked canvas allows read-only picker taps and finger panning.
+- **Much larger zoom:** pinch zoom increases up to 96dp per Spectrum pixel rather than the previous 40px; easier to use with fingertips.
+- Byte-exact SCR format, project file links, Save/Save As, ASM import/export and the existing BASIC loading-screen TAP export remain supported.
+
+Regression tests cover actual FLASH phase inversion, preservation of adjacent tile colors/flags and the PAPER eraser. CI builds and tests are run by GitHub Actions for the release. Physical-device verification of gestures, orientation, SAF providers and toolbar/insets is still recommended.
