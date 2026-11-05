@@ -5,7 +5,7 @@ import java.util.Arrays;
 /** Exact mutable 48K Spectrum SCREEN$ data, 6144 bitmap + 768 attributes. */
 public final class SpectrumScreenDocument {
     public static final int WIDTH=256, HEIGHT=192, LENGTH=6912;
-    public enum Tool { DRAW, ATTRIBUTE, PICK, ERASE }
+    public enum Tool { DRAW, ATTRIBUTE, PICK, ERASE, SELECT }
     public enum Side { INK, PAPER }
     private final byte[] raw;
 
@@ -59,7 +59,7 @@ public final class SpectrumScreenDocument {
     /** Paint exactly one tile's selected bits; never globally recolor adjacent tiles. */
     public boolean paint(int x,int y,Tool tool,Side side,int color,
                          Boolean bright,Boolean flash) {
-        if(tool==Tool.PICK)return false;
+        if(tool==Tool.PICK||tool==Tool.SELECT)return false;
         if(color<0||color>7)throw new IllegalArgumentException("Spectrum color must be 0..7");
         // The eraser paints PAPER: it clears bitmap bits and can recolor only
         // that tile's paper. Existing independent ATTRIBUTE mode remains
