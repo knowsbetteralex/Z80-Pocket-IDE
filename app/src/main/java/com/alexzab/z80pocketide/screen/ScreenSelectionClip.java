@@ -70,8 +70,12 @@ public final class ScreenSelectionClip {
         for(int ty=0;ty<tilesHigh;ty++){
             for(int tx=0;tx<tilesWide;tx++){
                 // The starting column of each 8x8 source cell is the anchor.
-                int targetTileX=Math.floorDiv(originalTileX(tx)*8+dx,8);
-                int targetTileY=Math.floorDiv(originalTileY(ty)*8+dy,8);
+                // Quantize the displacement, not the absolute position.
+                // Java integer division truncates toward zero, so moving
+                // 1..7 pixels in EITHER direction does not move attributes.
+                // At -8/+8 the attributes cross exactly one character cell.
+                int targetTileX=originalTileX(tx)+dx/8;
+                int targetTileY=originalTileY(ty)+dy/8;
                 if(targetTileX>=0&&targetTileX<32&&targetTileY>=0&&targetTileY<24)
                     doc.setAttribute(targetTileX*8,targetTileY*8,tileAttribute(tx,ty));
             }
