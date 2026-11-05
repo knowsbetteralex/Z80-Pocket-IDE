@@ -29,7 +29,7 @@ import com.alexzab.z80pocketide.tools.SpectrumKeyboardPanel;
 import com.alexzab.z80pocketide.tools.SpriteToolPanel;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
-import com.alexzab.z80pocketide.screen.ScreenEditorActivity;
+import com.alexzab.z80pocketide.screen.ScreenToolPanel;
 
 /** Mobile workshop with number, screen address, sprite and keyboard tabs. */
 public final class ToolsActivity extends Activity {
@@ -42,9 +42,9 @@ public final class ToolsActivity extends Activity {
     private boolean ru;
     private LinearLayout page;
     private StableToolsScrollView scroller;
-    private final int[] savedScrollY = new int[4];
-    private final Button[] tabs = new Button[4];
-    private View[] panels = new View[4];
+    private final int[] savedScrollY = new int[5];
+    private final Button[] tabs = new Button[5];
+    private View[] panels = new View[5];
     private int activeTab;
     private EditText dec, hex, bin;
     private TextView numberStatus;
@@ -84,11 +84,6 @@ public final class ToolsActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setPadding(dp(12),0,0,0);
         header.addView(title,new LinearLayout.LayoutParams(0,LinearLayout.LayoutParams.WRAP_CONTENT,1f));
-        Button screenEditor=button("SCR",false);
-        screenEditor.setContentDescription(t("Open screen editor","Редактор экрана SCREEN$"));
-        header.addView(screenEditor,new LinearLayout.LayoutParams(dp(64),dp(44)));
-        screenEditor.setOnClickListener(v->startActivity(
-                new Intent(this,ScreenEditorActivity.class)));
         root.addView(header);
         back.setOnClickListener(v->finish());
 
@@ -100,8 +95,8 @@ public final class ToolsActivity extends Activity {
         LinearLayout tabRow = new LinearLayout(this);
         tabRow.setOrientation(LinearLayout.HORIZONTAL);
         String[] captions = ru ?
-                new String[]{"123","Адреса","Спрайт","Клавиши"} :
-                new String[]{"123","Addresses","Sprite","Keyboard"};
+                new String[]{"123","Адреса","Спрайт","Клавиши","Экран"} :
+                new String[]{"123","Addr","Sprite","Keys","Screen"};
         for(int i=0;i<tabs.length;i++){
             final int index=i;
             tabs[i]=button(captions[i],false);
@@ -137,6 +132,7 @@ public final class ToolsActivity extends Activity {
             setResult(RESULT_OK,result);
             finish();
         });
+        panels[4]=new ScreenToolPanel(this,ru);
 
         int remembered = getSharedPreferences(PREFS_TOOLS, MODE_PRIVATE)
                 .getInt(PREF_LAST_TAB, 0);
@@ -144,6 +140,13 @@ public final class ToolsActivity extends Activity {
                 : getIntent().getIntExtra(EXTRA_SELECTED_TAB, remembered);
         selectTab(Math.max(0,Math.min(activeTab,tabs.length-1)));
         setContentView(root);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        // Fullscreen and the tab share one 6912-byte workspace, but not Views.
+        if(panels[4] instanceof ScreenToolPanel)
+            ((ScreenToolPanel)panels[4]).refreshFromSession();
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
@@ -162,7 +165,7 @@ public final class ToolsActivity extends Activity {
             ((android.view.ViewGroup)content.getParent()).removeView(content);
         page.addView(content);
         // Avoid Android auto-scrolling to selectable DB previews or action buttons.
-        scroller.setSpriteFocusScrollDisabled(index == 2);
+        scroller.setSpriteFocusScrollDisabled(index == 2 || index == 4);
         final int restoreY = savedScrollY[index];
         scroller.post(() -> scroller.scrollTo(0, restoreY));
         for(int i=0;i<tabs.length;i++){
