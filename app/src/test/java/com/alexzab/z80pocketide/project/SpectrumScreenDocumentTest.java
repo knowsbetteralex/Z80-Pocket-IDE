@@ -46,4 +46,19 @@ public final class SpectrumScreenDocumentTest {
         assertThrows(IndexOutOfBoundsException.class,()->doc.pixel(256,4));
         assertThrows(IllegalArgumentException.class,()->SpectrumScreenDocument.fromRaw(new byte[6911]));
     }
+
+    @Test public void eraserUsesPaperAndKeepsOtherCellAttributes() {
+        SpectrumScreenDocument doc=new SpectrumScreenDocument();
+        doc.setAttribute(0,0,0x80|0x40|0x03);
+        doc.setAttribute(8,0,0x12);
+        doc.setPixel(0,0,true);
+        assertTrue(doc.paint(0,0,SpectrumScreenDocument.Tool.ERASE,
+                SpectrumScreenDocument.Side.INK,4,null,null));
+        assertFalse(doc.pixel(0,0));
+        assertEquals(0x80|0x40|0x03|(4<<3),doc.attribute(0,0));
+        assertEquals(0x12,doc.attribute(8,0));
+        assertTrue(doc.hasFlashingCells());
+        assertEquals(0xFF00FF00,doc.pixels(false)[0]); // bright green paper
+        assertEquals(0xFF0000FF,doc.pixels(true)[0]); // flash => bright blue ink
+    }
 }
