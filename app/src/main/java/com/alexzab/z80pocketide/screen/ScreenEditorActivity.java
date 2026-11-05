@@ -40,6 +40,7 @@ public final class ScreenEditorActivity extends Activity {
     public static final class Session {
         SpectrumScreenDocument doc=new SpectrumScreenDocument();
         ScreenEditHistory history=new ScreenEditHistory(doc.toRaw());
+        ScreenSelection selection=new ScreenSelection();
         Uri uri;
         String title="untitled.scr",projectPath;
         boolean importedAsm,locked=true,landscape,collapsed;
@@ -58,6 +59,7 @@ public final class ScreenEditorActivity extends Activity {
     private Session state;
     private ScreenEditorCanvasView canvas;
     private ScreenPaletteOverlay palette;
+    private ScreenSelectionBar selectionBar;
     private TextView title,status;
     private Button undo,redo,lock;
     private boolean ru,closeAfterSave,orientationChanging;
@@ -131,10 +133,14 @@ public final class ScreenEditorActivity extends Activity {
         action(bar,"💾",ru?"Сохранить":"Save",v->save());
         action(bar,"⋯",ru?"Сохранить как":"Save as",v->chooseSaveAs());
         undo=action(bar,"↶",ru?"Отменить":"Undo",v->{
-            if(state.history.undo(state.doc)){canvas.refreshPixels();updateUi();}
+            if(!state.selection.preview()&&state.history.undo(state.doc)){
+                canvas.refreshPixels();updateUi();
+            }
         });
         redo=action(bar,"↷",ru?"Повторить":"Redo",v->{
-            if(state.history.redo(state.doc)){canvas.refreshPixels();updateUi();}
+            if(!state.selection.preview()&&state.history.redo(state.doc)){
+                canvas.refreshPixels();updateUi();
+            }
         });
         action(bar,"⊡",ru?"Вписать":"Fit",v->canvas.fitToScreen());
         action(fixedActions,"⤢",ru?"Сменить ориентацию":"Toggle orientation",v->toggleOrientation());
@@ -153,6 +159,7 @@ public final class ScreenEditorActivity extends Activity {
         root.addView(holder,new LinearLayout.LayoutParams(-1,0,1));
         canvas=new ScreenEditorCanvasView(this,state.doc);
         holder.addView(canvas,new FrameLayout.LayoutParams(-1,-1));
+        canvas.setSelection(state.selection);
         canvas.setLocked(state.locked);
         canvas.setListener(new ScreenEditorCanvasView.Listener() {
             @Override public void strokeStart(){state.history.begin(state.doc);}
@@ -164,6 +171,9 @@ public final class ScreenEditorActivity extends Activity {
             @Override public void picked(int x,int y,int attr,boolean ink){
                 palette.pick(attr,ink);
                 updatePosition(x,y);
+            }
+            @Override public void selectionChanged(){
+                if(selectionBar!=null)selectionBar.refresh();
             }
         });
 
@@ -190,12 +200,16 @@ public final class ScreenEditorActivity extends Activity {
             canvas.setBrush(state.tool,state.side,palette.color(),
                     state.applyBright?state.bright:null,
                     state.applyFlash?state.flash:null);
+            if(selectionBar!=null)selectionBar.refresh();
         });
         palette.setFlagListener((isBright,enabled)->{
             if(canvas!=null)canvas.toggleFlagOnSelection(isBright,enabled);
         });
         holder.post(()->palette.setExpandedWidth(
                 Math.min(dp(410),Math.max(dp(208),holder.getWidth()-dp(16)))));
+
+        selectionBar=new ScreenSelectionBar(this,ru,state,canvas,palette,this::updateUi);
+        root.addView(selectionBar,new LinearLayout.LayoutParams(-1,-2));
 
         status=new TextView(this);
         status.setTextSize(11);
@@ -236,8 +250,9 @@ public final class ScreenEditorActivity extends Activity {
         boolean dirty=state.history.isDirty(state.doc);
         title.setText((dirty?"● ":"")+state.title+
                 (state.importedAsm?(ru?" · импорт ASM":" · ASM import"):""));
-        undo.setEnabled(state.history.canUndo());
-        redo.setEnabled(state.history.canRedo());
+        undo.setEnabled(state.history.canUndo()&&!state.selection.preview());
+        redo.setEnabled(state.history.canRedo()&&!state.selection.preview());
+        if(selectionBar!=null)selectionBar.refresh();
         lock.setText(state.locked?"🔒":"🔓");
         lock.setContentDescription(state.locked
                 ?(ru?"Разблокировать рисование":"Unlock drawing")
@@ -284,6 +299,11 @@ public final class ScreenEditorActivity extends Activity {
         }catch(Exception ex){showError(ex);}
     }
     private void requestOpen(){
+        if(state.selection.preview()){
+            Toast.makeText(this,ru?"Сначала подтвердите или отмените перемещение":
+                    "Apply or cancel selection before opening",Toast.LENGTH_LONG).show();
+            return;
+        }
         if(state.history.isDirty(state.doc)){
             new AlertDialog.Builder(this)
                     .setMessage(ru?"Текущие изменения будут потеряны. Открыть другой экран?"
@@ -325,7 +345,13 @@ public final class ScreenEditorActivity extends Activity {
         state.title=filename;
         state.zoomFactor=1;
         state.centerX=128;state.centerY=96;
-        if(canvas!=null){canvas.setDocument(state.doc);updateUi();}
+        // A new file is a separate selection surface. The app clipboard remains.
+        state.selection=new ScreenSelection();
+        if(canvas!=null){
+            canvas.setDocument(state.doc);
+            canvas.setSelection(state.selection);
+            updateUi();
+        }
     }
     private byte[] readBounded(Uri uri,int max) throws IOException{
         try(InputStream input=getContentResolver().openInputStream(uri)){
@@ -359,10 +385,20 @@ public final class ScreenEditorActivity extends Activity {
         }catch(Exception ignored){}
     }
     private void save(){
+        if(state.selection.preview()){
+            Toast.makeText(this,ru?"Примените ✓ или отмените × перенос перед сохранением":
+                    "Apply ✓ or cancel × the selection before saving",Toast.LENGTH_LONG).show();
+            return;
+        }
         if(state.importedAsm || state.uri==null){chooseSaveAs();return;}
         write(state.uri,"binary",false);
     }
     private void chooseSaveAs(){
+        if(state.selection.preview()){
+            Toast.makeText(this,ru?"Сначала завершите перенос выделения":
+                    "Finish the selection move first",Toast.LENGTH_LONG).show();
+            return;
+        }
         String[] options=ru?new String[]{"Сохранить .scr","Сохранить .bin","Экспортировать .asm"}
                 :new String[]{"Save .scr","Save .bin","Export .asm"};
         new AlertDialog.Builder(this)
@@ -442,6 +478,23 @@ public final class ScreenEditorActivity extends Activity {
     }
 
     private void requestExit(){
+        if(state.selection.preview()){
+            new AlertDialog.Builder(this)
+                    .setMessage(ru?"Перенос выделения ещё не подтверждён":
+                            "Selection move is not confirmed yet")
+                    .setPositiveButton(ru?"Применить":"Apply",(d,w)->{
+                        state.selection.commit(state.doc,state.history);
+                        canvas.refreshPixels();
+                        requestExit();
+                    })
+                    .setNeutralButton(ru?"Отменить перенос":"Cancel move",(d,w)->{
+                        state.selection.cancel(state.doc,state.history);
+                        canvas.refreshPixels();
+                        requestExit();
+                    })
+                    .setNegativeButton(ru?"Назад":"Back",null).show();
+            return;
+        }
         if(!state.history.isDirty(state.doc)){finish();return;}
         new AlertDialog.Builder(this)
                 .setTitle(ru?"Несохранённые изменения":"Unsaved screen")
