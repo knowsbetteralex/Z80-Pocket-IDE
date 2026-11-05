@@ -473,3 +473,9 @@ Implementation requirements and test checklist are in [docs/SCREEN_EDITOR_V0.38.
 - Byte-exact SCR format, project file links, Save/Save As, ASM import/export and the existing BASIC loading-screen TAP export remain supported.
 
 Regression tests cover actual FLASH phase inversion, preservation of adjacent tile colors/flags and the PAPER eraser. CI builds and tests are run by GitHub Actions for the release. Physical-device verification of gestures, orientation, SAF providers and toolbar/insets is still recommended.
+
+## v0.39.1 — Compact SCR editor palette
+
+- Removed the two redundant INK/PAPER buttons from the top of the screen editor palette. The **Pen (INK)** and **Eraser (PAPER)** tools remain the sole way to select the paint target; color swatches apply to that target.
+- When collapsed, the floating palette shows **three compact, functional tools** (pen, eraser and eyedropper) under the small expand chevron. The currently active tool is highlighted, and the tools work without reopening the palette.
+- Palette collapse state is preserved when switching between the embedded **Tools → Screen** tab and the full-screen SCR editor, including orientation changes. Color selection, Bright/Flash, and picker-return behavior remain unchanged.
