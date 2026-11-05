@@ -141,6 +141,12 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private void notifyBrush(){if(listener!=null)listener.changed();}
     public SpectrumScreenDocument.Side side(){return side;}
     public SpectrumScreenDocument.Tool tool(){return tool;}
+    public SpectrumScreenDocument.Tool previousTool(){return beforePick;}
+    public void setPreviousTool(SpectrumScreenDocument.Tool previous){
+        if(previous==SpectrumScreenDocument.Tool.DRAW
+                ||previous==SpectrumScreenDocument.Tool.ERASE)
+            beforePick=previous;
+    }
     public int inkColor(){return inkColor;}
     public int paperColor(){return paperColor;}
     public int color(){return side==SpectrumScreenDocument.Side.INK?inkColor:paperColor;}
