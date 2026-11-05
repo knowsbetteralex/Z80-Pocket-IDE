@@ -3,11 +3,40 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:fillColor="#111111" android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
-    <path android:fillColor="#0000D7" android:pathData="M14,78 L24,78 L54,30 L44,30 Z" />
-    <path android:fillColor="#D70000" android:pathData="M25,78 L35,78 L65,30 L55,30 Z" />
-    <path android:fillColor="#D700D7" android:pathData="M36,78 L46,78 L76,30 L66,30 Z" />
-    <path android:fillColor="#00BE00" android:pathData="M47,78 L57,78 L87,30 L77,30 Z" />
-    <path android:fillColor="#00BEBE" android:pathData="M58,78 L68,78 L98,30 L88,30 Z" />
-    <path android:fillColor="#D7BE00" android:pathData="M69,78 L79,78 L104,38 L104,54 L90,78 Z" />
+    <!-- Matte graphite rounded tile, fully visible inside Android launch masks. -->
+    <path android:fillColor="#35373D"
+        android:pathData="M19,2 L89,2 C99,2 106,9 106,19 L106,89 C106,99 99,106 89,106 L19,106 C9,106 2,99 2,89 L2,19 C2,9 9,2 19,2 Z"/>
+    <path android:fillColor="#404248"
+        android:pathData="M19,3 L89,3 C97,3 103,9 103,18 L103,20 C98,12 91,10 81,10 L23,10 C13,10 7,14 3,21 L3,19 C3,10 10,3 19,3 Z"/>
+    <!-- Silver screen case and dark CRT display. -->
+    <path android:fillColor="#899099"
+        android:pathData="M32,22 L76,22 C83,22 87,27 87,33 L87,62 C87,68 82,72 76,72 L32,72 C25,72 21,67 21,61 L21,33 C21,27 26,22 32,22 Z"/>
+    <path android:fillColor="#D9DDE1"
+        android:pathData="M32,22 L76,22 C82,22 85,26 85,32 L85,61 C85,66 81,69 76,69 L32,69 C26,69 23,65 23,60 L23,32 C23,26 26,22 32,22 Z"/>
+    <path android:fillColor="#0F1114"
+        android:pathData="M33,28 L75,28 C78,28 80,31 80,34 L80,57 C80,61 77,64 74,64 L34,64 C30,64 28,61 28,57 L28,34 C28,31 30,28 33,28 Z"/>
+    <!-- Four diagonal ZX Spectrum bands on the CRT. -->
+    <path android:fillColor="#FF1515" android:pathData="M41,63 L64,29 L70,29 L47,63 Z"/>
+    <path android:fillColor="#FFE700" android:pathData="M47,63 L70,29 L76,29 L53,63 Z"/>
+    <path android:fillColor="#00DD18" android:pathData="M53,63 L76,29 L80,29 L80,32 L59,63 Z"/>
+    <path android:fillColor="#08C7ED" android:pathData="M59,63 L80,32 L80,41 L65,63 Z"/>
+    <!-- Integrated compact Spectrum-style keyboard. -->
+    <path android:fillColor="#858D96"
+        android:pathData="M25,70 L83,70 L95,86 C98,90 94,94 89,94 L19,94 C14,94 10,90 13,86 Z"/>
+    <path android:fillColor="#D6D9DF"
+        android:pathData="M25,70 L83,70 L93,86 C95,89 91,91 88,91 L20,91 C17,91 14,89 17,86 Z"/>
+    <path android:fillColor="#14161A"
+        android:pathData="M28,75 L80,75 L87,86 L20,86 Z"/>
+    <!-- Keycaps: chunky and legible down to small launcher sizes. -->
+    <path android:fillColor="#E4E7EC"
+        android:pathData="M31,77 L37,77 L37,80 L30,80 Z
+                          M40,77 L46,77 L46,80 L39,80 Z
+                          M49,77 L55,77 L55,80 L48,80 Z
+                          M58,77 L64,77 L64,80 L57,80 Z
+                          M67,77 L74,77 L75,80 L66,80 Z
+                          M27,82 L34,82 L34,85 L25,85 Z
+                          M37,82 L44,82 L44,85 L36,85 Z
+                          M47,82 L54,82 L54,85 L46,85 Z
+                          M57,82 L64,82 L64,85 L56,85 Z
+                          M67,82 L75,82 L77,85 L66,85 Z"/>
 </vector>
