@@ -21,8 +21,8 @@ public final class ScreenToolPanel extends LinearLayout {
     private final Activity activity;
     private final boolean ru;
     private ScreenEditorActivity.Session session;
-    private final ScreenEditorCanvasView canvas;
-    private final ScreenPaletteOverlay palette;
+    private ScreenEditorCanvasView canvas;
+    private ScreenPaletteOverlay palette;
     private final TextView title,hint;
     private final Button lock,undo,redo;
 
