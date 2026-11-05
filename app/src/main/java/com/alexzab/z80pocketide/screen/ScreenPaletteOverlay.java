@@ -22,7 +22,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private final boolean ru;
     private final LinearLayout content,compactTools;
     private final TextView[] swatches=new TextView[8];
-    private final Button collapse,pen,eraser,picker;
+    private final Button collapse,pen,eraser,picker,selectionButton;
     private final Button compactPen,compactEraser,compactPicker;
     private final CheckBox bright,flash;
     private boolean collapsed,applying,applyBright,applyFlash;
@@ -122,13 +122,16 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         pen=button(ru?"Перо (INK)":"Pen (INK)",11);
         eraser=button(ru?"Ластик (PAPER)":"Eraser (PAPER)",11);
         picker=button(ru?"Пипетка":"Picker",11);
+        selectionButton=button(ru?"Выдел.":"Select",11);
         modes.addView(pen,weighted(0,dp(38)));
         modes.addView(eraser,weighted(0,dp(38)));
         modes.addView(picker,weighted(0,dp(38)));
+        modes.addView(selectionButton,weighted(0,dp(38)));
         content.addView(modes);
         pen.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.DRAW));
         eraser.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.ERASE));
         picker.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.PICK));
+        selectionButton.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.SELECT));
         compactPen.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.DRAW));
         compactEraser.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.ERASE));
         compactPicker.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.PICK));
@@ -141,6 +144,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private void notifyBrush(){if(listener!=null)listener.changed();}
     public SpectrumScreenDocument.Side side(){return side;}
     public SpectrumScreenDocument.Tool tool(){return tool;}
+    public void activateSelection(){selectTool(SpectrumScreenDocument.Tool.SELECT);}
     public SpectrumScreenDocument.Tool previousTool(){return beforePick;}
     public void setPreviousTool(SpectrumScreenDocument.Tool previous){
         if(previous==SpectrumScreenDocument.Tool.DRAW
@@ -251,6 +255,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         applyModeStyle(eraser,tool==SpectrumScreenDocument.Tool.ERASE
                 ||tool==SpectrumScreenDocument.Tool.ATTRIBUTE);
         applyModeStyle(picker,tool==SpectrumScreenDocument.Tool.PICK);
+        applyModeStyle(selectionButton,tool==SpectrumScreenDocument.Tool.SELECT);
         applyModeStyle(compactPen,tool==SpectrumScreenDocument.Tool.DRAW);
         applyModeStyle(compactEraser,tool==SpectrumScreenDocument.Tool.ERASE
                 ||tool==SpectrumScreenDocument.Tool.ATTRIBUTE);
