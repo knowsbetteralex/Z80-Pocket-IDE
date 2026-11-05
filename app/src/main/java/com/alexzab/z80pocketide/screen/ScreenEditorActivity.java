@@ -173,6 +173,7 @@ public final class ScreenEditorActivity extends Activity {
         placement.setMargins(dp(6),dp(7),dp(7),0);
         holder.addView(palette,placement);
         palette.setCollapsed(state.collapsed);
+        palette.setCollapseListener(collapsed -> state.collapsed=collapsed);
         palette.setBrushColors(state.tool,state.side,state.inkColor,state.paperColor,
                 state.bright,state.flash,state.applyBright,state.applyFlash);
         palette.setPreviousTool(state.previousTool);
