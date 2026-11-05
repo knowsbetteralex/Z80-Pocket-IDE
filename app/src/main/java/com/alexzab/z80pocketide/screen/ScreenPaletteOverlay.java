@@ -17,6 +17,7 @@ import com.alexzab.z80pocketide.tools.SpriteData;
 public final class ScreenPaletteOverlay extends LinearLayout {
     public interface OnBrushChange { void changed(); }
     public interface OnFlagChange { void toggled(boolean isBright,boolean enabled); }
+    public interface OnCollapseChange { void changed(boolean collapsed); }
 
     private final boolean ru;
     private final LinearLayout content,compactTools;
@@ -32,6 +33,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private SpectrumScreenDocument.Tool beforePick=SpectrumScreenDocument.Tool.DRAW;
     private OnBrushChange listener;
     private OnFlagChange flagListener;
+    private OnCollapseChange collapseListener;
 
     public ScreenPaletteOverlay(Context context,boolean russian) {
         super(context);
@@ -61,6 +63,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
             lp.setMargins(dp(1),dp(2),dp(1),dp(1));
             compactTools.addView(b,lp);
         }
+        compactTools.setVisibility(View.GONE);
         addView(compactTools,new LayoutParams(-1,dp(39)));
 
         content=new LinearLayout(context);
@@ -134,6 +137,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
 
     public void setListener(OnBrushChange change){listener=change;notifyBrush();}
     public void setFlagListener(OnFlagChange change){flagListener=change;}
+    public void setCollapseListener(OnCollapseChange change){collapseListener=change;}
     private void notifyBrush(){if(listener!=null)listener.changed();}
     public SpectrumScreenDocument.Side side(){return side;}
     public SpectrumScreenDocument.Tool tool(){return tool;}
@@ -165,6 +169,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
                 (ru?"Развернуть палетку":"Expand palette"):
                 (ru?"Свернуть палетку":"Collapse palette"));
         updateWidth();
+        if(collapseListener!=null)collapseListener.changed(value);
     }
     private void updateWidth(){
         android.view.ViewGroup.LayoutParams layout=getLayoutParams();
