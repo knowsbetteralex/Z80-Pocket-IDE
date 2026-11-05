@@ -31,9 +31,11 @@ public final class ScreenEditorActivity extends Activity {
     private static final String STATE_CENTER_Y="scr_center_y",STATE_COLLAPSED="scr_collapsed";
     private static final String STATE_LOCKED="scr_locked",STATE_LANDSCAPE="scr_landscape";
     private static final String STATE_COLOR="scr_color",STATE_SIDE="scr_side";
+    private static final String STATE_PAPER_COLOR="scr_paper_color";
     private static final String STATE_BRIGHT_SET="scr_bright_set",STATE_FLASH_SET="scr_flash_set";
     private static final String STATE_TOOL="scr_tool",STATE_BRIGHT="scr_bright",STATE_FLASH="scr_flash";
-    private static final class Session {
+    /** Shared data workspace between Tools tab and full-screen Activity. */
+    public static final class Session {
         SpectrumScreenDocument doc=new SpectrumScreenDocument();
         ScreenEditHistory history=new ScreenEditHistory(doc.toRaw());
         Uri uri;
@@ -42,10 +44,14 @@ public final class ScreenEditorActivity extends Activity {
         float zoomFactor=1,centerX=128,centerY=96;
         SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
         SpectrumScreenDocument.Side side=SpectrumScreenDocument.Side.INK;
-        int color=7;
+        int inkColor=7,paperColor=0;
         boolean bright,flash,applyBright,applyFlash;
     }
     private static Session retained;
+    public static Session sharedSession(){
+        if(retained==null)retained=new Session();
+        return retained;
+    }
     private Session state;
     private ScreenEditorCanvasView canvas;
     private ScreenPaletteOverlay palette;
@@ -58,8 +64,11 @@ public final class ScreenEditorActivity extends Activity {
     @Override protected void onCreate(Bundle savedInstanceState){
         super.onCreate(savedInstanceState);
         ru=LanguageSettings.get(this)==AppLanguage.RU;
-        if(savedInstanceState!=null && retained!=null)state=retained;
-        else {
+        boolean explicitFile=getIntent().hasExtra(EXTRA_PROJECT_PATH)
+                ||getIntent().hasExtra(EXTRA_DOCUMENT_URI);
+        if(retained!=null && (savedInstanceState!=null || !explicitFile)) {
+            state=retained;
+        } else {
             state=new Session();
             if(savedInstanceState!=null)restoreState(savedInstanceState);
             else openInitialIntent();
@@ -156,20 +165,26 @@ public final class ScreenEditorActivity extends Activity {
         placement.setMargins(dp(6),dp(7),dp(7),0);
         holder.addView(palette,placement);
         palette.setCollapsed(state.collapsed);
-        palette.setBrush(state.tool,state.side,state.color,state.bright,state.flash,
-                state.applyBright,state.applyFlash);
+        palette.setBrushColors(state.tool,state.side,state.inkColor,state.paperColor,
+                state.bright,state.flash,state.applyBright,state.applyFlash);
         palette.setListener(()->{
             state.tool=palette.tool();
             state.side=palette.side();
-            state.color=palette.color();
+            state.inkColor=palette.inkColor();
+            state.paperColor=palette.paperColor();
             state.bright=palette.bright();
             state.flash=palette.flash();
             state.applyBright=palette.applyBright();
             state.applyFlash=palette.applyFlash();
-            canvas.setBrush(state.tool,state.side,state.color,
+            canvas.setBrush(state.tool,state.side,palette.color(),
                     state.applyBright?state.bright:null,
                     state.applyFlash?state.flash:null);
         });
+        palette.setFlagListener((isBright,enabled)->{
+            if(canvas!=null)canvas.toggleFlagOnSelection(isBright,enabled);
+        });
+        holder.post(()->palette.setExpandedWidth(
+                Math.min(dp(410),Math.max(dp(208),holder.getWidth()-dp(16)))));
 
         status=new TextView(this);
         status.setTextSize(11);
@@ -222,7 +237,9 @@ public final class ScreenEditorActivity extends Activity {
     private void updatePosition(int x,int y) {
         status.setText(String.format(Locale.ROOT,
                 "X=%d Y=%d  |  Cell=%d,%d  |  %s=%d  BRIGHT=%d FLASH=%d",
-                x,y,x/8,y/8,state.side,state.color,state.bright?1:0,state.flash?1:0));
+                x,y,x/8,y/8,state.side,
+                state.side==SpectrumScreenDocument.Side.INK?state.inkColor:state.paperColor,
+                state.bright?1:0,state.flash?1:0));
     }
     private void saveViewport(){
         if(canvas==null || canvas.getHeight()==0)return;
@@ -374,9 +391,7 @@ public final class ScreenEditorActivity extends Activity {
             if(!kind.equals("asm"))setResult(RESULT_OK);
             Toast.makeText(this,ru?"Файл сохранён":"File saved",Toast.LENGTH_SHORT).show();
             if(newFile && !kind.equals("asm") && !closeAfterSave)offerAsProjectScreen(uri);
-            if(closeAfterSave && !kind.equals("asm")){
-                retained=null;finish();
-            }
+            if(closeAfterSave && !kind.equals("asm"))finish();
             closeAfterSave=false;
         }catch(Exception ex){
             closeAfterSave=false;
@@ -416,14 +431,18 @@ public final class ScreenEditorActivity extends Activity {
     }
 
     private void requestExit(){
-        if(!state.history.isDirty(state.doc)){retained=null;finish();return;}
+        if(!state.history.isDirty(state.doc)){finish();return;}
         new AlertDialog.Builder(this)
                 .setTitle(ru?"Несохранённые изменения":"Unsaved screen")
                 .setMessage(ru?"Сохранить изменения перед выходом?":"Save changes before closing?")
                 .setPositiveButton(ru?"Сохранить":"Save",(d,w)->{
                     closeAfterSave=true;save();
                 })
-                .setNeutralButton(ru?"Не сохранять":"Discard",(d,w)->{retained=null;finish();})
+                .setNeutralButton(ru?"Не сохранять":"Discard",(d,w)->{
+                    state.doc.replaceRaw(state.history.savedCopy());
+                    state.history.reset(state.doc);
+                    finish();
+                })
                 .setNegativeButton(ru?"Отмена":"Cancel",null).show();
     }
     @Override public void onBackPressed(){requestExit();}
@@ -461,7 +480,8 @@ public final class ScreenEditorActivity extends Activity {
         out.putFloat(STATE_SCALE,state.zoomFactor);
         out.putFloat(STATE_CENTER_X,state.centerX);
         out.putFloat(STATE_CENTER_Y,state.centerY);
-        out.putInt(STATE_COLOR,state.color);
+        out.putInt(STATE_COLOR,state.inkColor);
+        out.putInt(STATE_PAPER_COLOR,state.paperColor);
         out.putString(STATE_TOOL,state.tool.name());
         out.putString(STATE_SIDE,state.side.name());
         out.putBoolean(STATE_BRIGHT,state.bright);
@@ -489,7 +509,8 @@ public final class ScreenEditorActivity extends Activity {
         state.zoomFactor=b.getFloat(STATE_SCALE,1);
         state.centerX=b.getFloat(STATE_CENTER_X,128);
         state.centerY=b.getFloat(STATE_CENTER_Y,96);
-        state.color=b.getInt(STATE_COLOR,7);
+        state.inkColor=b.getInt(STATE_COLOR,7);
+        state.paperColor=b.getInt(STATE_PAPER_COLOR,0);
         state.bright=b.getBoolean(STATE_BRIGHT);
         state.flash=b.getBoolean(STATE_FLASH);
         state.applyBright=b.getBoolean(STATE_BRIGHT_SET);
@@ -500,7 +521,8 @@ public final class ScreenEditorActivity extends Activity {
         catch(Exception ignored){}
     }
     @Override protected void onDestroy(){
-        if(isFinishing()&&!isChangingConfigurations())retained=null;
+        // Keep only the plain Java/URI workspace; no Activity/View references.
+        // This is also the temporary handoff to the Tools screen tab.
         super.onDestroy();
     }
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
