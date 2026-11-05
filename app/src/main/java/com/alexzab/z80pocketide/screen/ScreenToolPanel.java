@@ -23,6 +23,7 @@ public final class ScreenToolPanel extends LinearLayout {
     private ScreenEditorActivity.Session session;
     private ScreenEditorCanvasView canvas;
     private ScreenPaletteOverlay palette;
+    private ScreenSelectionBar selectionBar;
     private final TextView title,hint;
     private final Button lock,undo,redo;
 
@@ -63,10 +64,14 @@ public final class ScreenToolPanel extends LinearLayout {
         open.setOnClickListener(v->openFullScreen("open"));
         save.setOnClickListener(v->openFullScreen("save"));
         undo.setOnClickListener(v->{
-            if(session.history.undo(session.doc)){canvas.refreshPixels();refreshTitle();}
+            if(!session.selection.preview()&&session.history.undo(session.doc)){
+                canvas.refreshPixels();refreshTitle();
+            }
         });
         redo.setOnClickListener(v->{
-            if(session.history.redo(session.doc)){canvas.refreshPixels();refreshTitle();}
+            if(!session.selection.preview()&&session.history.redo(session.doc)){
+                canvas.refreshPixels();refreshTitle();
+            }
         });
         fit.setOnClickListener(v->canvas.fitToScreen());
         lock.setOnClickListener(v->{
@@ -81,6 +86,7 @@ public final class ScreenToolPanel extends LinearLayout {
         addView(canvasHolder,frameParams);
         canvas=new ScreenEditorCanvasView(activity,session.doc);
         canvasHolder.addView(canvas,new FrameLayout.LayoutParams(-1,-1));
+        canvas.setSelection(session.selection);
         canvas.setLocked(session.locked);
         canvas.setListener(new ScreenEditorCanvasView.Listener() {
             @Override public void strokeStart(){session.history.begin(session.doc);}
@@ -92,6 +98,9 @@ public final class ScreenToolPanel extends LinearLayout {
             @Override public void picked(int x,int y,int attribute,boolean ink){
                 palette.pick(attribute,ink);
                 refreshTitle();
+            }
+            @Override public void selectionChanged(){
+                if(selectionBar!=null)selectionBar.refresh();
             }
         });
 
@@ -119,11 +128,15 @@ public final class ScreenToolPanel extends LinearLayout {
             canvas.setBrush(session.tool,session.side,palette.color(),
                     session.applyBright?session.bright:null,
                     session.applyFlash?session.flash:null);
+            if(selectionBar!=null)selectionBar.refresh();
         });
         palette.setFlagListener((isBright,enabled)->
                 canvas.toggleFlagOnSelection(isBright,enabled));
         canvasHolder.post(()->palette.setExpandedWidth(
                 Math.min(dp(410),Math.max(dp(208),canvasHolder.getWidth()-dp(12)))));
+
+        selectionBar=new ScreenSelectionBar(activity,ru,session,canvas,palette,this::refreshTitle);
+        addView(selectionBar,2,new LayoutParams(-1,-2));
 
         hint=new TextView(activity);
         hint.setTextSize(12);
@@ -140,12 +153,14 @@ public final class ScreenToolPanel extends LinearLayout {
     public void refreshFromSession() {
         session=ScreenEditorActivity.sharedSession();
         canvas.setDocument(session.doc);
+        canvas.setSelection(session.selection);
         canvas.setLocked(session.locked);
         palette.setBrushColors(session.tool,session.side,
                 session.inkColor,session.paperColor,
                 session.bright,session.flash,session.applyBright,session.applyFlash);
         palette.setPreviousTool(session.previousTool);
         palette.setCollapsed(session.collapsed);
+        if(selectionBar!=null)selectionBar.bind(session);
         refreshTitle();
     }
 
@@ -167,8 +182,9 @@ public final class ScreenToolPanel extends LinearLayout {
         title.setText((session.history.isDirty(session.doc)?"● ":"")
                 +(ru?"Экран":"Screen")+" · "+session.title);
         lock.setText(session.locked?"🔒":"🔓");
-        undo.setEnabled(session.history.canUndo());
-        redo.setEnabled(session.history.canRedo());
+        undo.setEnabled(session.history.canUndo()&&!session.selection.preview());
+        redo.setEnabled(session.history.canRedo()&&!session.selection.preview());
+        if(selectionBar!=null)selectionBar.refresh();
     }
     private LinearLayout row(){
         LinearLayout group=new LinearLayout(activity);
