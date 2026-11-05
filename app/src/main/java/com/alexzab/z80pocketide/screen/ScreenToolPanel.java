@@ -104,8 +104,10 @@ public final class ScreenToolPanel extends LinearLayout {
         palette.setBrushColors(session.tool,session.side,
                 session.inkColor,session.paperColor,
                 session.bright,session.flash,session.applyBright,session.applyFlash);
+        palette.setPreviousTool(session.previousTool);
         palette.setListener(()->{
             session.tool=palette.tool();
+            session.previousTool=palette.previousTool();
             session.side=palette.side();
             session.inkColor=palette.inkColor();
             session.paperColor=palette.paperColor();
@@ -141,6 +143,7 @@ public final class ScreenToolPanel extends LinearLayout {
         palette.setBrushColors(session.tool,session.side,
                 session.inkColor,session.paperColor,
                 session.bright,session.flash,session.applyBright,session.applyFlash);
+        palette.setPreviousTool(session.previousTool);
         palette.setCollapsed(session.collapsed);
         refreshTitle();
     }
