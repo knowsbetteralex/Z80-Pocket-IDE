@@ -20,6 +20,17 @@ public final class ScreenEditorCanvasView extends View {
     private boolean pixelsDirty=true,locked=true,transforming,painting,pendingStroke;
     private float downX,downY;
     private final int touchSlop;
+    private boolean flashPhase;
+    private final Runnable flashTicker=new Runnable() {
+        @Override public void run() {
+            if(doc!=null && doc.hasFlashingCells()){
+                flashPhase=!flashPhase;
+                pixelsDirty=true;
+                invalidate();
+            }else flashPhase=false;
+            postDelayed(this,320); // ZX Spectrum: FLASH flips every 16 frames.
+        }
+    };
     private SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
     private SpectrumScreenDocument.Side side=SpectrumScreenDocument.Side.INK;
     private int color=7;
@@ -52,6 +63,15 @@ public final class ScreenEditorCanvasView extends View {
         this.doc=value;pixelsDirty=true;fitToScreen();
     }
     public void refreshPixels(){pixelsDirty=true;invalidate();}
+    @Override protected void onAttachedToWindow(){
+        super.onAttachedToWindow();
+        removeCallbacks(flashTicker);
+        postDelayed(flashTicker,320);
+    }
+    @Override protected void onDetachedFromWindow(){
+        removeCallbacks(flashTicker);
+        super.onDetachedFromWindow();
+    }
     public void setLocked(boolean value){
         locked=value;painting=false;pendingStroke=false;previousX=previousY=-1;
     }
@@ -90,7 +110,7 @@ public final class ScreenEditorCanvasView extends View {
         super.onDraw(canvas);
         if(doc==null)return;
         if(pixelsDirty||image==null) {
-            int[] colors=doc.pixels();
+            int[] colors=doc.pixels(flashPhase);
             if(image==null)image=Bitmap.createBitmap(256,192,Bitmap.Config.ARGB_8888);
             image.setPixels(colors,0,256,0,0,256,192);
             pixelsDirty=false;
@@ -229,13 +249,16 @@ public final class ScreenEditorCanvasView extends View {
     private void zoomAt(float scale,float fx,float fy){
         if(scale<=0||Float.isNaN(scale))return;
         float min=Math.max(.25f,Math.min(getWidth()/256f,getHeight()/192f)*.35f);
-        float next=Math.max(min,Math.min(40f,pixelSize*scale));
+        // 96dp per Spectrum pixel: comfortable even for fingertip editing.
+        float next=Math.max(min,Math.min(dp(96),pixelSize*scale));
         float k=next/pixelSize;
         originX=fx-(fx-originX)*k;
         originY=fy-(fy-originY)*k;
         pixelSize=next;
         invalidate();
     }
+    public int selectedPixelX(){return activeX;}
+    public int selectedPixelY(){return activeY;}
     private int screenX(float x){return (int)Math.floor((x-originX)/pixelSize);}
     private int screenY(float y){return (int)Math.floor((y-originY)/pixelSize);}
     private boolean inBounds(int x,int y){return x>=0&&y>=0&&x<256&&y<192;}
