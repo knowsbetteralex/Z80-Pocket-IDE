@@ -35,6 +35,7 @@ public final class ScreenEditorActivity extends Activity {
     private static final String STATE_PAPER_COLOR="scr_paper_color";
     private static final String STATE_BRIGHT_SET="scr_bright_set",STATE_FLASH_SET="scr_flash_set";
     private static final String STATE_TOOL="scr_tool",STATE_BRIGHT="scr_bright",STATE_FLASH="scr_flash";
+    private static final String STATE_PREVIOUS_TOOL="scr_previous_tool";
     /** Shared data workspace between Tools tab and full-screen Activity. */
     public static final class Session {
         SpectrumScreenDocument doc=new SpectrumScreenDocument();
@@ -44,6 +45,7 @@ public final class ScreenEditorActivity extends Activity {
         boolean importedAsm,locked=true,landscape,collapsed;
         float zoomFactor=1,centerX=128,centerY=96;
         SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
+        SpectrumScreenDocument.Tool previousTool=SpectrumScreenDocument.Tool.DRAW;
         SpectrumScreenDocument.Side side=SpectrumScreenDocument.Side.INK;
         int inkColor=7,paperColor=0;
         boolean bright,flash,applyBright,applyFlash;
@@ -173,8 +175,10 @@ public final class ScreenEditorActivity extends Activity {
         palette.setCollapsed(state.collapsed);
         palette.setBrushColors(state.tool,state.side,state.inkColor,state.paperColor,
                 state.bright,state.flash,state.applyBright,state.applyFlash);
+        palette.setPreviousTool(state.previousTool);
         palette.setListener(()->{
             state.tool=palette.tool();
+            state.previousTool=palette.previousTool();
             state.side=palette.side();
             state.inkColor=palette.inkColor();
             state.paperColor=palette.paperColor();
@@ -489,6 +493,7 @@ public final class ScreenEditorActivity extends Activity {
         out.putInt(STATE_COLOR,state.inkColor);
         out.putInt(STATE_PAPER_COLOR,state.paperColor);
         out.putString(STATE_TOOL,state.tool.name());
+        out.putString(STATE_PREVIOUS_TOOL,state.previousTool.name());
         out.putString(STATE_SIDE,state.side.name());
         out.putBoolean(STATE_BRIGHT,state.bright);
         out.putBoolean(STATE_FLASH,state.flash);
@@ -522,6 +527,9 @@ public final class ScreenEditorActivity extends Activity {
         state.applyBright=b.getBoolean(STATE_BRIGHT_SET);
         state.applyFlash=b.getBoolean(STATE_FLASH_SET);
         try {state.tool=SpectrumScreenDocument.Tool.valueOf(b.getString(STATE_TOOL,"DRAW"));}
+        catch(Exception ignored){}
+        try {state.previousTool=SpectrumScreenDocument.Tool.valueOf(
+                b.getString(STATE_PREVIOUS_TOOL,"DRAW"));}
         catch(Exception ignored){}
         try {state.side=SpectrumScreenDocument.Side.valueOf(b.getString(STATE_SIDE,"INK"));}
         catch(Exception ignored){}
