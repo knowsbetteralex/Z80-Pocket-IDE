@@ -60,16 +60,25 @@ public final class SpectrumScreenDocument {
     public boolean paint(int x,int y,Tool tool,Side side,int color,
                          Boolean bright,Boolean flash) {
         if(tool==Tool.PICK)return false;
-        if(tool==Tool.ERASE)return setPixel(x,y,false);
         if(color<0||color>7)throw new IllegalArgumentException("Spectrum color must be 0..7");
+        // The eraser paints PAPER: it clears bitmap bits and can recolor only
+        // that tile's paper. Existing independent ATTRIBUTE mode remains
+        // available internally for existing tests/clients.
+        if(tool==Tool.ERASE)side=Side.PAPER;
         int old=attribute(x,y),next=old;
         if(side==Side.INK)next=(next&~7)|color;
         else next=(next&~0x38)|(color<<3);
         if(bright!=null)next=bright?next|0x40:next&~0x40;
         if(flash!=null)next=flash?next|0x80:next&~0x80;
         boolean changed=setAttribute(x,y,next);
-        if(tool==Tool.DRAW)changed=setPixel(x,y,side==Side.INK)||changed;
+        if(tool==Tool.DRAW || tool==Tool.ERASE)
+            changed=setPixel(x,y,side==Side.INK)||changed;
         return changed;
     }
     public int[] pixels() { return SpectrumScreen.decodePixels(raw); }
+    public int[] pixels(boolean flashPhase){return SpectrumScreen.decodePixels(raw,flashPhase);}
+    public boolean hasFlashingCells(){
+        for(int i=6144;i<LENGTH;i++)if((raw[i]&0x80)!=0)return true;
+        return false;
+    }
 }
