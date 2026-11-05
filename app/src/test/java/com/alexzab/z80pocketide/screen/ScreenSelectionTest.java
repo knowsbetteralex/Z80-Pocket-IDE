@@ -68,7 +68,7 @@ public class ScreenSelectionTest {
         SpectrumScreenDocument dst=new SpectrumScreenDocument();
         loaded.place(dst,20,18,true);
         assertTrue(dst.pixel(20,18));
-        assertEquals(0x9B,dst.attribute(8,8)); // +11,+9 -> source tile (8,8) to (16,16)
+        assertEquals(0x9B,dst.attribute(16,16)); // +11,+9 -> source tile (8,8) to (16,16)
     }
 
     @Test public void arrowsPreviewFromSameBaseAndConfirmOneUndo(){
