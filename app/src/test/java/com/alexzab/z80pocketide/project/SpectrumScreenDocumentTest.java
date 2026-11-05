@@ -59,6 +59,6 @@ public final class SpectrumScreenDocumentTest {
         assertEquals(0x12,doc.attribute(8,0));
         assertTrue(doc.hasFlashingCells());
         assertEquals(0xFF00FF00,doc.pixels(false)[0]); // bright green paper
-        assertEquals(0xFF0000FF,doc.pixels(true)[0]); // flash => bright blue ink
+        assertEquals(0xFFFF00FF,doc.pixels(true)[0]); // flash => bright magenta ink
     }
 }
