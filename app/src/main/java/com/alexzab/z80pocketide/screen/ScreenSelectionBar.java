@@ -14,7 +14,7 @@ import com.alexzab.z80pocketide.project.SpectrumScreenDocument;
 public final class ScreenSelectionBar extends LinearLayout {
     private final Activity activity;
     private final boolean ru;
-    private final ScreenEditorActivity.Session session;
+    private ScreenEditorActivity.Session session;
     private final ScreenEditorCanvasView canvas;
     private final ScreenPaletteOverlay palette;
     private final Runnable onRefresh;
@@ -127,6 +127,10 @@ public final class ScreenSelectionBar extends LinearLayout {
         refresh();
     }
 
+    public void bind(ScreenEditorActivity.Session next){
+        session=next;
+        refresh();
+    }
     public void refresh(){
         boolean has=session.selection.selected();
         boolean editing=session.selection.preview();
