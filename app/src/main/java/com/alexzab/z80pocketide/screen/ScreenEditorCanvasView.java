@@ -257,6 +257,22 @@ public final class ScreenEditorCanvasView extends View {
         pixelSize=next;
         invalidate();
     }
+    /** Apply a newly toggled BRIGHT/FLASH to the selected 8×8 cell, undoably. */
+    public boolean toggleFlagOnSelection(boolean brightFlag,boolean enabled) {
+        if(locked || doc==null || !inBounds(activeX,activeY))return false;
+        int attr=doc.attribute(activeX,activeY);
+        int bit=brightFlag?0x40:0x80;
+        int next=enabled?attr|bit:attr&~bit;
+        if(next==attr)return false;
+        if(listener!=null)listener.strokeStart();
+        doc.setAttribute(activeX,activeY,next);
+        refreshPixels();
+        if(listener!=null){
+            listener.changed(activeX,activeY);
+            listener.strokeEnd();
+        }
+        return true;
+    }
     public int selectedPixelX(){return activeX;}
     public int selectedPixelY(){return activeY;}
     private int screenX(float x){return (int)Math.floor((x-originX)/pixelSize);}
