@@ -24,6 +24,7 @@ import java.util.Locale;
 public final class ScreenEditorActivity extends Activity {
     public static final String EXTRA_PROJECT_PATH="screen_project_path";
     public static final String EXTRA_DOCUMENT_URI="screen_document_uri";
+    public static final String EXTRA_START_ACTION="screen_start_action";
     private static final int OPEN=801,CREATE=802;
     private static final String STATE_SCREEN="scr_bytes",STATE_SAVED="scr_saved";
     private static final String STATE_URI="scr_uri",STATE_NAME="scr_name",STATE_ASM="scr_asm";
@@ -79,6 +80,11 @@ public final class ScreenEditorActivity extends Activity {
         configureWindow();
         buildUi();
         updateUi();
+        if(savedInstanceState==null){
+            String startAction=getIntent().getStringExtra(EXTRA_START_ACTION);
+            if("open".equals(startAction))canvas.post(this::requestOpen);
+            else if("save".equals(startAction))canvas.post(this::save);
+        }
     }
 
     private void configureWindow(){
