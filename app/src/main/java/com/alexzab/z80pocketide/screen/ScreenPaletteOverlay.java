@@ -12,16 +12,17 @@ import com.alexzab.z80pocketide.tools.SpriteData;
 
 /**
  * Floating palette visually consistent with SpriteToolPanel:
- * separate INK/PAPER targets, eight filled swatches and the selection tick.
+ * eight filled swatches, tool-driven INK/PAPER selection and the selection tick.
  */
 public final class ScreenPaletteOverlay extends LinearLayout {
     public interface OnBrushChange { void changed(); }
     public interface OnFlagChange { void toggled(boolean isBright,boolean enabled); }
 
     private final boolean ru;
-    private final LinearLayout content;
+    private final LinearLayout content,compactTools;
     private final TextView[] swatches=new TextView[8];
-    private final Button collapse,ink,paper,pen,eraser,picker;
+    private final Button collapse,pen,eraser,picker;
+    private final Button compactPen,compactEraser,compactPicker;
     private final CheckBox bright,flash;
     private boolean collapsed,applying,applyBright,applyFlash;
     private int expandedWidth;
@@ -47,18 +48,24 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         addView(collapse,new LayoutParams(-1,dp(30)));
         collapse.setOnClickListener(v->setCollapsed(!collapsed));
 
+        compactTools=row();
+        compactTools.setGravity(Gravity.CENTER);
+        compactPen=button("✎",20);
+        compactEraser=button("▱",20);
+        compactPicker=button("⌖",20);
+        compactPen.setContentDescription(ru?"Перо (INK)":"Pen (INK)");
+        compactEraser.setContentDescription(ru?"Ластик (PAPER)":"Eraser (PAPER)");
+        compactPicker.setContentDescription(ru?"Пипетка":"Picker");
+        for(Button b:new Button[]{compactPen,compactEraser,compactPicker}) {
+            LinearLayout.LayoutParams lp=weighted(0,dp(34));
+            lp.setMargins(dp(1),dp(2),dp(1),dp(1));
+            compactTools.addView(b,lp);
+        }
+        addView(compactTools,new LayoutParams(-1,dp(39)));
+
         content=new LinearLayout(context);
         content.setOrientation(VERTICAL);
         addView(content,new LayoutParams(-1,-2));
-
-        LinearLayout titles=row();
-        ink=button("INK · 7",15);
-        paper=button("PAPER · 0",15);
-        titles.addView(ink,weighted(0,dp(40)));
-        titles.addView(paper,weighted(0,dp(40)));
-        content.addView(titles);
-        ink.setOnClickListener(v->selectSide(SpectrumScreenDocument.Side.INK));
-        paper.setOnClickListener(v->selectSide(SpectrumScreenDocument.Side.PAPER));
 
         LinearLayout colors=row();
         for(int i=0;i<8;i++) {
@@ -116,23 +123,12 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         modes.addView(eraser,weighted(0,dp(38)));
         modes.addView(picker,weighted(0,dp(38)));
         content.addView(modes);
-        pen.setOnClickListener(v->{
-            tool=SpectrumScreenDocument.Tool.DRAW;
-            beforePick=tool;
-            side=SpectrumScreenDocument.Side.INK;
-            refresh();
-        });
-        eraser.setOnClickListener(v->{
-            tool=SpectrumScreenDocument.Tool.ERASE;
-            beforePick=tool;
-            side=SpectrumScreenDocument.Side.PAPER;
-            refresh();
-        });
-        picker.setOnClickListener(v->{
-            if(tool!=SpectrumScreenDocument.Tool.PICK)beforePick=tool;
-            tool=SpectrumScreenDocument.Tool.PICK;
-            refresh();
-        });
+        pen.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.DRAW));
+        eraser.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.ERASE));
+        picker.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.PICK));
+        compactPen.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.DRAW));
+        compactEraser.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.ERASE));
+        compactPicker.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.PICK));
         refresh();
     }
 
@@ -163,8 +159,8 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     public void setCollapsed(boolean value){
         collapsed=value;
         content.setVisibility(value?View.GONE:View.VISIBLE);
-        collapse.setText(value?(ru?"▾  Палитра":"▾  Palette"):
-                (ru?"▴  Палитра":"▴  Palette"));
+        compactTools.setVisibility(value?View.VISIBLE:View.GONE);
+        collapse.setText(value?"▾":(ru?"▴  Палитра":"▴  Palette"));
         collapse.setContentDescription(value?
                 (ru?"Развернуть палетку":"Expand palette"):
                 (ru?"Свернуть палетку":"Collapse palette"));
@@ -173,7 +169,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private void updateWidth(){
         android.view.ViewGroup.LayoutParams layout=getLayoutParams();
         if(layout!=null) {
-            layout.width=collapsed?dp(112):expandedWidth;
+            layout.width=collapsed?dp(136):expandedWidth;
             setLayoutParams(layout);
         }
     }
@@ -222,20 +218,21 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         refresh();
     }
 
-    private void selectSide(SpectrumScreenDocument.Side selected){
-        side=selected;
-        tool=selected==SpectrumScreenDocument.Side.INK
-                ?SpectrumScreenDocument.Tool.DRAW
-                :SpectrumScreenDocument.Tool.ERASE;
-        beforePick=tool;
+    /** Select the same tool from either the expanded or compact palette. */
+    private void selectTool(SpectrumScreenDocument.Tool selected){
+        if(selected==SpectrumScreenDocument.Tool.PICK){
+            if(tool!=SpectrumScreenDocument.Tool.PICK)beforePick=tool;
+        }else{
+            beforePick=selected;
+            side=selected==SpectrumScreenDocument.Tool.ERASE
+                    ?SpectrumScreenDocument.Side.PAPER
+                    :SpectrumScreenDocument.Side.INK;
+        }
+        tool=selected;
         refresh();
     }
 
     private void refresh(){
-        ink.setText("INK · "+inkColor);
-        paper.setText("PAPER · "+paperColor);
-        applyModeStyle(ink,side==SpectrumScreenDocument.Side.INK);
-        applyModeStyle(paper,side==SpectrumScreenDocument.Side.PAPER);
         int selected=color();
         for(int i=0;i<8;i++){
             int color=SpriteData.palette(i|(bright.isChecked()?8:0));
@@ -249,6 +246,10 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         applyModeStyle(eraser,tool==SpectrumScreenDocument.Tool.ERASE
                 ||tool==SpectrumScreenDocument.Tool.ATTRIBUTE);
         applyModeStyle(picker,tool==SpectrumScreenDocument.Tool.PICK);
+        applyModeStyle(compactPen,tool==SpectrumScreenDocument.Tool.DRAW);
+        applyModeStyle(compactEraser,tool==SpectrumScreenDocument.Tool.ERASE
+                ||tool==SpectrumScreenDocument.Tool.ATTRIBUTE);
+        applyModeStyle(compactPicker,tool==SpectrumScreenDocument.Tool.PICK);
         notifyBrush();
     }
     private void applyModeStyle(Button button,boolean selected){
