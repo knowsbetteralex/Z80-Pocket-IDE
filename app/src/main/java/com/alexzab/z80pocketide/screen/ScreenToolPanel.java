@@ -101,6 +101,7 @@ public final class ScreenToolPanel extends LinearLayout {
         palParams.setMargins(dp(3),dp(5),dp(5),0);
         canvasHolder.addView(palette,palParams);
         palette.setCollapsed(session.collapsed);
+        palette.setCollapseListener(collapsed -> session.collapsed=collapsed);
         palette.setBrushColors(session.tool,session.side,
                 session.inkColor,session.paperColor,
                 session.bright,session.flash,session.applyBright,session.applyFlash);
