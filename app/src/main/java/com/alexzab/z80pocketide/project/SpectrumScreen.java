@@ -14,6 +14,11 @@ public final class SpectrumScreen {
     private SpectrumScreen() {}
 
     public static int[] decodePixels(byte[] screen) {
+        return decodePixels(screen,false);
+    }
+
+    /** ZX FLASH swaps INK and PAPER every 16 video frames (~320 ms). */
+    public static int[] decodePixels(byte[] screen,boolean inverseFlash) {
         if(screen==null||screen.length!=LENGTH)
             throw new IllegalArgumentException("SCREEN$ must contain exactly 6912 bytes");
         int[] pixels=new int[WIDTH*HEIGHT];
@@ -25,8 +30,11 @@ public final class SpectrumScreen {
                 int[] palette=(attr&0x40)!=0?BRIGHT:NORMAL;
                 int ink=palette[attr&7];
                 int paper=palette[(attr>>3)&7];
+                if(inverseFlash && (attr&0x80)!=0) {
+                    int swap=ink;ink=paper;paper=swap;
+                }
                 int base=y*WIDTH+xByte*8;
-                // Preview FLASH in its normal phase. The tape data is unmodified.
+                // The displayed phase never mutates underlying SCREEN$ bytes.
                 for(int bit=0;bit<8;bit++)
                     pixels[base+bit]=(bits&(0x80>>bit))!=0?ink:paper;
             }
