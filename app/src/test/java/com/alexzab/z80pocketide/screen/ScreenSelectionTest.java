@@ -44,6 +44,31 @@ public class ScreenSelectionTest {
         assertEquals(0x61,keep.attribute(8,0));
     }
 
+    @Test public void negativeOffsetsShiftAttributesOnlyAfterFullEightPixels() {
+        SpectrumScreenDocument original=new SpectrumScreenDocument();
+        original.setAttribute(8,8,0xA1);
+        original.setAttribute(0,8,0x33);
+        original.setAttribute(8,0,0x44);
+        original.setPixel(11,12,true);
+        ScreenSelectionClip clip=ScreenSelectionClip.capture(original,11,12,2,2);
+        for(int step=1;step<=7;step++){
+            SpectrumScreenDocument left=SpectrumScreenDocument.fromRaw(original.toRaw());
+            clip.place(left,11-step,12,true);
+            assertEquals("negative x shift "+step,0xA1,left.attribute(8,8));
+            assertEquals("negative x shift "+step,0x33,left.attribute(0,8));
+            SpectrumScreenDocument up=SpectrumScreenDocument.fromRaw(original.toRaw());
+            clip.place(up,11,12-step,true);
+            assertEquals("negative y shift "+step,0xA1,up.attribute(8,8));
+            assertEquals("negative y shift "+step,0x44,up.attribute(8,0));
+        }
+        SpectrumScreenDocument left8=SpectrumScreenDocument.fromRaw(original.toRaw());
+        clip.place(left8,3,12,true);
+        assertEquals(0xA1,left8.attribute(0,8));
+        SpectrumScreenDocument up8=SpectrumScreenDocument.fromRaw(original.toRaw());
+        clip.place(up8,11,4,true);
+        assertEquals(0xA1,up8.attribute(8,0));
+    }
+
     @Test public void attributesOfPartiallySelectedCellsMoveAsWholeTiles(){
         SpectrumScreenDocument screen=new SpectrumScreenDocument();
         screen.setAttribute(0,0,0x21);screen.setAttribute(8,0,0x62);
