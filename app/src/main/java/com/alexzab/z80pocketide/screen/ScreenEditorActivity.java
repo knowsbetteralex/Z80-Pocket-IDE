@@ -28,6 +28,7 @@ public final class ScreenEditorActivity extends Activity {
     private static final int OPEN=801,CREATE=802;
     private static final String STATE_SCREEN="scr_bytes",STATE_SAVED="scr_saved";
     private static final String STATE_URI="scr_uri",STATE_NAME="scr_name",STATE_ASM="scr_asm";
+    private static final String STATE_RLE="scr_rle";
     private static final String STATE_SCALE="scr_scale",STATE_CENTER_X="scr_center_x";
     private static final String STATE_CENTER_Y="scr_center_y",STATE_COLLAPSED="scr_collapsed";
     private static final String STATE_LOCKED="scr_locked",STATE_LANDSCAPE="scr_landscape";
@@ -43,7 +44,7 @@ public final class ScreenEditorActivity extends Activity {
         ScreenSelection selection=new ScreenSelection();
         Uri uri;
         String title="untitled.scr",projectPath;
-        boolean importedAsm,locked=true,landscape,collapsed;
+        boolean importedAsm,asmRle,locked=true,landscape,collapsed;
         float zoomFactor=1,centerX=128,centerY=96;
         SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
         SpectrumScreenDocument.Tool previousTool=SpectrumScreenDocument.Tool.DRAW;
@@ -61,7 +62,7 @@ public final class ScreenEditorActivity extends Activity {
     private ScreenPaletteOverlay palette;
     private ScreenSelectionBar selectionBar;
     private TextView title,status;
-    private Button undo,redo,lock;
+    private Button undo,redo;
     private boolean ru,closeAfterSave,orientationChanging;
     private String creatingType;
     private boolean initialLandscape;
@@ -125,7 +126,7 @@ public final class ScreenEditorActivity extends Activity {
         toolbar.addView(toolbarScroll,new LinearLayout.LayoutParams(0,dp(49),1));
         LinearLayout fixedActions=new LinearLayout(this);
         fixedActions.setGravity(Gravity.CENTER_VERTICAL);
-        toolbar.addView(fixedActions,new LinearLayout.LayoutParams(dp(100),dp(49)));
+        toolbar.addView(fixedActions,new LinearLayout.LayoutParams(dp(50),dp(49)));
         root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(49)));
 
         action(bar,"‹",ru?"Назад":"Back",v->requestExit());
@@ -144,9 +145,6 @@ public final class ScreenEditorActivity extends Activity {
         });
         action(bar,"⊡",ru?"Вписать":"Fit",v->canvas.fitToScreen());
         action(fixedActions,"⤢",ru?"Сменить ориентацию":"Toggle orientation",v->toggleOrientation());
-        lock=action(fixedActions,"🔒",ru?"Блокировка":"Lock",v->{
-            state.locked=!state.locked;canvas.setLocked(state.locked);updateUi();
-        });
 
         title=new TextView(this);
         title.setTextColor(Color.WHITE);title.setTextSize(14);
@@ -187,6 +185,12 @@ public final class ScreenEditorActivity extends Activity {
         palette.setBrushColors(state.tool,state.side,state.inkColor,state.paperColor,
                 state.bright,state.flash,state.applyBright,state.applyFlash);
         palette.setPreviousTool(state.previousTool);
+        palette.setLocked(state.locked);
+        palette.setLockListener(locked->{
+            state.locked=locked;
+            canvas.setLocked(locked);
+            updateUi();
+        });
         palette.setListener(()->{
             state.tool=palette.tool();
             state.previousTool=palette.previousTool();
@@ -249,14 +253,11 @@ public final class ScreenEditorActivity extends Activity {
         if(state==null||title==null)return;
         boolean dirty=state.history.isDirty(state.doc);
         title.setText((dirty?"● ":"")+state.title+
-                (state.importedAsm?(ru?" · импорт ASM":" · ASM import"):""));
+                (state.importedAsm?(state.asmRle?" · ASM RLE":" · ASM"):""));
         undo.setEnabled(state.history.canUndo()&&!state.selection.preview());
         redo.setEnabled(state.history.canRedo()&&!state.selection.preview());
         if(selectionBar!=null)selectionBar.refresh();
-        lock.setText(state.locked?"🔒":"🔓");
-        lock.setContentDescription(state.locked
-                ?(ru?"Разблокировать рисование":"Unlock drawing")
-                :(ru?"Заблокировать рисование":"Lock drawing"));
+        if(palette!=null)palette.setLocked(state.locked);
         if(status!=null && status.getText().length()==0)
             status.setText(ru?"Экран 256×192 · 6912 байт":"Screen 256×192 · 6912 bytes");
     }
@@ -328,9 +329,12 @@ public final class ScreenEditorActivity extends Activity {
         String lower=path.toLowerCase(Locale.ROOT);
         byte[] bytes;
         boolean asm=lower.endsWith(".asm")||lower.endsWith(".z80")||lower.endsWith(".s");
+        boolean rle=false;
         if(asm) {
             byte[] data=readBounded(uri,500000);
-            bytes=ScreenAsmCodec.importScreen(new String(data,StandardCharsets.UTF_8));
+            String source=new String(data,StandardCharsets.UTF_8);
+            rle=ScreenAsmCodec.isRleScreen(source);
+            bytes=ScreenAsmCodec.importScreen(source);
         }else if(lower.endsWith(".scr")||lower.endsWith(".bin")){
             bytes=readBounded(uri,6913);
             if(bytes.length!=6912)throw new IOException(
@@ -342,6 +346,7 @@ public final class ScreenEditorActivity extends Activity {
         state.uri=uri;
         state.projectPath=projectPath;
         state.importedAsm=asm;
+        state.asmRle=rle;
         state.title=filename;
         state.zoomFactor=1;
         state.centerX=128;state.centerY=96;
@@ -390,8 +395,8 @@ public final class ScreenEditorActivity extends Activity {
                     "Apply ✓ or cancel × the selection before saving",Toast.LENGTH_LONG).show();
             return;
         }
-        if(state.importedAsm || state.uri==null){chooseSaveAs();return;}
-        write(state.uri,"binary",false);
+        if(state.uri==null){chooseSaveAs();return;}
+        write(state.uri,state.importedAsm?(state.asmRle?"asm-rle":"asm"):"binary",false);
     }
     private void chooseSaveAs(){
         if(state.selection.preview()){
@@ -399,19 +404,21 @@ public final class ScreenEditorActivity extends Activity {
                     "Finish the selection move first",Toast.LENGTH_LONG).show();
             return;
         }
-        String[] options=ru?new String[]{"Сохранить .scr","Сохранить .bin","Экспортировать .asm"}
-                :new String[]{"Save .scr","Save .bin","Export .asm"};
+        String[] options=ru?new String[]{"Сохранить .scr","Сохранить .bin",
+                        "Сохранить .asm","Сохранить .asm (RLE)"}
+                :new String[]{"Save .scr","Save .bin","Save .asm","Save .asm (RLE)"};
         new AlertDialog.Builder(this)
                 .setTitle(ru?"Выберите формат":"Choose format")
                 .setItems(options,(dialog,which)->{
-                    creatingType=which==2?"asm":which==1?"bin":"scr";
+                    creatingType=which==3?"asm-rle":which==2?"asm":which==1?"bin":"scr";
                     Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType(which==2?"text/x-asm":"application/octet-stream");
+                    intent.setType(which>=2?"text/x-asm":"application/octet-stream");
                     String filename=state.title;
                     int dot=filename.lastIndexOf('.');
                     if(dot>0)filename=filename.substring(0,dot);
-                    intent.putExtra(Intent.EXTRA_TITLE,filename+"."+creatingType);
+                    intent.putExtra(Intent.EXTRA_TITLE,filename+"."+
+                            (creatingType.equals("asm-rle")?"asm":creatingType));
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|
                             Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                     startActivityForResult(intent,CREATE);
@@ -419,7 +426,9 @@ public final class ScreenEditorActivity extends Activity {
     }
     private void write(Uri uri,String kind,boolean newFile){
         try {
-            byte[] data=kind.equals("asm")
+            byte[] data=kind.equals("asm-rle")
+                    ?ScreenAsmCodec.exportRleScreen(state.doc.toRaw()).getBytes(StandardCharsets.UTF_8)
+                    :kind.equals("asm")
                     ?ScreenAsmCodec.exportScreen(state.doc.toRaw()).getBytes(StandardCharsets.UTF_8)
                     :state.doc.toRaw();
             try(OutputStream stream=getContentResolver().openOutputStream(uri,"wt")){
@@ -427,18 +436,17 @@ public final class ScreenEditorActivity extends Activity {
                 stream.write(data);
                 stream.flush();
             }
-            if(!kind.equals("asm")){
-                state.uri=uri;
-                state.importedAsm=false;
-                if(newFile)state.projectPath=null;
-                state.title=displayName(uri);
-                state.history.markSaved(state.doc);
-                updateUi();
-            }
-            if(!kind.equals("asm"))setResult(RESULT_OK);
+            state.uri=uri;
+            state.importedAsm=kind.equals("asm")||kind.equals("asm-rle");
+            state.asmRle=kind.equals("asm-rle");
+            if(newFile)state.projectPath=null;
+            state.title=displayName(uri);
+            state.history.markSaved(state.doc);
+            updateUi();
+            setResult(RESULT_OK);
             Toast.makeText(this,ru?"Файл сохранён":"File saved",Toast.LENGTH_SHORT).show();
-            if(newFile && !kind.equals("asm") && !closeAfterSave)offerAsProjectScreen(uri);
-            if(closeAfterSave && !kind.equals("asm"))finish();
+            if(newFile && !state.importedAsm && !closeAfterSave)offerAsProjectScreen(uri);
+            if(closeAfterSave)finish();
             closeAfterSave=false;
         }catch(Exception ex){
             closeAfterSave=false;
@@ -538,6 +546,7 @@ public final class ScreenEditorActivity extends Activity {
         out.putString(STATE_NAME,state.title);
         out.putString(EXTRA_PROJECT_PATH,state.projectPath);
         out.putBoolean(STATE_ASM,state.importedAsm);
+        out.putBoolean(STATE_RLE,state.asmRle);
         out.putBoolean(STATE_LOCKED,state.locked);
         out.putBoolean(STATE_COLLAPSED,state.collapsed);
         out.putBoolean(STATE_LANDSCAPE,state.landscape);
@@ -568,6 +577,7 @@ public final class ScreenEditorActivity extends Activity {
         state.title=b.getString(STATE_NAME,"untitled.scr");
         state.projectPath=b.getString(EXTRA_PROJECT_PATH);
         state.importedAsm=b.getBoolean(STATE_ASM);
+        state.asmRle=b.getBoolean(STATE_RLE);
         state.locked=b.getBoolean(STATE_LOCKED,true);
         state.collapsed=b.getBoolean(STATE_COLLAPSED);
         state.landscape=b.getBoolean(STATE_LANDSCAPE);

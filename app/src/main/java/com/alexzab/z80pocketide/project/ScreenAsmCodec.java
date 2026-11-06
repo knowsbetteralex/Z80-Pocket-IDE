@@ -1,6 +1,7 @@
 package com.alexzab.z80pocketide.project;
 
 import com.alexzab.z80pocketide.assembler.Assembler;
+import java.io.ByteArrayOutputStream;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -9,7 +10,16 @@ public final class ScreenAsmCodec {
     private static final String NAME="[A-Za-z_@.][A-Za-z0-9_@.$]*";
     private static final Pattern LABEL=Pattern.compile("(?i)^"+NAME+":(?:\\s+.*)?$");
     private static final Pattern EQU=Pattern.compile("(?i)^"+NAME+"\\s+EQU\\s+.+$");
+    private static final String RLE_MARKER="; Z80_POCKET_IDE_SCREEN_RLE_V1";
     private ScreenAsmCodec() {}
+
+    /** Only a dedicated marker enables RLE decoding; ordinary DB/DEFB ASM stays raw. */
+    public static boolean isRleScreen(String source) {
+        if(source==null)return false;
+        for(String line:source.replace("\r","").split("\n"))
+            if(line.trim().equals(RLE_MARKER))return true;
+        return false;
+    }
 
     public static byte[] importScreen(String source) {
         if(source==null)throw new IllegalArgumentException("Empty ASM screen");
@@ -42,6 +52,7 @@ public final class ScreenAsmCodec {
             normalized.append("DB ").append(operands).append('\n');
         }
         byte[] bytes=new Assembler().assemble(normalized.toString()).getBytes();
+        if(isRleScreen(source))return decodeRle(bytes);
         if(bytes.length!=SpectrumScreen.LENGTH)
             throw new IllegalArgumentException("SCREEN$ ASM must assemble to 6912 bytes, got "+bytes.length);
         return bytes;
@@ -57,6 +68,86 @@ public final class ScreenAsmCodec {
         append(out,"SCREEN_ATTRS:",bytes,6144,6912);
         return out.toString();
     }
+
+    /**
+     * Export an assembler-friendly, data-only RLE stream.
+     * Control 00..7F: copy the next control+1 literal bytes.
+     * Control 80..FF: repeat the following byte (control&7F)+2 times.
+     * The decoded stream is always the whole 6912-byte SCREEN$.
+     */
+    public static String exportRleScreen(byte[] bytes) {
+        if(bytes==null||bytes.length!=SpectrumScreen.LENGTH)
+            throw new IllegalArgumentException("Expected exactly 6912 bytes");
+        byte[] encoded=encodeRle(bytes);
+        StringBuilder out=new StringBuilder(encoded.length*5+256);
+        out.append(RLE_MARKER).append('\n');
+        out.append("; ZX Spectrum SCREEN$ RLE v1, expanded: 6912 bytes at $4000\n");
+        out.append("; 00..7F: copy control+1 bytes; 80..FF: repeat next byte (control&127)+2 times\n");
+        out.append("; Compact data stream only; decompress before displaying the screen.\n");
+        append(out,"SCREEN_RLE:",encoded,0,encoded.length);
+        return out.toString();
+    }
+
+    static byte[] encodeRle(byte[] bytes) {
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        for(int i=0;i<bytes.length;) {
+            int run=runLength(bytes,i);
+            if(run>=3) {
+                out.write(0x80|(run-2));
+                out.write(bytes[i]&255);
+                i+=run;
+            } else {
+                int start=i;
+                i+=run;
+                while(i<bytes.length && i-start<128) {
+                    run=runLength(bytes,i);
+                    if(run>=3)break;
+                    i+=Math.min(run,128-(i-start));
+                }
+                int count=i-start;
+                out.write(count-1);
+                out.write(bytes,start,count);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    private static int runLength(byte[] bytes,int pos) {
+        int run=1;
+        while(run<129 && pos+run<bytes.length && bytes[pos+run]==bytes[pos])run++;
+        return run;
+    }
+
+    static byte[] decodeRle(byte[] encoded) {
+        byte[] result=new byte[SpectrumScreen.LENGTH];
+        int input=0,output=0;
+        while(input<encoded.length) {
+            int control=encoded[input++]&255;
+            if((control&128)!=0) {
+                if(input>=encoded.length)
+                    throw new IllegalArgumentException("SCREEN$ RLE: missing repeated byte");
+                int count=(control&127)+2;
+                if(output+count>result.length)
+                    throw new IllegalArgumentException("SCREEN$ RLE: decoded screen exceeds 6912 bytes");
+                byte value=encoded[input++];
+                java.util.Arrays.fill(result,output,output+count,value);
+                output+=count;
+            } else {
+                int count=control+1;
+                if(input+count>encoded.length)
+                    throw new IllegalArgumentException("SCREEN$ RLE: truncated literal sequence");
+                if(output+count>result.length)
+                    throw new IllegalArgumentException("SCREEN$ RLE: decoded screen exceeds 6912 bytes");
+                System.arraycopy(encoded,input,result,output,count);
+                input+=count;
+                output+=count;
+            }
+        }
+        if(output!=result.length)
+            throw new IllegalArgumentException("SCREEN$ RLE: expected 6912 bytes, decoded "+output);
+        return result;
+    }
+
     private static void append(StringBuilder out,String label,byte[] bytes,int from,int to){
         out.append(label).append('\n');
         char[] hex="0123456789ABCDEF".toCharArray();
