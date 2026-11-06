@@ -18,14 +18,15 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     public interface OnBrushChange { void changed(); }
     public interface OnFlagChange { void toggled(boolean isBright,boolean enabled); }
     public interface OnCollapseChange { void changed(boolean collapsed); }
+    public interface OnLockChange { void changed(boolean locked); }
 
     private final boolean ru;
     private final LinearLayout content,compactTools;
     private final TextView[] swatches=new TextView[8];
-    private final Button collapse,pen,eraser,picker,selectionButton;
-    private final Button compactPen,compactEraser,compactPicker;
+    private final Button collapse,pen,eraser,picker,selectionButton,expandedLock;
+    private final Button compactPen,compactEraser,compactPicker,compactLock;
     private final CheckBox bright,flash;
-    private boolean collapsed,applying,applyBright,applyFlash;
+    private boolean collapsed,applying,applyBright,applyFlash,locked=true;
     private int expandedWidth;
     private int inkColor=7,paperColor=0;
     private SpectrumScreenDocument.Side side=SpectrumScreenDocument.Side.INK;
@@ -34,6 +35,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private OnBrushChange listener;
     private OnFlagChange flagListener;
     private OnCollapseChange collapseListener;
+    private OnLockChange lockListener;
 
     public ScreenPaletteOverlay(Context context,boolean russian) {
         super(context);
@@ -45,20 +47,27 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         setBackground(round(0xDFF3F9F4,13,0xB19FC8B1,1));
         setElevation(dp(5));
 
+        LinearLayout paletteHeader=row();
         collapse=button(ru?"▴  Палитра":"▴  Palette",12);
         collapse.setContentDescription(ru?"Свернуть палетку":"Collapse palette");
-        addView(collapse,new LayoutParams(-1,dp(30)));
+        expandedLock=button("🔒",19);
+        paletteHeader.addView(collapse,new LayoutParams(0,dp(30),1f));
+        paletteHeader.addView(expandedLock,new LayoutParams(dp(38),dp(30)));
+        addView(paletteHeader,new LayoutParams(-1,dp(30)));
         collapse.setOnClickListener(v->setCollapsed(!collapsed));
+        expandedLock.setOnClickListener(v->toggleLock());
 
         compactTools=row();
         compactTools.setGravity(Gravity.CENTER);
         compactPen=button("✎",20);
         compactEraser=button("▱",20);
         compactPicker=button("⌖",20);
+        compactLock=button("🔒",18);
         compactPen.setContentDescription(ru?"Перо (INK)":"Pen (INK)");
         compactEraser.setContentDescription(ru?"Ластик (PAPER)":"Eraser (PAPER)");
         compactPicker.setContentDescription(ru?"Пипетка":"Picker");
-        for(Button b:new Button[]{compactPen,compactEraser,compactPicker}) {
+        compactLock.setOnClickListener(v->toggleLock());
+        for(Button b:new Button[]{compactPen,compactEraser,compactPicker,compactLock}) {
             LinearLayout.LayoutParams lp=weighted(0,dp(34));
             lp.setMargins(dp(1),dp(2),dp(1),dp(1));
             compactTools.addView(b,lp);
@@ -135,12 +144,34 @@ public final class ScreenPaletteOverlay extends LinearLayout {
         compactPen.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.DRAW));
         compactEraser.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.ERASE));
         compactPicker.setOnClickListener(v->selectTool(SpectrumScreenDocument.Tool.PICK));
+        refreshLock();
         refresh();
     }
 
     public void setListener(OnBrushChange change){listener=change;notifyBrush();}
     public void setFlagListener(OnFlagChange change){flagListener=change;}
     public void setCollapseListener(OnCollapseChange change){collapseListener=change;}
+    public void setLockListener(OnLockChange change){lockListener=change;}
+    /** Lock state is shared by the Tools tab and full-screen screen editor. */
+    public void setLocked(boolean value){
+        locked=value;
+        refreshLock();
+    }
+    private void toggleLock(){
+        setLocked(!locked);
+        if(lockListener!=null)lockListener.changed(locked);
+    }
+    private void refreshLock(){
+        String icon=locked?"🔒":"🔓";
+        String description=locked
+                ?(ru?"Разблокировать рисование":"Unlock drawing")
+                :(ru?"Заблокировать рисование":"Lock drawing");
+        for(Button button:new Button[]{expandedLock,compactLock}){
+            button.setText(icon);
+            button.setContentDescription(description);
+            applyModeStyle(button,!locked);
+        }
+    }
     private void notifyBrush(){if(listener!=null)listener.changed();}
     public SpectrumScreenDocument.Side side(){return side;}
     public SpectrumScreenDocument.Tool tool(){return tool;}
@@ -178,7 +209,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     private void updateWidth(){
         android.view.ViewGroup.LayoutParams layout=getLayoutParams();
         if(layout!=null) {
-            layout.width=collapsed?dp(136):expandedWidth;
+            layout.width=collapsed?dp(168):expandedWidth;
             setLayoutParams(layout);
         }
     }
