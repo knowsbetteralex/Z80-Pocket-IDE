@@ -58,7 +58,7 @@ public final class ScreenAsmCodecTest {
         }
         assertThrows(IllegalArgumentException.class,
                 ()->ScreenAsmCodec.decodeRle(overflow));
-        String marked="; Z80_POCKET_IDE_SCREEN_RLE_V1\\nSCREEN_RLE: DB $80\\n";
+        String marked="; Z80_POCKET_IDE_SCREEN_RLE_V1\nSCREEN_RLE: DB $80\n";
         assertThrows(IllegalArgumentException.class,()->ScreenAsmCodec.importScreen(marked));
     }
 
