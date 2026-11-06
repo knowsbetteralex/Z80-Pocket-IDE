@@ -89,3 +89,26 @@ RLE packs the raw bitmap and attributes together, preserving each byte.
 The screen edit lock is inside the palette header when expanded, and it is
 the fourth tool in the collapsed palette beside pen, eraser and picker.
 Both controls share the same locked/unlocked state with the Tools tab.
+
+## Legacy / SpaceCan zero-escape RLE
+
+The importer also supports the SpaceCan variant whose ASM header declares:
+
+```asm
+; Escape: 00,count,byte = repeat; all nonzero bytes are literals.
+SPACE_CAN_SCREEN_RLE:
+    DB #CC,#CC,#CC,#80,#00,#19,#00
+```
+
+In this format, every byte other than zero represents itself; a zero introduces
+a three-byte run `00,count,value` where `count` is 1–255. The importer must
+expand exactly 6912 bytes, and rejects truncated/overflow/zero-count streams.
+Unlike our original RLE v1, there are **no literal-length control bytes**.
+
+On Save, this format is preserved with its original data/end labels when
+available. Save As also offers **.asm (RLE 00)**. Newly exported files contain
+`Z80_POCKET_IDE_SCREEN_RLE_ZERO_V1` as their explicit format marker, plus
+the compatibility comment shown above. Other ASM screens are unchanged.
+
+For a Z80 game, the legacy SpaceCan RLE file requires a **zero-escape**
+decoder, not the `UNPACK_SCREEN` decoder above (which is for RLE v1).
