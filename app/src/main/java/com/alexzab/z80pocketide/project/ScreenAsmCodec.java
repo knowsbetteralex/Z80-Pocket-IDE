@@ -11,6 +11,7 @@ public final class ScreenAsmCodec {
     private static final Pattern LABEL=Pattern.compile("(?i)^"+NAME+":(?:\\s+.*)?$");
     private static final Pattern EQU=Pattern.compile("(?i)^"+NAME+"\\s+EQU\\s+.+$");
     private static final String RLE_MARKER="; Z80_POCKET_IDE_SCREEN_RLE_V1";
+    private static final String ZERO_RLE_MARKER="; Z80_POCKET_IDE_SCREEN_RLE_ZERO_V1";
     private ScreenAsmCodec() {}
 
     /** Only a dedicated marker enables RLE decoding; ordinary DB/DEFB ASM stays raw. */
@@ -19,6 +20,32 @@ public final class ScreenAsmCodec {
         for(String line:source.replace("\r","").split("\n"))
             if(line.trim().equals(RLE_MARKER))return true;
         return false;
+    }
+
+    /** SpaceCan-style escape RLE: 00,count,value is a run; all nonzero bytes are literals. */
+    public static boolean isZeroEscapeRleScreen(String source) {
+        if(source==null)return false;
+        for(String line:source.replace("\r","").split("\n")) {
+            String comment=line.trim().toLowerCase(Locale.ROOT);
+            if(comment.equals(ZERO_RLE_MARKER.toLowerCase(Locale.ROOT)))return true;
+            if(comment.startsWith(";") && comment.contains("escape: 00,count,byte = repeat")
+                    && comment.contains("all nonzero bytes are literals"))return true;
+        }
+        return false;
+    }
+
+    /** Keep existing labels when overwriting an imported Zero-RLE ASM screen. */
+    public static String[] zeroEscapeLabels(String source) {
+        String[] labels=new String[2];
+        if(source==null)return labels;
+        for(String line:source.replace("\r","").split("\n")) {
+            String code=stripComment(line).trim();
+            if(!LABEL.matcher(code).matches())continue;
+            String label=code.substring(0,code.indexOf(':'));
+            if(labels[0]==null)labels[0]=label;
+            else if(labels[1]==null){labels[1]=label;break;}
+        }
+        return labels;
     }
 
     public static byte[] importScreen(String source) {
@@ -53,6 +80,7 @@ public final class ScreenAsmCodec {
         }
         byte[] bytes=new Assembler().assemble(normalized.toString()).getBytes();
         if(isRleScreen(source))return decodeRle(bytes);
+        if(isZeroEscapeRleScreen(source))return decodeZeroEscapeRle(bytes);
         if(bytes.length!=SpectrumScreen.LENGTH)
             throw new IllegalArgumentException("SCREEN$ ASM must assemble to 6912 bytes, got "+bytes.length);
         return bytes;
@@ -86,6 +114,68 @@ public final class ScreenAsmCodec {
         out.append("; Compact data stream only; decompress before displaying the screen.\n");
         append(out,"SCREEN_RLE:",encoded,0,encoded.length);
         return out.toString();
+    }
+
+    /** Export the same zero-escape format used by SpaceCan artwork.asm. */
+    public static String exportZeroEscapeRleScreen(byte[] bytes,String dataLabel,String endLabel) {
+        if(bytes==null||bytes.length!=SpectrumScreen.LENGTH)
+            throw new IllegalArgumentException("Expected exactly 6912 bytes");
+        if(dataLabel==null)dataLabel="SCREEN_RLE_ZERO";
+        if(endLabel==null)endLabel="SCREEN_RLE_ZERO_END";
+        if(!dataLabel.matches(NAME)||!endLabel.matches(NAME)||dataLabel.equalsIgnoreCase(endLabel))
+            throw new IllegalArgumentException("Invalid screen ASM labels");
+        byte[] encoded=encodeZeroEscapeRle(bytes);
+        StringBuilder out=new StringBuilder(encoded.length*5+220);
+        out.append(ZERO_RLE_MARKER).append('\n');
+        out.append("; Escape: 00,count,byte = repeat; all nonzero bytes are literals.\n");
+        out.append("; Expands to 6144 bitmap + 768 attributes at $4000.\n");
+        append(out,dataLabel+":",encoded,0,encoded.length);
+        out.append(endLabel).append(":\n");
+        return out.toString();
+    }
+
+    static byte[] encodeZeroEscapeRle(byte[] bytes) {
+        ByteArrayOutputStream out=new ByteArrayOutputStream();
+        for(int i=0;i<bytes.length;) {
+            int count=1;
+            while(count<255 && i+count<bytes.length && bytes[i+count]==bytes[i])count++;
+            int value=bytes[i]&255;
+            if(value==0 || count>=4) {
+                out.write(0);out.write(count);out.write(value);
+                i+=count;
+            }else {
+                for(int j=0;j<count;j++)out.write(value);
+                i+=count;
+            }
+        }
+        return out.toByteArray();
+    }
+
+    static byte[] decodeZeroEscapeRle(byte[] encoded) {
+        byte[] decoded=new byte[SpectrumScreen.LENGTH];
+        int i=0,pos=0;
+        while(i<encoded.length) {
+            int value=encoded[i++]&255;
+            if(value!=0) {
+                if(pos>=decoded.length)
+                    throw new IllegalArgumentException("Zero-escape RLE: decoded screen exceeds 6912 bytes");
+                decoded[pos++]=(byte)value;
+            }else {
+                if(i+2>encoded.length)
+                    throw new IllegalArgumentException("Zero-escape RLE: incomplete 00,count,byte sequence");
+                int count=encoded[i++]&255;
+                byte repeated=encoded[i++];
+                if(count==0)
+                    throw new IllegalArgumentException("Zero-escape RLE: zero repeat count");
+                if(pos+count>decoded.length)
+                    throw new IllegalArgumentException("Zero-escape RLE: decoded screen exceeds 6912 bytes");
+                java.util.Arrays.fill(decoded,pos,pos+count,repeated);
+                pos+=count;
+            }
+        }
+        if(pos!=decoded.length)
+            throw new IllegalArgumentException("Zero-escape RLE: expected 6912 bytes, decoded "+pos);
+        return decoded;
     }
 
     static byte[] encodeRle(byte[] bytes) {
@@ -158,6 +248,7 @@ public final class ScreenAsmCodec {
             out.append('$').append(hex[value>>4]).append(hex[value&15]);
             if((i-from)%16==15)out.append('\n');
         }
+        if((to-from)%16!=0)out.append('\n');
     }
 
     private static String stripComment(String line) {
