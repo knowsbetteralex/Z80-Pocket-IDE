@@ -198,6 +198,7 @@ public final class ScreenPaletteOverlay extends LinearLayout {
     public void setCollapsed(boolean value){
         collapsed=value;
         content.setVisibility(value?View.GONE:View.VISIBLE);
+        expandedLock.setVisibility(value?View.GONE:View.VISIBLE);
         compactTools.setVisibility(value?View.VISIBLE:View.GONE);
         collapse.setText(value?"▾":(ru?"▴  Палитра":"▴  Palette"));
         collapse.setContentDescription(value?
