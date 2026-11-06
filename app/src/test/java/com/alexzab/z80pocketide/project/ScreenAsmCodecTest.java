@@ -76,7 +76,47 @@ public final class ScreenAsmCodecTest {
         assertArrayEquals(screen,ScreenAsmCodec.importScreen(asm));
 
         // The older SpaceCan file identifies the codec by its comment (no IDE marker).
-        String legacy=asm.replace("; Z80_POCKET_IDE_SCREEN_RLE_ZERO_V1\\n","");
+        String legacy=asm.replace("; Z80_POCKET_IDE_SCREEN_RLE_ZERO_V1\n","")
+                .replace('
+        assertTrue(ScreenAsmCodec.isZeroEscapeRleScreen(legacy));
+        assertArrayEquals(screen,ScreenAsmCodec.importScreen(legacy));
+        assertFalse(ScreenAsmCodec.isZeroEscapeRleScreen(ScreenAsmCodec.exportScreen(screen)));
+    }
+
+    @Test public void zeroEscapeMalformedStreamIsRejected() {
+        assertThrows(IllegalArgumentException.class,
+                ()->ScreenAsmCodec.decodeZeroEscapeRle(new byte[]{0}));
+        assertThrows(IllegalArgumentException.class,
+                ()->ScreenAsmCodec.decodeZeroEscapeRle(new byte[]{0,3}));
+        assertThrows(IllegalArgumentException.class,
+                ()->ScreenAsmCodec.decodeZeroEscapeRle(new byte[]{0,0,3}));
+        assertThrows(IllegalArgumentException.class,
+                ()->ScreenAsmCodec.decodeZeroEscapeRle(new byte[]{1,2,3}));
+        byte[] overflow=new byte[28*3];
+        for(int i=0;i<overflow.length;i+=3) {
+            overflow[i]=0;overflow[i+1]=(byte)255;overflow[i+2]=7;
+        }
+        assertThrows(IllegalArgumentException.class,
+                ()->ScreenAsmCodec.decodeZeroEscapeRle(overflow));
+    }
+
+    @Test public void zeroEscapeByteCodecHandlesBoundaryRunLengths() {
+        byte[] screen=new byte[6912];
+        java.util.Arrays.fill(screen,0,256,(byte)1);
+        java.util.Arrays.fill(screen,256,514,(byte)0);
+        for(int i=514;i<screen.length;i++)
+            screen[i]=(byte)(i%3==0?0:(i%3+1));
+        assertArrayEquals(screen,ScreenAsmCodec.decodeZeroEscapeRle(
+                ScreenAsmCodec.encodeZeroEscapeRle(screen)));
+    }
+
+    @Test public void rejectsInstructionsUnsupportedIncludesAndShortData() {
+        for(String source:new String[]{"LD A,1\n","INCLUDE \"other.asm\"\n","DB 1\n","ORG 16384\n"}) {
+            assertThrows(IllegalArgumentException.class,()->ScreenAsmCodec.importScreen(source));
+        }
+    }
+}
+,'#'); // SpaceCan uses #AB instead of $AB hex values.
         assertTrue(ScreenAsmCodec.isZeroEscapeRleScreen(legacy));
         assertArrayEquals(screen,ScreenAsmCodec.importScreen(legacy));
         assertFalse(ScreenAsmCodec.isZeroEscapeRleScreen(ScreenAsmCodec.exportScreen(screen)));
