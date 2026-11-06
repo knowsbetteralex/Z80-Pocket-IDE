@@ -28,7 +28,8 @@ public final class ScreenEditorActivity extends Activity {
     private static final int OPEN=801,CREATE=802;
     private static final String STATE_SCREEN="scr_bytes",STATE_SAVED="scr_saved";
     private static final String STATE_URI="scr_uri",STATE_NAME="scr_name",STATE_ASM="scr_asm";
-    private static final String STATE_RLE="scr_rle";
+    private static final String STATE_RLE="scr_rle",STATE_RLE_ZERO="scr_rle_zero";
+    private static final String STATE_DATA_LABEL="scr_data_label",STATE_END_LABEL="scr_end_label";
     private static final String STATE_SCALE="scr_scale",STATE_CENTER_X="scr_center_x";
     private static final String STATE_CENTER_Y="scr_center_y",STATE_COLLAPSED="scr_collapsed";
     private static final String STATE_LOCKED="scr_locked",STATE_LANDSCAPE="scr_landscape";
@@ -44,7 +45,8 @@ public final class ScreenEditorActivity extends Activity {
         ScreenSelection selection=new ScreenSelection();
         Uri uri;
         String title="untitled.scr",projectPath;
-        boolean importedAsm,asmRle,locked=true,landscape,collapsed;
+        boolean importedAsm,asmRle,asmZeroRle,locked=true,landscape,collapsed;
+        String asmDataLabel,asmEndLabel;
         float zoomFactor=1,centerX=128,centerY=96;
         SpectrumScreenDocument.Tool tool=SpectrumScreenDocument.Tool.DRAW;
         SpectrumScreenDocument.Tool previousTool=SpectrumScreenDocument.Tool.DRAW;
@@ -253,7 +255,8 @@ public final class ScreenEditorActivity extends Activity {
         if(state==null||title==null)return;
         boolean dirty=state.history.isDirty(state.doc);
         title.setText((dirty?"● ":"")+state.title+
-                (state.importedAsm?(state.asmRle?" · ASM RLE":" · ASM"):""));
+                (state.importedAsm?(state.asmZeroRle?" · ASM RLE 00":
+                        state.asmRle?" · ASM RLE":" · ASM"):""));
         undo.setEnabled(state.history.canUndo()&&!state.selection.preview());
         redo.setEnabled(state.history.canRedo()&&!state.selection.preview());
         if(selectionBar!=null)selectionBar.refresh();
@@ -329,11 +332,17 @@ public final class ScreenEditorActivity extends Activity {
         String lower=path.toLowerCase(Locale.ROOT);
         byte[] bytes;
         boolean asm=lower.endsWith(".asm")||lower.endsWith(".z80")||lower.endsWith(".s");
-        boolean rle=false;
+        boolean rle=false,zeroRle=false;
+        String dataLabel=null,endLabel=null;
         if(asm) {
             byte[] data=readBounded(uri,500000);
             String source=new String(data,StandardCharsets.UTF_8);
             rle=ScreenAsmCodec.isRleScreen(source);
+            zeroRle=ScreenAsmCodec.isZeroEscapeRleScreen(source);
+            if(zeroRle) {
+                String[] labels=ScreenAsmCodec.zeroEscapeLabels(source);
+                dataLabel=labels[0];endLabel=labels[1];
+            }
             bytes=ScreenAsmCodec.importScreen(source);
         }else if(lower.endsWith(".scr")||lower.endsWith(".bin")){
             bytes=readBounded(uri,6913);
@@ -347,6 +356,8 @@ public final class ScreenEditorActivity extends Activity {
         state.projectPath=projectPath;
         state.importedAsm=asm;
         state.asmRle=rle;
+        state.asmZeroRle=zeroRle;
+        state.asmDataLabel=dataLabel;state.asmEndLabel=endLabel;
         state.title=filename;
         state.zoomFactor=1;
         state.centerX=128;state.centerY=96;
@@ -396,7 +407,8 @@ public final class ScreenEditorActivity extends Activity {
             return;
         }
         if(state.uri==null){chooseSaveAs();return;}
-        write(state.uri,state.importedAsm?(state.asmRle?"asm-rle":"asm"):"binary",false);
+        write(state.uri,state.importedAsm?(state.asmZeroRle?"asm-rle-zero":
+                state.asmRle?"asm-rle":"asm"):"binary",false);
     }
     private void chooseSaveAs(){
         if(state.selection.preview()){
@@ -405,12 +417,14 @@ public final class ScreenEditorActivity extends Activity {
             return;
         }
         String[] options=ru?new String[]{"Сохранить .scr","Сохранить .bin",
-                        "Сохранить .asm","Сохранить .asm (RLE)"}
-                :new String[]{"Save .scr","Save .bin","Save .asm","Save .asm (RLE)"};
+                        "Сохранить .asm","Сохранить .asm (RLE)","Сохранить .asm (RLE 00)"}
+                :new String[]{"Save .scr","Save .bin","Save .asm",
+                        "Save .asm (RLE)","Save .asm (RLE 00)"};
         new AlertDialog.Builder(this)
                 .setTitle(ru?"Выберите формат":"Choose format")
                 .setItems(options,(dialog,which)->{
-                    creatingType=which==3?"asm-rle":which==2?"asm":which==1?"bin":"scr";
+                    creatingType=which==4?"asm-rle-zero":which==3?"asm-rle":
+                            which==2?"asm":which==1?"bin":"scr";
                     Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
                     intent.setType(which>=2?"text/x-asm":"application/octet-stream");
@@ -418,7 +432,7 @@ public final class ScreenEditorActivity extends Activity {
                     int dot=filename.lastIndexOf('.');
                     if(dot>0)filename=filename.substring(0,dot);
                     intent.putExtra(Intent.EXTRA_TITLE,filename+"."+
-                            (creatingType.equals("asm-rle")?"asm":creatingType));
+                            (creatingType.startsWith("asm-rle")?"asm":creatingType));
                     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|
                             Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
                     startActivityForResult(intent,CREATE);
@@ -426,7 +440,11 @@ public final class ScreenEditorActivity extends Activity {
     }
     private void write(Uri uri,String kind,boolean newFile){
         try {
-            byte[] data=kind.equals("asm-rle")
+            byte[] data=kind.equals("asm-rle-zero")
+                    ?ScreenAsmCodec.exportZeroEscapeRleScreen(state.doc.toRaw(),
+                        state.asmZeroRle?state.asmDataLabel:null,
+                        state.asmZeroRle?state.asmEndLabel:null).getBytes(StandardCharsets.UTF_8)
+                    :kind.equals("asm-rle")
                     ?ScreenAsmCodec.exportRleScreen(state.doc.toRaw()).getBytes(StandardCharsets.UTF_8)
                     :kind.equals("asm")
                     ?ScreenAsmCodec.exportScreen(state.doc.toRaw()).getBytes(StandardCharsets.UTF_8)
@@ -437,8 +455,15 @@ public final class ScreenEditorActivity extends Activity {
                 stream.flush();
             }
             state.uri=uri;
-            state.importedAsm=kind.equals("asm")||kind.equals("asm-rle");
+            state.importedAsm=kind.startsWith("asm");
             state.asmRle=kind.equals("asm-rle");
+            state.asmZeroRle=kind.equals("asm-rle-zero");
+            if(state.asmZeroRle) {
+                if(state.asmDataLabel==null)state.asmDataLabel="SCREEN_RLE_ZERO";
+                if(state.asmEndLabel==null)state.asmEndLabel="SCREEN_RLE_ZERO_END";
+            }else {
+                state.asmDataLabel=null;state.asmEndLabel=null;
+            }
             if(newFile)state.projectPath=null;
             state.title=displayName(uri);
             state.history.markSaved(state.doc);
@@ -547,6 +572,9 @@ public final class ScreenEditorActivity extends Activity {
         out.putString(EXTRA_PROJECT_PATH,state.projectPath);
         out.putBoolean(STATE_ASM,state.importedAsm);
         out.putBoolean(STATE_RLE,state.asmRle);
+        out.putBoolean(STATE_RLE_ZERO,state.asmZeroRle);
+        out.putString(STATE_DATA_LABEL,state.asmDataLabel);
+        out.putString(STATE_END_LABEL,state.asmEndLabel);
         out.putBoolean(STATE_LOCKED,state.locked);
         out.putBoolean(STATE_COLLAPSED,state.collapsed);
         out.putBoolean(STATE_LANDSCAPE,state.landscape);
@@ -578,6 +606,9 @@ public final class ScreenEditorActivity extends Activity {
         state.projectPath=b.getString(EXTRA_PROJECT_PATH);
         state.importedAsm=b.getBoolean(STATE_ASM);
         state.asmRle=b.getBoolean(STATE_RLE);
+        state.asmZeroRle=b.getBoolean(STATE_RLE_ZERO);
+        state.asmDataLabel=b.getString(STATE_DATA_LABEL);
+        state.asmEndLabel=b.getString(STATE_END_LABEL);
         state.locked=b.getBoolean(STATE_LOCKED,true);
         state.collapsed=b.getBoolean(STATE_COLLAPSED);
         state.landscape=b.getBoolean(STATE_LANDSCAPE);
