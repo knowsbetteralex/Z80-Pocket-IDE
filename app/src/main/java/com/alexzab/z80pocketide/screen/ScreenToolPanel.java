@@ -25,7 +25,7 @@ public final class ScreenToolPanel extends LinearLayout {
     private ScreenPaletteOverlay palette;
     private ScreenSelectionBar selectionBar;
     private final TextView title,hint;
-    private final Button lock,undo,redo;
+    private final Button undo,redo;
 
     public ScreenToolPanel(Activity activity,boolean ru){
         super(activity);
@@ -53,8 +53,7 @@ public final class ScreenToolPanel extends LinearLayout {
         undo=button("↶",ru?"Отменить":"Undo");
         redo=button("↷",ru?"Повторить":"Redo");
         Button fit=button("⊡",ru?"Вписать":"Fit");
-        lock=button("🔒",ru?"Блокировка":"Lock");
-        for(Button b:new Button[]{open,save,undo,redo,fit,lock}) {
+        for(Button b:new Button[]{open,save,undo,redo,fit}) {
             UiStyle.styleSoftGreenButton(b);
             LayoutParams lp=new LayoutParams(0,dp(43),1f);
             lp.setMargins(dp(1),0,dp(1),0);
@@ -74,12 +73,6 @@ public final class ScreenToolPanel extends LinearLayout {
             }
         });
         fit.setOnClickListener(v->canvas.fitToScreen());
-        lock.setOnClickListener(v->{
-            session.locked=!session.locked;
-            canvas.setLocked(session.locked);
-            refreshTitle();
-        });
-
         FrameLayout canvasHolder=new FrameLayout(activity);
         LayoutParams frameParams=new LayoutParams(-1,dp(390));
         frameParams.setMargins(0,dp(6),0,dp(3));
@@ -115,6 +108,12 @@ public final class ScreenToolPanel extends LinearLayout {
                 session.inkColor,session.paperColor,
                 session.bright,session.flash,session.applyBright,session.applyFlash);
         palette.setPreviousTool(session.previousTool);
+        palette.setLocked(session.locked);
+        palette.setLockListener(locked->{
+            session.locked=locked;
+            canvas.setLocked(locked);
+            refreshTitle();
+        });
         palette.setListener(()->{
             session.tool=palette.tool();
             session.previousTool=palette.previousTool();
@@ -159,6 +158,7 @@ public final class ScreenToolPanel extends LinearLayout {
                 session.inkColor,session.paperColor,
                 session.bright,session.flash,session.applyBright,session.applyFlash);
         palette.setPreviousTool(session.previousTool);
+        palette.setLocked(session.locked);
         palette.setCollapsed(session.collapsed);
         if(selectionBar!=null)selectionBar.bind(session);
         refreshTitle();
@@ -181,7 +181,6 @@ public final class ScreenToolPanel extends LinearLayout {
     private void refreshTitle(){
         title.setText((session.history.isDirty(session.doc)?"● ":"")
                 +(ru?"Экран":"Screen")+" · "+session.title);
-        lock.setText(session.locked?"🔒":"🔓");
         undo.setEnabled(session.history.canUndo()&&!session.selection.preview());
         redo.setEnabled(session.history.canRedo()&&!session.selection.preview());
         if(selectionBar!=null)selectionBar.refresh();
