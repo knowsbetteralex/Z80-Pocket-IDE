@@ -253,7 +253,7 @@ public final class ScreenEditorActivity extends Activity {
         if(state==null||title==null)return;
         boolean dirty=state.history.isDirty(state.doc);
         title.setText((dirty?"● ":"")+state.title+
-                (state.importedAsm?(ru?" · импорт ASM":" · ASM import"):""));
+                (state.importedAsm?(state.asmRle?" · ASM RLE":" · ASM"):""));
         undo.setEnabled(state.history.canUndo()&&!state.selection.preview());
         redo.setEnabled(state.history.canRedo()&&!state.selection.preview());
         if(selectionBar!=null)selectionBar.refresh();
@@ -413,7 +413,7 @@ public final class ScreenEditorActivity extends Activity {
                     creatingType=which==3?"asm-rle":which==2?"asm":which==1?"bin":"scr";
                     Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType(which>=2?"text/plain":"application/octet-stream");
+                    intent.setType(which>=2?"text/x-asm":"application/octet-stream");
                     String filename=state.title;
                     int dot=filename.lastIndexOf('.');
                     if(dot>0)filename=filename.substring(0,dot);
