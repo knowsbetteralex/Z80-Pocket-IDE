@@ -248,6 +248,7 @@ public final class ScreenAsmCodec {
             out.append('$').append(hex[value>>4]).append(hex[value&15]);
             if((i-from)%16==15)out.append('\n');
         }
+        if((to-from)%16!=0)out.append('\n');
     }
 
     private static String stripComment(String line) {
