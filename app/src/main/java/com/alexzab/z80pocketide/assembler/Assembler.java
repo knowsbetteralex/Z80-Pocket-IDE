@@ -37,6 +37,7 @@ public final class Assembler {
                     case "DB": pc += dataBytes(h.tail,line.number).size; break;
                     case "DW": pc += splitArgs(h.tail).length*2; break;
                     case "DS": pc += dsCount(h.tail,symbols,line.number); break;
+                    case "ASSERT": break; // evaluate after all labels and EQU are known
                     default: pc += Z80Encoder.size(line.code); break;
                 }
             } catch (IllegalArgumentException ex) { throw wrap(line.number,ex); }
@@ -63,6 +64,10 @@ public final class Assembler {
                     while (pc<next) { out.write(0); pc++; }
                     continue;
                 }
+                if (h.op.equals("ASSERT")) {
+                    checkAssertion(h.tail,symbols,pc,line.number);
+                    continue; // zero bytes, no timing, no change to current address
+                }
                 started=true;
                 byte[] encoded;
                 switch (h.op) {
@@ -85,6 +90,35 @@ public final class Assembler {
         }
         return new AssemblyResult(originSeen?origin:0,out.toByteArray(),
                 lineSizes, lineMinCycles, lineMaxCycles, instructions);
+    }
+
+    /**
+     * SjASMPlus-compatible assertion: ASSERT expression[, description].
+     * Runs during the second pass so labels defined later in the file work too.
+     * An unadorned $ refers to the current assembly address (not a hex literal).
+     */
+    private static void checkAssertion(String args, Map<String,Integer> symbols,
+                                       int address,int line) {
+        String[] fields=splitArgs(args);
+        if (fields.length<1 || fields.length>2 || fields[0].trim().isEmpty()
+                || (fields.length==2 && fields[1].trim().isEmpty()))
+            throw error(line,"ASSERT expects expression[, description]");
+        String expression=fields[0].trim();
+        Map<String,Integer> context=new HashMap<>(symbols);
+        context.put("$",address);
+        int value=evalRequired(expression,context,line);
+        if (value==0) {
+            String message="ASSERT failed: "+expression;
+            if (fields.length==2) {
+                String note=fields[1].trim();
+                if (note.length()>=2 &&
+                        ((note.startsWith("\"")&&note.endsWith("\""))
+                                ||(note.startsWith("'")&&note.endsWith("'"))))
+                    note=unescape(note.substring(1,note.length()-1));
+                message+=" — "+note;
+            }
+            throw error(line,message);
+        }
     }
 
     private static void defineEqu(ParsedLine line, Map<String,Integer> symbols, Map<String,String> pending) {
