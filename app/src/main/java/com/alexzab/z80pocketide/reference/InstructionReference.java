@@ -140,7 +140,8 @@ public final class InstructionReference {
             e("EQU", "Directive", "name EQU expression", "assembler directive", "—", "—", "Define a constant symbol."),
             e("DB", "Directive", "DB value,... | DB \"text\"", "assembler directive", "—", "—", "Emit bytes or string data."),
             e("DW", "Directive", "DW value,...", "assembler directive", "—", "—", "Emit little-endian 16-bit words."),
-            e("DS", "Directive", "DS count[,fill]", "assembler directive", "—", "—", "Reserve/fill a number of bytes.")
+            e("DS", "Directive", "DS count[,fill]", "assembler directive", "—", "—", "Reserve/fill a number of bytes."),
+            e("ASSERT", "Directive", "ASSERT expression[, description]", "assembler directive", "—", "—", "Fail assembly if expression is zero; accepts forward labels and current address $.")
     ));
 
     private InstructionReference() {}
