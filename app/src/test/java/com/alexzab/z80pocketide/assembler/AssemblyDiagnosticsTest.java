@@ -25,4 +25,13 @@ public class AssemblyDiagnosticsTest {
     public void reportsNothingForValidSource() {
         assertTrue(AssemblyDiagnostics.collect("ORG $8000\n    LD A,1\n    RET\n",8).isEmpty());
     }
+
+    @Test
+    public void reportsAssertViolationAndKeepsItsLineNumber() {
+        String source="ORG $8000\nASSERT 0, \"must fit\"\nLD A,1\n";
+        List<AssemblyDiagnostics.Issue> issues=AssemblyDiagnostics.collect(source,5);
+        assertEquals(1,issues.size());
+        assertEquals(2,issues.get(0).line);
+        assertTrue(issues.get(0).message.contains("must fit"));
+    }
 }
