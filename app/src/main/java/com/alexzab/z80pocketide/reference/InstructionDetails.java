@@ -249,6 +249,9 @@ public final class InstructionDetails {
         add("ASSERT",unchanged,v("ASSERT expression[, description]","—",
                 "Check a compile-time condition: zero stops assembly with a line-specific error; emits no bytes.",
                 "Проверяет условие во время сборки: ноль вызывает ошибку со строкой исходника; байты не генерируются."));
+        add("INCBIN",unchanged,v("INCBIN \"file\"[,offset[,length]]","—",
+                "Embed binary file bytes directly in the output; source-relative SAF project path.",
+                "Вставляет байты двоичного файла из папки проекта; путь относительно ASM-файла."));
     }
 
     public static List<Variant> variants(InstructionReference.Entry entry) {
