@@ -189,6 +189,24 @@ public final class AndroidIncludeFiles {
         }
     }
 
+    /** Read an INCBIN source as bytes rather than UTF-8 text. */
+    public static byte[] loadBinary(Context context, EditorDocument root, String path) throws Exception {
+        Uri uri=locate(context,root,path);
+        if(uri==null)return null;
+        try(InputStream input=context.getContentResolver().openInputStream(uri)){
+            if(input==null)throw new IOException("INCBIN cannot open: "+path);
+            ByteArrayOutputStream out=new ByteArrayOutputStream();
+            byte[] part=new byte[8192];
+            int n;
+            while((n=input.read(part))!=-1){
+                out.write(part,0,n);
+                if(out.size()>512*1024)
+                    throw new IOException("INCBIN file too large (max 512 KiB): "+path);
+            }
+            return out.toByteArray();
+        }
+    }
+
     public static String load(Context context,EditorDocument root,String path,
                               Map<String,String> opened) throws Exception{
         if(opened.containsKey(path))return opened.get(path);
