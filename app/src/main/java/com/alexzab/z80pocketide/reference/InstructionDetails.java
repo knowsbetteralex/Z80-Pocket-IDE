@@ -246,6 +246,9 @@ public final class InstructionDetails {
             v("DB \"text\"","—","Emit character bytes of a quoted string.","Помещает байты строковой константы."));
         add("DW",unchanged,v("DW value,...","—","Emit 16-bit words little-endian (low byte first).","Помещает 16-битные слова младшим байтом вперёд."));
         add("DS",unchanged,v("DS count[,fill]","—","Reserve count bytes, optionally fill with constant byte.","Резервирует count байтов с необязательным заполнением."));
+        add("ASSERT",unchanged,v("ASSERT expression[, description]","—",
+                "Check a compile-time condition: zero stops assembly with a line-specific error; emits no bytes.",
+                "Проверяет условие во время сборки: ноль вызывает ошибку со строкой исходника; байты не генерируются."));
     }
 
     public static List<Variant> variants(InstructionReference.Entry entry) {

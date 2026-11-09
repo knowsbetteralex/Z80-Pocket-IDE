@@ -111,6 +111,26 @@ public final class ScreenAsmCodecTest {
                 ScreenAsmCodec.encodeZeroEscapeRle(screen)));
     }
 
+    @Test public void screenAsmMayAssertRawLengthWithoutEmittingBytes() {
+        StringBuilder asm=new StringBuilder("SCREEN_BITMAP:\n");
+        for(int i=0;i<6912;i++)asm.append("DB 0\n");
+        asm.append("SCREEN_END:\n");
+        asm.append("ASSERT SCREEN_END - SCREEN_BITMAP == 6912, \"full SCREEN$\"\n");
+        byte[] bytes=ScreenAsmCodec.importScreen(asm.toString());
+        assertEquals(6912,bytes.length);
+        String invalid=asm.toString().replace("== 6912","== 7000");
+        IllegalArgumentException e=assertThrows(IllegalArgumentException.class,
+                ()->ScreenAsmCodec.importScreen(invalid));
+        assertTrue(e.getMessage(),e.getMessage().contains("ASSERT failed"));
+    }
+
+    @Test public void compressedScreenAsmMayAssertCompressedLength() {
+        byte[] screen=new byte[6912];
+        String asm=ScreenAsmCodec.exportZeroEscapeRleScreen(screen,"SCREEN_DATA","SCREEN_DATA_END");
+        asm += "ASSERT SCREEN_DATA_END - SCREEN_DATA > 0\n";
+        assertArrayEquals(screen,ScreenAsmCodec.importScreen(asm));
+    }
+
     @Test public void rejectsInstructionsUnsupportedIncludesAndShortData() {
         for(String source:new String[]{"LD A,1\n","INCLUDE \"other.asm\"\n","DB 1\n","ORG 16384\n"}) {
             assertThrows(IllegalArgumentException.class,()->ScreenAsmCodec.importScreen(source));

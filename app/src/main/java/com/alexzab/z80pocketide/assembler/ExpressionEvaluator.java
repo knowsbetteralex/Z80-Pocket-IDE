@@ -16,17 +16,50 @@ final class ExpressionEvaluator {
 
     static int eval(String expression, Map<String, Integer> symbols) {
         ExpressionEvaluator p = new ExpressionEvaluator(expression, symbols);
-        int value = p.parseOr();
+        int value = p.parseLogicalOr();
         p.skipWs();
         if (!p.eof()) throw new IllegalArgumentException("unexpected '" + p.peek() + "' in expression");
         return value;
+    }
+
+    /** Comparisons are numeric: true = 1, false = 0. Logical operators bind lower. */
+    private int parseLogicalOr() {
+        int v = parseLogicalAnd();
+        while (true) {
+            skipWs();
+            if (match("||")) v = (parseLogicalAnd()!=0 || v!=0) ? 1 : 0;
+            else return v;
+        }
+    }
+
+    private int parseLogicalAnd() {
+        int v = parseComparison();
+        while (true) {
+            skipWs();
+            if (match("&&")) v = (parseComparison()!=0 && v!=0) ? 1 : 0;
+            else return v;
+        }
+    }
+
+    private int parseComparison() {
+        int v = parseOr();
+        while (true) {
+            skipWs();
+            if (match("==") || match("=")) v = v == parseOr() ? 1 : 0;
+            else if (match("!=") || match("<>")) v = v != parseOr() ? 1 : 0;
+            else if (match("<=")) v = v <= parseOr() ? 1 : 0;
+            else if (match(">=")) v = v >= parseOr() ? 1 : 0;
+            else if (match("<")) v = v < parseOr() ? 1 : 0;
+            else if (match(">")) v = v > parseOr() ? 1 : 0;
+            else return v;
+        }
     }
 
     private int parseOr() {
         int v = parseXor();
         while (true) {
             skipWs();
-            if (match('|')) v |= parseXor(); else return v;
+            if (!text.startsWith("||",pos) && match('|')) v |= parseXor(); else return v;
         }
     }
 
@@ -42,7 +75,7 @@ final class ExpressionEvaluator {
         int v = parseShift();
         while (true) {
             skipWs();
-            if (match('&')) v &= parseShift(); else return v;
+            if (!text.startsWith("&&",pos) && match('&')) v &= parseShift(); else return v;
         }
     }
 
@@ -88,13 +121,14 @@ final class ExpressionEvaluator {
         if (match('+')) return parseUnary();
         if (match('-')) return -parseUnary();
         if (match('~')) return ~parseUnary();
+        if (match('!')) return parseUnary()==0 ? 1 : 0;
         return parsePrimary();
     }
 
     private int parsePrimary() {
         skipWs();
         if (match('(')) {
-            int v = parseOr();
+            int v = parseLogicalOr();
             skipWs();
             if (!match(')')) throw new IllegalArgumentException("missing ')' in expression");
             return v;
@@ -103,6 +137,12 @@ final class ExpressionEvaluator {
 
         if (peek() == '\'') return parseCharacterLiteral();
 
+        if (peek() == '$' && (pos+1==text.length() || !isHex(text.charAt(pos+1)))) {
+            pos++;
+            Integer address=symbols.get("$");
+            if(address==null)throw new IllegalArgumentException("current address $ is not available");
+            return address;
+        }
         if (peek() == '$' || peek() == '#') {
             char prefix = text.charAt(pos++);
             int start = pos;

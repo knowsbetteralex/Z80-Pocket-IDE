@@ -38,4 +38,9 @@ public class SourceFormatterTest {
         assertEquals("LD A,'a' ; lowercase literal",
                 SourceFormatter.uppercaseKeywordsInLine("ld a,'a' ; lowercase literal"));
     }
+
+    @Test public void formatsAssertWithoutChangingQuotedDescription() {
+        assertEquals("    ASSERT 1, \"keep original text\"",
+                SourceFormatter.formatDocument("assert 1, \"keep original text\"",true,true,4,true));
+    }
 }

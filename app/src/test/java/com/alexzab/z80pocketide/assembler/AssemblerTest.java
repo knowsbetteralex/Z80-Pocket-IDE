@@ -154,6 +154,49 @@ public class AssemblerTest {
     }
 
     @Test
+    public void assertSupportsComparisonsForwardLabelsAndCurrentAddress() {
+        AssemblyResult r=new Assembler().assemble(
+                "ORG $8000\n"
+                + "start: LD A,1\n"
+                + "ASSERT end-start == 3, \"program size, including RET\"\n"
+                + "ASSERT $ == $8002\n"
+                + "ASSERT (end > start) && (start < $9000)\n"
+                + "ASSERT ((end-start) << 1) == 6\n"
+                + "ASSERT !0 && (1 != 2) && (1 <> 2)\n"
+                + "RET\n"
+                + "end:\n"
+                + "COUNT EQU end-start\n"
+                + "ASSERT COUNT=3\n"
+                + "ASSERT COUNT >= 3\n");
+        assertArrayEquals(new byte[]{0x3e,0x01,(byte)0xc9},r.getBytes());
+        assertEquals(0x8000,r.getOrigin());
+        assertEquals(0,r.getLineSize(2));
+        assertEquals(0,r.getLineMinCyclesArray()[2]);
+        org.junit.Assert.assertFalse(r.isInstruction(2));
+    }
+
+    @Test
+    public void assertFailureReportsLineAndOptionalDescription() {
+        IllegalArgumentException e=org.junit.Assert.assertThrows(
+                IllegalArgumentException.class,
+                ()->new Assembler().assemble("ORG $8000\nDB 1\nASSERT $ == $8000, \"wrong, address\"\n"));
+        org.junit.Assert.assertTrue(e.getMessage(),e.getMessage().startsWith("line 3:"));
+        org.junit.Assert.assertTrue(e.getMessage(),e.getMessage().contains("ASSERT failed"));
+        org.junit.Assert.assertTrue(e.getMessage(),e.getMessage().contains("wrong, address"));
+    }
+
+    @Test
+    public void assertRejectsMalformedAndUnresolvedExpressions() {
+        for(String line:new String[]{"ASSERT", "ASSERT 0", "ASSERT 1,", 
+                "ASSERT 1,a,b", "ASSERT MISSING", "ASSERT 1/0"}) {
+            IllegalArgumentException e=org.junit.Assert.assertThrows(
+                    IllegalArgumentException.class,
+                    ()->new Assembler().assemble("ORG $8000\n"+line+"\n"));
+            org.junit.Assert.assertTrue(e.getMessage(),e.getMessage().startsWith("line 2:"));
+        }
+    }
+
+    @Test
     public void alternateAfRegisterStillWorksWithComments() {
         AssemblyResult result = new Assembler().assemble(
                 "ORG $8000\nEX AF,AF' ; swap alternate flags\n");
