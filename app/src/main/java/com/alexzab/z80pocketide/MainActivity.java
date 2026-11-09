@@ -51,6 +51,7 @@ import com.alexzab.z80pocketide.assembler.Assembler;
 import com.alexzab.z80pocketide.assembler.AssemblyDiagnostics;
 import com.alexzab.z80pocketide.assembler.AssemblyResult;
 import com.alexzab.z80pocketide.assembler.SourceIncludes;
+import com.alexzab.z80pocketide.assembler.SourceBinaryIncludes;
 import com.alexzab.z80pocketide.assembler.SourceMacros;
 import com.alexzab.z80pocketide.editor.CodeEditorView;
 import com.alexzab.z80pocketide.editor.SourceScrollRail;
@@ -1914,7 +1915,10 @@ public class MainActivity extends Activity {
         final EditorDocument rootDocument = visible;
         SourceIncludes.Expanded included = SourceIncludes.expand(rootText, rootPath,
                 path -> AndroidIncludeFiles.load(this, rootDocument, path, buffers));
-        return new ProjectSource(rootPath, visiblePath, SourceMacros.expand(included));
+        SourceIncludes.Expanded macros=SourceMacros.expand(included);
+        SourceIncludes.Expanded binaries=SourceBinaryIncludes.expand(macros,
+                path -> AndroidIncludeFiles.loadBinary(this,rootDocument,path));
+        return new ProjectSource(rootPath, visiblePath, binaries);
     }
 
     private String projectFailure(Exception ex, ProjectSource project, EditorDocument visible) {
@@ -2483,7 +2487,8 @@ public class MainActivity extends Activity {
         EditorDocument doc = currentDocument();
         if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
                 || AndroidIncludeFiles.selectedRoot(this) != null
-                || SourceIncludes.containsInclude(doc.text)) {
+                || SourceIncludes.containsInclude(doc.text)
+                || SourceBinaryIncludes.containsIncbin(doc.text)) {
             if (!buildSource()) return;
             doc = currentDocument();
         }
@@ -2546,7 +2551,8 @@ public class MainActivity extends Activity {
         EditorDocument doc = currentDocument();
         if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
                 || AndroidIncludeFiles.selectedRoot(this) != null
-                || SourceIncludes.containsInclude(doc.text)) {
+                || SourceIncludes.containsInclude(doc.text)
+                || SourceBinaryIncludes.containsIncbin(doc.text)) {
             if (!buildSource()) return;
             doc = currentDocument();
         }

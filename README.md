@@ -41,6 +41,21 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Two-pass assembler core independent of Android.
 - Table/family-driven Z80 encoder with broad documented instruction coverage, including CB/ED groups and documented IX/IY forms.
 - Assembler directives: `ORG`, `EQU`, `DB`, `DW`, `DS`, `ASSERT`.
+- Binary assets: `INCBIN "file.bin"[, offset[, length]]` (also `.INCBIN` and
+  unquoted paths without spaces). The original bytes are included verbatim
+  in the output; no encoding conversion or compression is performed.
+  A filename is resolved relative to the **ASM file containing the directive**,
+  including nested INCLUDE files and macro expansion. Select the same SAF
+  project folder used by INCLUDE before building. Offset/length support
+  numeric expressions and previously resolved EQU constants; an omitted
+  length includes the rest of the file. Examples:
+  `SPRITE: INCBIN "assets/ship.bin"` and
+  `INCBIN "gfx/title.scr",6144,768` (SCREEN$ attributes only).
+  Processing occurs after conditional assembly, so skipped IF branches do
+  not load binary files. Source byte counts are attributed to the original
+  INCBIN line; data itself has zero Z80 T-states. Invalid/missing paths,
+  unsafe traversal and out-of-range offsets are rejected. Limits are
+  512 KiB per asset file and 128 KiB total embedded INCBIN data.
   `ASSERT expression[, description]` checks a condition during the second pass
   (so forward labels work), emits no bytes and reports the failing source line.
   Conditions accept comparisons `=`, `==`, `!=`, `<>`, `<`, `>`,
