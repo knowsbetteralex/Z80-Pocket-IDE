@@ -70,4 +70,11 @@ public final class SyntaxTokenPlannerTest {
         int register=source.indexOf("AF'");
         assertFalse(has(tokens,SyntaxTokenPlanner.STRING,register,register+3));
     }
+
+    @Test public void highlightsAssertAsDirective() {
+        String source="    assert $ < $9000, \"code fits\"\n";
+        List<SyntaxTokenPlanner.Token> tokens=SyntaxTokenPlanner.plan(source,source,0);
+        int at=source.indexOf("assert");
+        assertTrue(has(tokens,SyntaxTokenPlanner.DIRECTIVE,at,at+6));
+    }
 }
