@@ -68,15 +68,15 @@ public final class ScreenAsmCodec {
             int space=0;
             while(space<code.length()&&!Character.isWhitespace(code.charAt(space)))space++;
             String op=code.substring(0,space).toUpperCase(Locale.ROOT);
-            if(!op.equals("DB")&&!op.equals("DEFB"))
+            if(!op.equals("DB")&&!op.equals("DEFB")&&!op.equals("ASSERT"))
                 throw new IllegalArgumentException("line "+(i+1)+
-                        ": only DB/DEFB, labels and EQU are allowed in screen ASM (got "+op+")");
+                        ": only DB/DEFB, ASSERT, labels and EQU are allowed in screen ASM (got "+op+")");
             String operands=code.substring(space).trim();
             if(operands.isEmpty())
-                throw new IllegalArgumentException("line "+(i+1)+": missing DB data");
+                throw new IllegalArgumentException("line "+(i+1)+": missing "+op+" argument");
             normalized.append(label);
             if(!label.isEmpty())normalized.append(' ');
-            normalized.append("DB ").append(operands).append('\n');
+            normalized.append(op.equals("ASSERT")?"ASSERT ":"DB ").append(operands).append('\n');
         }
         byte[] bytes=new Assembler().assemble(normalized.toString()).getBytes();
         if(isRleScreen(source))return decodeRle(bytes);
