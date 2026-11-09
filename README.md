@@ -40,7 +40,14 @@ A small Android IDE for writing, checking, assembling and running Z80 code, with
 - Built-in examples always open in a new tab instead of replacing current work.
 - Two-pass assembler core independent of Android.
 - Table/family-driven Z80 encoder with broad documented instruction coverage, including CB/ED groups and documented IX/IY forms.
-- Assembler directives: `ORG`, `EQU`, `DB`, `DW`, `DS`.
+- Assembler directives: `ORG`, `EQU`, `DB`, `DW`, `DS`, `ASSERT`.
+  `ASSERT expression[, description]` checks a condition during the second pass
+  (so forward labels work), emits no bytes and reports the failing source line.
+  Conditions accept comparisons `=`, `==`, `!=`, `<>`, `<`, `>`,
+  `<=`, `>=`, logical `!`, `&&`, `||`, and the current assembly
+  address `$` (distinct from hex numbers such as `$8000`). Example:
+  `ASSERT SCREEN_END - SCREEN_BEGIN == 6912, "SCREEN$ size"`.
+  Screen ASM imports also allow `ASSERT` along with the data directives.
 - Integer expressions, labels and line-numbered diagnostics.
 - ZX Spectrum TAP generation with BASIC autorun loader.
 - Build / Run / Save `.tap` workflow.
