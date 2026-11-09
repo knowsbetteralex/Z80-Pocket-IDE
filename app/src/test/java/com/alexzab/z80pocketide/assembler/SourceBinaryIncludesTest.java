@@ -67,12 +67,12 @@ public final class SourceBinaryIncludesTest {
         Map<String,String> files=new HashMap<>();
         files.put("lib/inc.asm","DB 1\nINCBIN '../absent.bin'\n");
         SourceIncludes.IncludeError missing=assertThrows(SourceIncludes.IncludeError.class,
-                ()->build("INCLUDE 'lib/inc.asm'","main.asm",files,path->null));
+                ()->build("INCLUDE 'lib/inc.asm'","main.asm",files,new HashMap<>()));
         assertEquals("lib/inc.asm",missing.path);
         assertEquals(2,missing.line);
         assertTrue(missing.getMessage().contains("absent.bin"));
         assertThrows(IllegalArgumentException.class,
-                ()->build("INCBIN '../escape.bin'","main.asm",files,path->new byte[2]));
+                ()->build("INCBIN '../escape.bin'","main.asm",files,new HashMap<>()));
         Map<String,byte[]> bin=new HashMap<>();
         bin.put("a.bin",new byte[]{1,2,3});
         for(String directive:new String[]{"INCBIN", "INCBIN 'a.bin',4",
