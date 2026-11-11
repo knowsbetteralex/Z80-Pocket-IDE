@@ -188,7 +188,7 @@ public class MainActivity extends Activity {
     private List<AssemblyDiagnostics.Issue> analysisIssues = new ArrayList<>();
     private HorizontalScrollView tabStrip;
     private SourceScrollRail sourceScrollRail;
-    private ImageButton foldAllButton;
+    private View emptyWorkspaceView;
     private SearchReplacePanel searchPanel;
     private final List<SourceSearch.Match> searchMatches = new ArrayList<>();
     private int searchMatchIndex = -1;
@@ -301,7 +301,6 @@ public class MainActivity extends Activity {
         findButtonParams.setMargins(dp(1), 0, dp(1), 0);
         findButton.setLayoutParams(findButtonParams);
         Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
-        Button includeButton = headerButton("INC", t("Open INCLUDE", "Открыть INCLUDE"), false);
         ImageButton converterButton = new ImageButton(this);
         converterButton.setContentDescription(t("Tools", "Инструменты"));
         converterButton.setImageResource(R.drawable.ic_header_tools);
@@ -311,24 +310,18 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams workshopParams = new LinearLayout.LayoutParams(dp(34), dp(42));
         workshopParams.setMargins(dp(1), 0, dp(1), 0);
         converterButton.setLayoutParams(workshopParams);
-        Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
-                t("Switch language", "Переключить язык"), false);
         quickActions.addView(openSourceButton);
         quickActions.addView(saveSourceButton);
         quickActions.addView(undoButton);
         quickActions.addView(redoButton);
         quickActions.addView(findButton);
         quickActions.addView(converterButton);
-        quickActions.addView(languageButton);
-        quickActions.addView(includeButton);
         quickActions.addView(referenceButton);
         topBar.addView(mainMenuButton);
         root.addView(topBar);
 
         referenceButton.setOnClickListener(v -> openReference());
-        includeButton.setOnClickListener(v -> showIncludeFiles());
         converterButton.setOnClickListener(v -> openTools());
-        languageButton.setOnClickListener(v -> toggleLanguage());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
         saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
         openSourceButton.setOnClickListener(v -> {
@@ -373,46 +366,13 @@ public class MainActivity extends Activity {
         workspaceBar.addView(tabStrip, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        foldAllButton = new ImageButton(this);
-        foldAllButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        foldAllButton.setPadding(dp(6), dp(6), dp(6), dp(6));
-        foldAllButton.setBackground(UiStyle.ripple(this,
-                0xFFE3F1E8, 12, 0xFFB8D7C5));
-        LinearLayout.LayoutParams foldParams = new LinearLayout.LayoutParams(
-                dp(40), dp(40));
-        foldParams.setMargins(dp(3), 0, dp(1), 0);
-        workspaceBar.addView(foldAllButton, foldParams);
-
-        Button gutterWidthButton = headerButton("⇤",
-                t("Narrow line numbers", "Сузить номера строк"), false);
-        gutterWidthButton.setTextSize(19);
-        LinearLayout.LayoutParams gutterButtonParams = new LinearLayout.LayoutParams(
-                dp(37), dp(40));
-        gutterButtonParams.setMargins(dp(2), 0, dp(1), 0);
-        workspaceBar.addView(gutterWidthButton, gutterButtonParams);
-        gutterWidthButton.setOnClickListener(v -> {
-            if (editor == null) return;
-            editor.setGutterCompact(!editor.isGutterCompact());
-            updateGutterWidthButton(gutterWidthButton);
-            if (sourceScrollRail != null) sourceScrollRail.onViewportChanged();
-        });
-
-        foldAllButton.setOnClickListener(v -> {
-            if (editor == null) return;
-            boolean changed;
-            if (editor.isFolded()) {
-                editor.unfoldAll();
-                changed = true;
-            } else {
-                changed = editor.foldTopLevelLabels();
-            }
-            if (changed) {
-                sourceScrollRail.onViewportChanged();
-                scheduleAnalysis();
-                scheduleSearchRefresh();
-            }
-            updateFoldAllButton();
-        });
+        Button includeFromTabs = headerButton("INC",
+                t("Open INCLUDE","Открыть INCLUDE"),false);
+        includeFromTabs.setTextSize(12);
+        LinearLayout.LayoutParams includeTabParams=new LinearLayout.LayoutParams(dp(43),dp(40));
+        includeTabParams.setMargins(dp(3),0,dp(1),0);
+        workspaceBar.addView(includeFromTabs,includeTabParams);
+        includeFromTabs.setOnClickListener(v->showIncludeFiles());
         LinearLayout.LayoutParams workspaceParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         workspaceParams.setMargins(0, dp(5), 0, dp(4));
@@ -443,7 +403,6 @@ public class MainActivity extends Activity {
         // circular bounds, without a full-width empty strip below the code.
         editor.setPadding(dp(54), dp(12), dp(14), dp(12));
         editor.syncGutterPadding();
-        updateGutterWidthButton(gutterWidthButton);
         editor.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -470,8 +429,6 @@ public class MainActivity extends Activity {
         editorHost.addView(sourceScrollRail, railParams);
         editor.setOnViewportScrolled(sourceScrollRail::onViewportChanged);
         editor.setOnUserFingerScroll(sourceScrollRail::onUserScroll);
-        editor.setOnFoldStateChanged(this::updateFoldAllButton);
-        updateFoldAllButton();
 
         // Build + Run sits over the code canvas instead of consuming header width.
         runTap = new ImageButton(this);
@@ -490,6 +447,38 @@ public class MainActivity extends Activity {
         runParams.setMargins(0, 0, dp(13), dp(13));
         editorHost.addView(runTap, runParams);
         runTap.setOnClickListener(v -> runTapInEmulator());
+
+        // No hidden scratch document: the blank canvas offers an explicit new-file action.
+        LinearLayout empty=new LinearLayout(this);
+        empty.setOrientation(LinearLayout.VERTICAL);
+        empty.setGravity(Gravity.CENTER);
+        empty.setBackground(UiStyle.rounded(this,Color.rgb(252,253,252),20,
+                Color.rgb(207,222,213),1));
+        Button create=actionButton("+");
+        create.setTextSize(34);
+        create.setContentDescription(t("Create new ASM file","Создать новый ASM-файл"));
+        empty.addView(create,new LinearLayout.LayoutParams(dp(72),dp(72)));
+        create.setOnClickListener(v->newTab());
+        TextView emptyTitle=new TextView(this);
+        emptyTitle.setText(t("New ASM file","Новый ASM-файл"));
+        emptyTitle.setTextColor(0xFF255D43);
+        emptyTitle.setTextSize(18);
+        emptyTitle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams=new LinearLayout.LayoutParams(-2,-2);
+        titleParams.setMargins(0,dp(15),0,0);
+        empty.addView(emptyTitle,titleParams);
+        TextView emptyHint=new TextView(this);
+        emptyHint.setText(t("Or open a file / project from the menu",
+                "Или открой файл / проект через меню"));
+        emptyHint.setTextSize(13);
+        emptyHint.setGravity(Gravity.CENTER);
+        emptyHint.setTextColor(0xFF6B8274);
+        LinearLayout.LayoutParams hintParams=new LinearLayout.LayoutParams(-2,-2);
+        hintParams.setMargins(dp(14),dp(8),dp(14),0);
+        empty.addView(emptyHint,hintParams);
+        emptyWorkspaceView=empty;
+        editorHost.addView(empty,new FrameLayout.LayoutParams(-1,-1));
+        empty.setVisibility(View.GONE);
 
         SyntaxHighlighter.attach(editor);
 
@@ -790,11 +779,8 @@ public class MainActivity extends Activity {
             pendingCloseAfterSave = state.getBoolean(STATE_PENDING_CLOSE, false);
         }
 
-        if (documents.isEmpty()) {
-            documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
-            activeIndex = 0;
-        }
-        activeIndex = Math.max(0, Math.min(activeIndex, documents.size() - 1));
+        activeIndex = documents.isEmpty() ? -1
+                : Math.max(0, Math.min(activeIndex, documents.size() - 1));
         updateUntitledCounter();
         renderTabs();
         loadActiveDocument();
@@ -808,8 +794,8 @@ public class MainActivity extends Activity {
     private WorkspaceStore.Session snapshotWorkspace() throws IOException {
         captureCurrentDocument();
         WorkspaceStore.Session session = new WorkspaceStore.Session();
-        if (documents.isEmpty()) throw new IOException("No open source tabs");
-        session.activeIndex = Math.max(0, Math.min(activeIndex, documents.size() - 1));
+        session.activeIndex = documents.isEmpty() ? -1
+                : Math.max(0, Math.min(activeIndex, documents.size() - 1));
         for (EditorDocument doc : documents) {
             WorkspaceStore.Tab tab = new WorkspaceStore.Tab();
             tab.title = doc.title;
@@ -831,7 +817,7 @@ public class MainActivity extends Activity {
     }
 
     private void scheduleWorkspaceSave() {
-        if (workspaceFile == null || documents.isEmpty()) return;
+        if (workspaceFile == null) return;
         workspaceRevision.incrementAndGet();
         workspaceHandler.removeCallbacks(delayedWorkspaceSave);
         workspaceHandler.postDelayed(delayedWorkspaceSave, WORKSPACE_IDLE_MS);
@@ -1081,7 +1067,13 @@ public class MainActivity extends Activity {
     }
 
     private void loadActiveDocument() {
-        if (!hasActiveDocument()) return;
+        if (!hasActiveDocument()) {
+            showEmptyWorkspace();
+            return;
+        }
+        editor.setVisibility(View.VISIBLE);
+        sourceScrollRail.setVisibility(View.VISIBLE);
+        if(emptyWorkspaceView!=null)emptyWorkspaceView.setVisibility(View.GONE);
         EditorDocument doc = currentDocument();
         loadingDocument = true;
         liveAnalysis = null;
@@ -1095,7 +1087,6 @@ public class MainActivity extends Activity {
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
         if (editorInputBar != null) editorInputBar.requestSuggestions();
-        updateFoldAllButton();
         editor.post(() -> {
             editor.scrollToVerticalOffset(doc.scrollY);
             editor.scrollTo(doc.scrollX, editor.getScrollY());
@@ -1104,6 +1095,7 @@ public class MainActivity extends Activity {
 
         boolean built = doc.buildIsCurrent();
         // Run always builds stale or never-built sources; only Save TAP depends on Build.
+        runTap.setVisibility(View.VISIBLE);
         runTap.setEnabled(true);
         saveTap.setEnabled(built);
         scheduleAnalysis();
@@ -1115,6 +1107,30 @@ public class MainActivity extends Activity {
                             ? t("File · ", "Файл · ") + doc.title
                             : t("Tab · ", "Вкладка · ") + doc.title),
                 doc.dirty ? Color.rgb(120, 85, 0) : Color.rgb(90, 90, 90));
+    }
+
+    private void showEmptyWorkspace() {
+        loadingDocument=true;
+        try {
+            editor.setSourceText("");
+            editor.setUndoHistory(new UndoHistory(),this::updateUndoRedoButtons);
+            editor.setProjectSymbolsSource(null);
+            if(editorInputBar!=null)editorInputBar.setProjectSymbolsSource(null);
+            editor.setVisibility(View.GONE);
+            sourceScrollRail.setVisibility(View.GONE);
+            runTap.setVisibility(View.GONE);
+            runTap.setEnabled(false);
+            saveTap.setEnabled(false);
+            if(emptyWorkspaceView!=null)emptyWorkspaceView.setVisibility(View.VISIBLE);
+            if(searchPanel!=null)searchPanel.setVisibility(View.GONE);
+            liveAnalysis=null;
+            analyzedSource=null;
+            analysisError=null;
+            analysisIssues.clear();
+            updateUndoRedoButtons();
+            refreshStatusPanel();
+            setStatus(t("No open files","Нет открытых файлов"),Color.rgb(90,90,90));
+        } finally {loadingDocument=false;}
     }
 
     private void updateUndoRedoButtons() {
@@ -1574,7 +1590,7 @@ public class MainActivity extends Activity {
 
     private void newTab() {
         captureCurrentDocument();
-        documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
+        documents.add(new EditorDocument(nextUntitledName(), "", null, false));
         activeIndex = documents.size() - 1;
         renderTabs();
         loadActiveDocument();
@@ -2077,11 +2093,7 @@ public class MainActivity extends Activity {
         if (index < 0 || index >= documents.size()) return;
         documents.remove(index);
         if (documents.isEmpty()) {
-            // Keep one quiet, truly blank scratch tab. Repeatedly closing the last tab
-            // must not just count Untitled 1, 2, 3... in front of the user.
-            untitledCounter = 2;
-            documents.add(new EditorDocument(untitledName(1, language), "", null, false));
-            activeIndex = 0;
+            activeIndex = -1;
         } else if (index < activeIndex) {
             activeIndex--;
         } else if (index == activeIndex) {
