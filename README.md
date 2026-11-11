@@ -1,549 +1,85 @@
 # Z80 Pocket IDE
 
-A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
+**Android IDE и ассемблер Z80 для ZX Spectrum / Android IDE and Z80 assembler for ZX Spectrum**
 
-## 📲 Download the latest APK
+[Русский](#русский) · [English](#english) · [CHANGELOG](CHANGELOG.md)
 
-**[⬇️ Download latest Z80 Pocket IDE APK](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest/download/Z80-Pocket-IDE.apk)**
+---
 
-[View latest release and version](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest) · [All releases](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases)
+## Русский
 
-Every successful `main` build is published automatically to GitHub Releases, with the
-tested APK and SHA-256 checksum. The download link always points to the newest
-published release (no workflow artifact login or expiring artifact link required).
-**Note:** These APKs are signed with the Android debug key for direct installation;
-they are not production/Google Play-signed releases.
+**Z80 Pocket IDE** — лёгкая среда разработки на Android для написания, проверки, сборки и запуска программ на ассемблере Z80, прежде всего для **ZX Spectrum 48K**. Приложение написано на Java без AndroidX.
 
+### Скачать APK
 
-## Features
+**[⬇️ Скачать последнюю сборку Z80 Pocket IDE](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest/download/Z80-Pocket-IDE.apk)**
 
-- Pure Java Android app, no AndroidX/Jetpack dependency.
-- Mobile-safe UI that respects Android system bars.
-- English / Russian language switch with the selected language persisted between launches.
-- Localized interface, statuses, notifications, examples and Z80 reference.
-- Live Z80 syntax highlighting for mnemonics, registers, directives, numbers, labels, strings and comments.
-- Recognize defined label references, including forward references, inside instruction operands; skip comments and string literals.
-- Red underline for the offending source line after a failed live assembler check.
-- Optional uppercase-all typing mode and explicit uppercase-entire-source menu command (including labels, comments and string data).
-- Keyboard-aware editor resizing and caret-follow scrolling on Android 6+.
-- Live optional uppercase formatting for Z80 mnemonics/registers/directives without touching labels, comments or strings.
-- Built-in live DEC / HEX / BIN converter with assembler-style prefixes and a one-tap Clear action.
-- Editor line-number gutter and current-line highlighting, with tap/drag line selection.
-- Byte size and static minimum/maximum Z80 T-states for the whole source or multiple selected lines.
-- Inline current-instruction byte and T-state hints; unresolved source temporarily displays no stale counts.
-- Compact top bar with Open ASM folder, Save, Undo/Redo, Find/Replace magnifier, ? reference, wrench workshop, TAB and RU/EN. Quick actions scroll horizontally on narrow phones; the rightmost main-menu button stays pinned. Editor settings appear as the last top-level menu item.
-- New / Open / Save / Save As / Close / Build / Save TAP actions live under File.
-- Single slim status row expands on tap into diagnostics and byte/T-state statistics.
-- Best-effort multiple assembler errors in a scrollable diagnostics panel.
-- Configurable auto-indent, TAB width (2/4/8), spaces-vs-tab and an on-screen TAB key.
-- One-tap document formatter.
-- Fold/unfold chevrons on label lines within the number gutter, separate from tap/drag line selection. Builds and saves use the full source.
-- Touch-oriented code editor: tap moves the caret, one-finger drag pans the code canvas, pinch changes and remembers font size.
-- Searchable built-in Z80 reference with syntax, opcode patterns, T-states, flags and descriptions.
-- Reference screen now has separate Z80 / ZX 48K / ROM / I/O tabs.
-- ZX 48K reference includes a drawn 256×192 screen-memory map with thirds and bit-field addressing.
-- I/O reference covers ULA port $FE, the keyboard matrix, Kempston $1F, EAR/MIC/beeper and AY $FFFD/$BFFD.
-- ZX 48K quick reference covers memory map, bitmap thirds, `010 TT LLL RRR CCCCC` pixel-address bit layout, attributes and useful system variables.
-- ROM quick reference lists practical standard-48K entry points with addresses and register contracts.
-- Russian reference search understands localized terms as well as technical mnemonics/opcodes.
-- Tabbed source workspace with a horizontal tab strip, dirty markers and per-tab build state.
-- New / Open / Save / Save As / Close source workflow through Android Storage Access Framework.
-- Source files use normal `.asm` text files and can live in Downloads, cloud providers or any Android document provider.
-- Closing a modified tab asks whether to save, discard or cancel; long-pressing a tab opens quick Save / Save As / Close actions.
-- Built-in examples always open in a new tab instead of replacing current work.
-- Two-pass assembler core independent of Android.
-- Table/family-driven Z80 encoder with broad documented instruction coverage, including CB/ED groups and documented IX/IY forms.
-- Assembler directives: `ORG`, `EQU`, `DB`, `DW`, `DS`, `ASSERT`.
-- Binary assets: `INCBIN "file.bin"[, offset[, length]]` (also `.INCBIN` and
-  unquoted paths without spaces). The original bytes are included verbatim
-  in the output; no encoding conversion or compression is performed.
-  A filename is resolved relative to the **ASM file containing the directive**,
-  including nested INCLUDE files and macro expansion. Select the same SAF
-  project folder used by INCLUDE before building. Offset/length support
-  numeric expressions and previously resolved EQU constants; an omitted
-  length includes the rest of the file. Examples:
-  `SPRITE: INCBIN "assets/ship.bin"` and
-  `INCBIN "gfx/title.scr",6144,768` (SCREEN$ attributes only).
-  Processing occurs after conditional assembly, so skipped IF branches do
-  not load binary files. Source byte counts are attributed to the original
-  INCBIN line; data itself has zero Z80 T-states. Invalid/missing paths,
-  unsafe traversal and out-of-range offsets are rejected. Limits are
-  512 KiB per asset file and 128 KiB total embedded INCBIN data.
-  `ASSERT expression[, description]` checks a condition during the second pass
-  (so forward labels work), emits no bytes and reports the failing source line.
-  Conditions accept comparisons `=`, `==`, `!=`, `<>`, `<`, `>`,
-  `<=`, `>=`, logical `!`, `&&`, `||`, and the current assembly
-  address `$` (distinct from hex numbers such as `$8000`). Example:
-  `ASSERT SCREEN_END - SCREEN_BEGIN == 6912, "SCREEN$ size"`.
-  Screen ASM imports also allow `ASSERT` along with the data directives.
-- Integer expressions, labels and line-numbered diagnostics.
-- ZX Spectrum TAP generation with BASIC autorun loader.
-- Build / Run / Save `.tap` workflow.
-- Optional remembered Android app for one-tap automatic TAP launch, with chooser fallback.
-- Twenty-five built-in ZX Spectrum items split into separate Examples and Routines tabs, with localized explanations and commented/uncommented source variants.
-- Example/routine detail pages can build and launch a temporary autorun TAP directly, without opening an editor tab.
-- Reusable routine examples include explicit IN / OUT / DESTROYS register contracts.
-- Spectrum-inspired branding and app icon.
-- Rounded green action styling with explicit grey disabled Build-dependent actions.
-- JUnit tests and GitHub Actions debug APK builds.
+[Последний релиз и его описание](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest) · [Все релизы](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases)
 
-The opcode implementation is based on the documented Z80 instruction set. Undocumented instructions (for example IXH/IYH forms and undocumented DDCB/FDCB register-result variants) are intentionally outside the current scope.
+APK собирается автоматически после успешных тестов в ветке `main`; рядом с ним публикуется контрольная сумма SHA-256. Для установки потребуется разрешить Android установку приложений из выбранного источника.
 
-## Source tabs and files
+> **Важно:** опубликованные APK подписаны **отладочным ключом** Android, а не производственным ключом Google Play. Подпись разных CI-сборок может отличаться; перед переустановкой сохраняйте исходники и нужные данные проекта.
 
-Use **☰ → Files** to create a new tab, open an existing source, save, save under a new name, or close the active tab. A `●` before the tab title means that the source has unsaved changes. The small `×` closes a tab; modified tabs show a Save / Don't save / Cancel confirmation.
+### Возможности
 
-Opening an example creates a separate, initially clean tab. Once an example is edited it becomes dirty like any other source and can be saved as a regular `.asm` file.
+- **Редактор ASM:** подсветка синтаксиса, поиск/замена, форматирование, автодополнение меток, отмена/повтор изменений, вкладки и восстановление черновиков.
+- **Проекты:** несколько ASM-файлов, `INCLUDE`, выбор главного ASM, ресурсы `INCBIN` и настройки проекта.
+- **Ассемблер Z80:** инструкции Z80, метки, выражения, `ORG`, `EQU`, `DB`, `DW`, `DS`, `MACRO`, условная сборка `IF`/`IFN` и `ASSERT`. Анализ размера кода и T-состояний.
+- **ZX Spectrum:** сборка и экспорт `.tap`, запуск через установленный эмулятор, загрузочная заставка SCREEN$.
+- **Редактор экранов:** 256×192, цвета INK/PAPER, BRIGHT/FLASH, рисование и выделение, импорт/экспорт SCR и ASM.
+- **Инструменты:** системы счисления, адреса экрана, спрайты, клавиатура Spectrum, библиотека примеров и справочник Z80/ZX.
 
-Each tab keeps its own in-memory build result, so Build/Run state cannot leak from one source tab to another.
+**Язык интерфейса:** `Настройки → Язык интерфейса: RU/EN` — переключение без перезапуска вручную.
 
-## Language
+### Сборка из исходников
 
-Use the `EN` / `RU` button in the app header. On first launch the app follows the device language when it is Russian; otherwise it defaults to English. The choice is then stored locally.
-
-## Next milestones
-
-1. Autocomplete for mnemonics, registers and labels.
-2. Inline instruction signature/T-state hints.
-3. Symbols panel and memory map.
-4. `INCLUDE`, `INCBIN` and multi-file project build rules.
-5. Session/project restore across full app restarts.
-6. Cycle analysis and timing tools.
-7. Optional compatibility/undocumented-instruction mode.
-
-## Build
-
-Requires JDK 17 and Android SDK 35.
+Нужны **JDK 17**, **Android SDK 35** и **Gradle 8.9**. В корне репозитория:
 
 ```bash
 gradle testDebugUnitTest
 gradle assembleDebug
 ```
 
-The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
+APK появится в `app/build/outputs/apk/debug/app-debug.apk`.
 
-## v0.16.1 fixes
+**Документация:** [История версий](CHANGELOG.md) · [Материалы по редактору экранов](docs/SCREEN_EDITOR_V0.38.0.md) · [Исходный код](app/src/main/java/com/alexzab/z80pocketide)
 
-- Save ASM from the top-bar diskette shortcut; first save opens Android's file picker.
-- Run is active when an unsaved/never-built source tab opens; it auto-builds before launching the emulator.
-- A green × at the bottom of the line-number gutter clears selected lines without affecting the cursor or code.
-- Creating ASM files uses assembly-source MIME instead of text/plain to avoid .asm.txt; tries Android document-provider rename when necessary, and reports providers that refuse renaming.
+---
 
-## v0.16.2 editor responsiveness
+## English
 
-- Complete syntax highlighting starts only 550 ms after typing pauses; it no longer repositions the caret.
-- Automatic assembler validation starts 720 ms after typing pauses, runs on a background worker, and ignores stale results after edits or tab switches.
-- Editing no longer snapshots entire source on each keystroke. Source buffers are captured before saving, building, switching tabs and preserving Activity state.
-- Reversible gutter folds do not mark a source as edited or restart background analysis.
+**Z80 Pocket IDE** is a lightweight Android IDE for writing, checking, assembling, and running Z80 assembly programs, primarily for the **ZX Spectrum 48K**. It is implemented in plain Java without AndroidX.
 
-## v0.17.0 undo and redo
+### Download APK
 
-- Dedicated Undo and Redo buttons on the top toolbar, disabled when unavailable.
-- Incremental per-document edit history, including automatic keyword capitalization and whole-document formatting.
-- Fast adjacent keystrokes and Backspace actions group into a single undoable change. New edits after Undo clear redo history.
-- Independent history for each source tab. The Save/Save As operation records an undo checkpoint, letting undo back to the saved state clear the dirty marker.
-- Source fold/unfold does not create undo entries; image-centered save button fixes left alignment.
-- Undo history is kept during tab switching; restarting the Activity currently initializes a new history.
+**[⬇️ Download the latest Z80 Pocket IDE APK](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest/download/Z80-Pocket-IDE.apk)**
 
-## v0.18.0 Spectrum workshop
+[Latest release and notes](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest) · [All releases](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases)
 
-- Wrench icon opens one **Tools** screen with tabs: Number converter / Screen addresses / Sprite painter.
-- DEC / HEX / BIN converter remains available with live bidirectional updates and Clear.
-- Screen-address calculator shows a read-only, derived third (0..2). Its editable character row is now global (0..23), with pixel line (0..7), byte column (0..31), attribute row (0..23), and bitmap/attribute HEX and BIN addresses linked both ways. Bit groups `010 TT LLL RRR CCCCC` are colored by field.
-- Sprite painter: 8..64 px sizes in steps of 8, one-finger tap to fill/erase and drag strokes, two-finger zoom and pan, Fit to Height (sprite may extend outside the canvas), and separate globally applied INK/PAPER palette choices. Uses one shared hardware BRIGHT bit per 8x8 tile; changing normal/bright shade affects both colours.
-- Sprite bitmap and attribute bytes are previewed and can be inserted into the current editor at the cursor, in HEX (`DB $xx`) or BIN (`DB %xxxxxxxx`) format. Normal editor Undo works after insertion.
-- Sprite bitmap export is row-major (a portable sprite format), not interleaved screen RAM order; attributes export in character-cell order.
+An APK is automatically published after a successful `main` build and test run, alongside a SHA-256 checksum. Android may require permission to install apps from your chosen download source.
 
-## v0.18.1 drawing and address UX
+> **Important:** downloadable APKs use an **Android debug signing key**, not a Google Play production key. The signing key may differ between CI builds; back up your source files and project data before reinstalling.
 
-- The third (TT) is informational and non-editable. Editing the global character row 0..23 or any screen/attribute address recomputes the third.
-- One finger draws with INK on empty pixels and erases on filled pixels; dragging applies the initial draw/erase action continuously.
-- INK and PAPER are selected separately from the 16-colour Spectrum palette. Choosing a colour instantly recolours all existing drawn pixels or their paper background without changing bitmap bits. The hardware BRIGHT flag is shared.
-- Pan and zoom are two-finger gestures only; Fit scales to the maximum usable canvas height even when width overflows. The thicker semi-transparent pixel/cell grid remains visible on painted regions.
-- Clearing pixels preserves current INK/PAPER colours. Binary and HEX DB export remains unchanged.
+### Features
 
-## v0.19.0 editor Find / Replace
+- **ASM editor:** syntax highlighting, find/replace, formatting, label completion, undo/redo, source tabs, and draft recovery.
+- **Projects:** multiple ASM files, `INCLUDE`, selectable entry-point ASM, `INCBIN` assets, and project settings.
+- **Z80 assembler:** Z80 instructions, labels, expressions, `ORG`, `EQU`, `DB`, `DW`, `DS`, `MACRO`, `IF`/`IFN` conditional assembly, and `ASSERT`. Byte-size and T-state analysis.
+- **ZX Spectrum:** `.tap` generation and export, emulator launch, and optional SCREEN$ loading screen.
+- **Screen editor:** 256×192 pixels, INK/PAPER colors, BRIGHT/FLASH, drawing and selection, SCR and ASM import/export.
+- **Tools:** number-base converter, screen addresses, sprite tools, Spectrum keyboard, examples, and Z80/ZX reference.
 
-- File Open is now a green folder icon on the toolbar, alongside the centered Save diskette.
-- Top-level menu includes **Edit / Правка** (formerly Tools): Find / Replace, formatting, uppercase source, Spectrum workshop and TAP emulator choice. Folding and Clear Selection commands are removed from this submenu; their gutter controls remain.
-- **Edit → Find / Replace** opens a small find-and-replace panel beneath tabs. Search uses literal text with wrap-around previous/next navigation, match counter and optional case sensitivity.
-- All matching occurrences are highlighted in source (capped at 500 visible highlights for large files); the active match is emphasized and scrolled into view.
-- Replace one and Replace All support empty replacement strings; both respect current-case setting, with Replace All recorded as one Undo step.
-- Visual folds are expanded when starting a search so offsets match actual assembler source; closing search removes highlights.
+**Interface language:** use `Settings → Interface language: RU/EN` to switch immediately.
 
-## v0.20.0 durable workspace and Undo recovery
+### Build from source
 
-- Reopen the exact set of tabs, active tab, file URI, cursor and scroll position after force-close, normal exit or Android process recreation.
-- Every open tab keeps a private on-device draft copy of its source, including files with no saved .asm path. Autosave occurs after about 650 ms idle; onPause flushes synchronously. Drafts never silently overwrite original ASM files.
-- Autosave writes a versioned CRC-checked snapshot through Android AtomicFile to internal `noBackupFilesDir`, so interrupted writes preserve the previous complete snapshot.
-- The last **100 grouped edits per tab** are serialized, including both Undo and Redo branches, the position in history and the last explicit Save checkpoint. Normal typing is not delayed by immediate disk I/O.
-- Intentional tab closure removes the tab from next launch; closing the whole application keeps dirty drafts. The exit prompt explains that these drafts are locally recoverable.
-- Session files are kept only in the app's private device storage (not exported or included in Android cloud backups); clearing app data or uninstalling the app deletes them. A process killed before the current debounced autosave or lifecycle flush may still lose the last fraction of a second of edits.
+Requires **JDK 17**, **Android SDK 35**, and **Gradle 8.9**. Run from the repository root:
 
-## v0.20.1 compact search and status
-
-- Find/Replace is accessible directly from a magnifier icon on the scrolling quick-actions bar; tapping it while search is open closes it.
-- Find/Replace panel uses only two 38dp rows with tight margins and paddings to keep source visible above the keyboard. The match counter now shares the search row.
-- Match-case is controlled by a compact **Aa** button that changes color when enabled, instead of a full-width checkbox.
-- The expanded bottom status now shows diagnostics and byte/T-state statistics without duplicating the last action message already shown on the collapsed status row.
-
-## v0.21.0 Sprite mask, shift and editing session
-
-- Separate Sprite / Mask editing layers. Mask starts as all ones; a tap erases a bit to a black-and-white checkerboard, and the reverse gesture restores the underlying INK/PAPER pixel. Drag strokes work as on the sprite.
-- Mask data gets its own HEX/BIN DB preview and Insert mask DB button. Mask convention is 1 = visible, 0 = transparent. Invert mask polarity when using classic AND-clear blitters.
-- A 64x64 backing store retains the full bitmap and mask. Resizing the viewport between 8 and 64 pixels (steps of 8) never discards any hidden data.
-- Arrow controls shift the drawing 1 pixel at a time, showing X/Y offsets. Pixels hidden by the viewport or backing field are clipped, not destroyed; returning restores them. Off-source areas export as zero bits.
-- Two-finger pan/zoom changes the display, separately from the exported content offsets. Fit to height is retained.
-- Closing/reopening ToolsActivity while the IDE process runs retains pixel/mask layers, canvas size, offsets, palette choice, selected layer and BIN/HEX format via a process-local SpriteSession. This is not written to the persistent ASM workspace; finishing the IDE or process death clears the session.
-- Tests cover mask export, clipping, lossless resize/shift and in-process retention.
-
-## v0.21.1 stable sprite scrolling and DB import
-
-- Sprite painting, palette changes, shift controls and live DB preview updates no longer cause the Tools page to jump down: the Sprite tab's ScrollView ignores automatic focus-based scroll requests while still allowing manual scrolling and pinch gestures.
-- Each tool tab remembers its current vertical scroll position when changing tabs.
-- Each Sprite/Mask/Attributes DB preview now has **Load DB** (import) alongside Insert DB into ASM (export). Paste an entire `DB` / `DEFB` listing in HEX, BIN or decimal; labels, simple byte dumps and `;` comments are supported.
-- The dialog checks the byte count for the selected canvas and validates all bytes before changing the image; invalid imports leave the existing sprite untouched and the dialog open for correction.
-- Selecting a block of ASM text before opening Tools pre-fills import dialogs with that text, or the normal Android paste action can be used.
-- Imported bitmap and mask data update only the active visible canvas area, leaving clipped data intact. Imported attributes preserve independent cell bytes, including INK, PAPER, BRIGHT and FLASH; palette edits recolor cells again.
-- Added round-trip import/export, parser, validation and per-cell color tests.
-
-
-## v0.22.0 edit controls and Run placement
-
-- The sprite canvas has a top-right padlock overlay. It is **locked by default**, disabling painting while allowing one-finger panning and two-finger pan/pinch zoom. Unlocking restores drawing. Lock state stays in the in-memory sprite session and resets to locked on app restart.
-- Bitmap, mask and 8×8 attribute DB previews have a pencil icon at the upper right. It opens an **inline text editor** with **✓ OK** and **✕ Cancel**; validation and conversion occur only when OK is pressed. Invalid byte counts/values leave the editor open and the sprite unchanged; Cancel discards edits.
-- Existing separate Load DB and Insert DB buttons remain usable. The inline editor uses the same HEX/BIN/decimal DB parser and updates the canvas and all previews on commit.
-- The Tools workshop remembers the last selected tab (number converter, addresses or sprite) in app preferences and returns to it on the next opening, including after process restarts. Inline DB fields can request scrolling to expose the keyboard; passive DB preview redraws still cannot force page scroll.
-- Run/Build moves from the header to a circular green ▶ button floating at the bottom-right of the **source editor**. It remains available with the keyboard shown, preserves automatic Build & Run and leaves the menu's existing Run action intact.
-
-## v0.22.1 Run button overlay fix
-
-- Removed the 69dp full-width bottom padding added for the Run FAB, restoring the normal 12dp editor inset. Only the circular floating play button overlays source text; no blank full-width strip is reserved.
-- The floating Run FAB stays at bottom-right of the editor and retains Build & Run behavior.
-
-## v0.23.0 touch scrolling and top-level fold actions
-
-- The editor has a dedicated **42dp-wide touch scrollbar** over the right edge. Its 30dp thumb is draggable, becomes prominent during scrolling and dims after 1.8 seconds of inactivity; it remains faintly visible while idle. The original thin Android scroll indicator is disabled.
-- **▲ / ▼ buttons** at either end scroll about 15% of the visible code height per tap. Holding an arrow repeats after 330 ms, then about every 95 ms. Dragging the thumb maps directly to the actual scroll range, without moving the caret.
-- The scrollbar ends **87dp above the editor bottom**, so it never covers the floating Run button. No full-width bar or blank padding is introduced.
-- A pinned fold/unfold-all icon sits to the right of the horizontal file tabs. It folds only the **first label in each blank-line-separated paragraph**, treating any subsequent labels in that paragraph as nested under the first. Tapping again restores the entire source.
-- Folding is a visual presentation operation: assembler source, saves and Undo history are not changed. Existing per-label gutter folding remains available.
-- Added host-side tests for paragraph boundaries, nested labels, label comments and EOF without trailing newline.
-
-## v0.23.1 transient touch scrollbar
-
-- The wide scrollbar, including thumb and arrow buttons, is **fully invisible** until a real finger-driven vertical scroll begins in the code editor.
-- After 1.8 seconds without further finger scroll the whole rail disappears; it no longer leaves a faint track overlay on the code or intercepts input while hidden.
-- Dragging the exposed thumb or holding its arrow buttons keeps it visible until release, then starts the same hide delay.
-- Scrolling caused by caret movement, restoring source position, tab changes, layout, folding or other programmatic actions only updates rail geometry and never reveals it.
-- The rail remains clear of the floating Run button and does not allocate an extra full-width strip.
-
-## v0.24.0 visual Spectrum screen address picker and Fit
-
-- Sprite editor's former **Fit to height** action is now simply **Fit** (Вписать), calculating the uniform pixel scale from the limiting width/height so the entire current sprite is visible, centered with ~12dp side margins. Resizing the sprite canvas uses the same operation and retains the underlying pixels and mask.
-- Screen Address tool now features a fully linked **32×24 character screen map** for the ZX Spectrum 256×192 bitmap. Tap or drag over a character square to choose its row and byte column; thick horizontal guides separate the three 64-line display thirds.
-- A larger **8×8 pixel view** below the whole-screen grid picks pixel scanline LLL (0..7) and bit (0..7). The selected scanline updates the real bitmap address. The selected bit shows its byte mask ($80..$01) and absolute X/Y pixel position, but does not change the bitmap byte address.
-- The screen map and 8×8 selector react immediately to numeric coordinate fields and the HEX/BIN bitmap/attribute address inputs, and screen touches update those existing fields using ScreenAddress, including third/row interleaving.
-- Unit tests verify all three display thirds, pointer mapping, bit-mask endpoints and coordinate-to-address consistency.
-
-## v0.25.0 ZX Spectrum keyboard worksheet
-
-- Added a fourth **Keyboard / Клавиши** workshop tab with a drawn four-row 40-key ZX Spectrum membrane keyboard. Keys can be tapped to toggle simultaneous presses. Selected keys are highlighted in amber.
-- For each selected half-row, shows the exact port address ($FEFE, $FDFE, $FBFE, $F7FE, $EFFE, $DFFE, $BFFE, $7FFE), read byte in HEX and BIN, and the pressed key names. Tap a readout row to focus its values in the decoder.
-- Reverse lookup: edit a half-row port in HEX and a read byte in HEX or eight-bit BIN; the selected physical keys update immediately. The reverse lookup replaces previous pressed selections, while tapping the keyboard can build multi-half-row key combinations.
-- Bits D0..D4 are active-low, 0 = pressed. The displayed high bits are normalized to ones; the real D6 EAR line may vary. Loading a byte ignores D5..D7 for key selection.
-- Button **Insert Z80 reading snippet** inserts LD BC,port / IN A,(C) and optionally BIT n,A (for the first selected key in the focused half-row). Selection survives reopening the workshop during the current Android process.
-- Added JVM unit tests for all 40 key positions, 8 ports, key combinations, reverse decoding, binary/hex input and Z80 snippet creation.
-
-## v0.26.0 expanded Z80 instruction reference
-
-- Z80 reference has a **two-level UI**: its existing quick card lists syntax alternatives, opcode patterns, a short description, affected flags and the approximate T-state counts; the new Show details/Подробности button opens per-form explanations and folds them back without leaving search or changing its scroll position.
-- Detailed entries cover **all existing 60 instruction/directive families** (register, immediate, (HL), indexed (IX/IY+d), memory, conditional branch and repeat forms as applicable), including additional common 16-bit LD, stack and interrupt forms. Each variant gets its own T-state value or taken/not-taken/iteration distinction and a short explanation in English/Russian.
-- Every expanded form displays the individual **S, Z, H, P/V, N, C flag outcomes**, distinguishing carry vs borrow, parity vs signed overflow, fixed 0/1, preservation and special instructions (BIT, DAA, NEG, SCF/CCF, block transfer/search/I/O, IN r,(C), LD A,I/R, POP AF and EX AF,AF'). Unofficial F3/F5 bits are identified separately rather than incorrectly conflated with the six documented flags.
-- Expanded card state survives search rerenders and device rotation within the Reference Activity. The other ZX/ROM/I/O reference tabs remain unchanged.
-- Expanded T-state counts assume the standard un-contended Z80; Spectrum-specific RAM contention delays are not part of these instruction counts.
-- Added JVM coverage tests for catalog completeness, special flags, and tricky indexed/conditional timing paths.
-
-## v0.27.0 Android 'Open with' integration
-
-- The IDE now appears as a target for Android **Open with / Открыть с помощью** when a file manager or document provider sends an ACTION_VIEW or ACTION_EDIT for assembly/text documents. Manifest supports content:// and file:// URIs and common .asm MIME declarations: text/x-asm, application/x-asm, text/plain and application/octet-stream.
-- External files use the existing ContentResolver source loader, opening in a new source tab while preserving all unsaved editor buffers and undo history. Opening an already-loaded document URI switches to that tab rather than duplicating it.
-- MainActivity now uses singleTask and handles onNewIntent, allowing additional files to be opened by the system chooser into the running IDE instead of creating extra IDE activities.
-- The original external launch URI is not replayed after device rotation, and files without persistent grants remain readable as drafts even if the provider stops granting the original URI. Save as remains available for read-only files.
-- The chooser is MIME-based, so Android may list the IDE for other plain-text files if their provider assigns text/plain; Android content:// document IDs do not always expose filename extensions for reliable filtering.
-- Added tests for external document action/scheme validation and AndroidManifest Open with declarations.
-
-## v0.26.2 writable external ASM documents and folded label highlighting
-
-- **Open with** now keeps the external file's original URI as its save target. Normal Save overwrites the same document whenever the launching file manager has granted write access.
-- If an external provider supplied only a read grant or rejects writing, the editor offers **Select original file**, using Android ACTION_OPEN_DOCUMENT to obtain writable access to the existing file. After choosing the same filename, the pending edits are saved there automatically and the new URI replaces the previous read-only URI for future normal saves. No duplicate document or Save As is needed. Providers that never allow editing cannot be forced to overwrite a protected file.
-- Write-grant fallback persists granted read/write URI rights when Android's document provider allows it; on navigation/rotation the pending request is restored. A different filename is rejected rather than overwritten.
-- Folded code retains turquoise symbol highlighting for visible references to labels whose declarations are hidden inside folded blocks. The highlighter builds the symbol table from the logical (unfolded) source and applies spans only to visible text; the saved/generated source remains unchanged.
-- Added pure JVM regression tests for folded forward/nested references and safe writable URI reselection.
-
-## v0.27.1 smoother typing and error-line navigation
-
-- Removed an O(visible lines × source length) UI hot path in editor gutter rendering. Fold markers now inspect the EditText buffer without making a full copy of the document for each painted line. Autocapitalization and newline indent also stop copying the whole file on every keystroke.
-- Z80 syntax tokenization runs on a dedicated worker **after a 950 ms pause in typing**, and only the visible section plus a small margin receives spans. Viewport recoloring follows scrolling with a short debounce. This prevents tens of thousands of spans from shifting when editing at the beginning of large sources.
-- Rapid typing no longer repeatedly clears already-empty assembler diagnostics/instruction metrics or re-renders unchanged status/statistics text. Live assembly is still debounced in its existing background executor.
-- If an assembly diagnostic contains a line number, the compact bottom status shows a distinct underlined **↗ line N / ↗ стр. N** link. Tap it to focus and scroll to the actual source line, unfolding visual label blocks first so the assembler's source-line numbering stays correct. The first navigable error is linked when multiple issues exist.
-- Added JVM tests for syntax token windows, original absolute offsets, register/mnemonic coloring and references to labels declared inside collapsed sections.
-
-## v0.28.0 Quick ASM punctuation and label name completion
-
-- A compact accessory bar appears **immediately above the Android soft keyboard** while editing ASM. One-touch keys insert `_`, `,`, `'`, `:`, `#`, `%`, `$` at the caret or replace the selection without changing keyboard layout. Button touches do not steal editor focus; insertions participate in Undo/Redo, normal tab saving, and live analysis.
-- An optional **label autocomplete** row appears above the symbol keys when the caret follows at least two characters of a label reference in code. It suggests up to seven case-insensitive prefix matches from labels declared in the current complete ASM source (including `EQU` definitions and those hidden behind folded blocks), preserving the original spelling. Tap a suggestion to replace the current token, including any suffix after the caret. Suggestions are suppressed in strings, comments and label declaration positions.
-- Suggestions are calculated after a short typing pause on a worker thread; only the current editor line is examined on the UI thread, so long files remain responsive. The accessory hides when the keyboard closes or the editor loses focus.
-- Both helpers are **enabled by default** and independently switchable under **Editor settings / Настройки редактора**. Settings are stored in SharedPreferences. The settings dialog scrolls on smaller screens.
-- Added pure Java tests for prefix matching, casing, commented/quoted text, folded definitions, replacement bounds, result limits and independent preference defaults.
-
-
-## v0.30.0 INCLUDE and project folders
-
-- Supported directives: INCLUDE "file.asm", INCLUDE 'file.asm', INCLUDE file.asm, and .INCLUDE. Nested files and relative paths (including safe ../ within the project) are expanded during build and live analysis.
-- Included labels and EQU definitions share one assembly symbol table with the parent source. Included bytes and T-state totals are attributed to the parent's INCLUDE line; diagnostics identify both the include location and the child source line.
-- On the editor toolbar, tap INC while the caret is on an INCLUDE line to open that file as a tab. Otherwise INC lists all includes. Existing tabs are reused and their unsaved contents take precedence over on-disk sources.
-- On Android, choose Menu > Choose INCLUDE project folder (Папка проекта INCLUDE) to grant persisted SAF read access to sibling files and subdirectories. This is necessary when the editor only has permission for one individually opened source file.
-- Build, Run and Save TAP regenerate binary data for INCLUDE projects rather than relying on cached main-source text.
-- Missing or circular includes report errors; relative paths cannot escape the authorized project folder. Resolver tolerates case-insensitive filenames when uppercasing is enabled.
-
-Example main.asm:
-```asm
-ORG 32768
-INCLUDE "lib/graphics.asm"
-CALL DRAW_SCREEN
-RET
-```
-Example lib/graphics.asm:
-```asm
-DRAW_SCREEN:
-    RET
+```bash
+gradle testDebugUnitTest
+gradle assembleDebug
 ```
 
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 
-## v0.31.0 Project-wide symbols and root file
-
-- Assembly, live validation, syntax highlighting, and label completion now share the same project symbol universe: the **root ASM file** plus every file reachable through recursive INCLUDE directives. Labels, EQU constants, and forward references defined in other included files are resolved through the normal two-pass assembler rather than compiling each editor tab in isolation.
-- The default root is **main.asm** when it exists in the selected project folder or is already open; otherwise, the active source is treated as a standalone root. For a differently named entry point (game.asm, demo.asm, etc.), open its tab and choose **Menu > Set current file as project root / Сделать файл корнем проекта**. To return to main.asm detection, choose **Menu > Auto-detect main.asm root / Корень проекта: авто main.asm**.
-- Picking a new project folder resets an explicit root chosen for the previous folder, avoiding accidental cross-project symbol resolution.
-- Opening an INCLUDE keeps the original project-relative path in its tab, including when the document provider uses opaque identifiers. The path is saved in workspace snapshots (backward compatible with earlier stored tabs).
-- Live byte/T-state metrics and error lines are projected onto the active source. A compiler error originating in another module is displayed with that module's filename and line, rather than highlighting an unrelated line of the current tab.
-- In the root editor, byte/T-state totals from nested include files continue to be assigned to the containing INCLUDE line.
-- The project is **not** an arbitrary concatenation of every ASM file in a folder: only the selected entry point and its INCLUDE graph form the assembly unit. This avoids duplicate labels from unrelated programs or old source files.
-- Added regression tests for cross-module labels, forward references, source-mapped diagnostics, and the included-file byte/T-state metrics.
-
-Example:
-```asm
-; main.asm
-ORG 32768
-JP DRAW_SHIP
-INCLUDE "src/ship.asm"
-START: RET
-
-; src/ship.asm
-DRAW_SHIP: JP START
-```
-
-
-## v0.32.0 — Dotted labels and procedure-local labels
-
-- Labels with embedded dots, such as `sprite.draw:` and `enemy.update:`, are normal globally visible symbols and can be used in `JP`, `JR`, `DJNZ`, expressions, `DB`, `DW`, and `EQU`.
-- Names starting with a dot, for example `.loop:` or `.done:`, are local to the closest preceding global colon label. `PLAYER: / .loop:` resolves to `PLAYER.loop`; a second `.loop:` under `ENEMY:` is a distinct symbol. Global `EQU` definitions do not change the local scope.
-- Dot-label scope follows actual assembly order, including recursively expanded `INCLUDE` files. A global label in an included source starts a new scope just as it would if its text were pasted into the main file.
-- References can use `.loop` inside the current scope or qualified `PLAYER.loop` anywhere in the project, including forward references. A leading-dot reference before any global label produces a clear line-numbered error.
-- String literals and comments are not modified by local-label qualification. The editor recognizes dot labels in syntax highlighting, completion, formatting, and folding.
-- Regression tests cover repeated local names in different routines, forward labels, dotted globals, local EQU constants, DB strings, relative branches, and shared scopes across INCLUDE files.
-
-Example:
-```asm
-    ORG 32768
-PLAYER:
-.loop:
-    DJNZ .loop
-ENEMY:
-.loop:
-    JR .loop
-    JP PLAYER.loop
-```
-
-## v0.33.0 — MACRO support and Open Project
-
-The top toolbar **Open** icon now opens a two-item menu: **Open file / Открыть файл** and **Open project / Открыть проект**. Open Project requests a Storage Access Framework folder grant. It opens `main.asm` when present, selects the only ASM candidate, or shows a root-source chooser for multiple `.asm`, `.z80`, and `.s` files (including nested folders). The selected root is used for assembly and INCLUDE resolution. Existing editor tabs are preserved without mixing unrelated files into another project's symbols.
-
-### MACRO syntax
-
-Both `NAME MACRO param1,param2` and `MACRO NAME param1,param2` are supported. End definitions using `ENDM` or `ENDMACRO`. Macro calls accept comma-separated arguments. Parameters substitute by whole identifier (e.g. `LD dst,value`), explicit `\value`, or positional `\1` and `\2`. Quoted strings and comments are not substituted. `@@name` labels are unique to each invocation.
-
-```asm
-ORG 32768
-DELAY MACRO value
-    LD B,value
-@@again:
-    DJNZ @@again
-ENDM
-
-    DELAY 8
-    DELAY 12
-```
-
-Definitions may come from recursive INCLUDE files or appear after the call site. Macros can invoke other macros, but direct/indirect recursion, oversized expansion, and malformed argument counts are rejected with source diagnostics. Expansion occurs after INCLUDE and before the assembler's two passes, preserving forward labels, EQU and byte/T-state metrics. The preprocessor never modifies the original source in editor tabs.
-
-Not yet implemented: conditional assembly, default/variadic macro parameters, token pasting, nested MACRO definitions.
-
-
-## v0.34.0 — Conditional macro assembly and compact line numbers
-
-### Preprocessor conditionals
-
-Conditional assembly is supported both inside `MACRO` definitions and in ordinary project sources (after recursive INCLUDE expansion): `IF`, `ELSE`, `ELSEIF`/`ELIF`, `ENDIF`, `IFDEF`, and `IFNDEF`; leading-dot directive names (`.IF`, `.ENDIF`, etc.) are also accepted. Blocks may be nested. Only the chosen branch is sent to the Z80 assembler; unknown instructions or unexpanded macro calls in skipped branches are ignored. Unmatched or duplicate directives, missing arguments, and unresolved expressions produce source diagnostics.
-
-`IF` accepts numeric expressions and comparisons `=`, `==`, `!=`, `<>`, `<`, `>`, `<=`, `>=`. The expression evaluator supports numeric literals and arithmetic/bit operations. Conditions can reference macro parameters after substitution and preceding resolvable `EQU` constants. `IFDEF`/`IFNDEF` check those `EQU` constants. As this is an early preprocessor stage, conditions cannot depend on forward labels or final code addresses.
-
-```asm
-ORG 32768
-EMIT_VALUE MACRO value
-    IF value > 0
-        LD A,value
-    ELSE
-        XOR A
-    ENDIF
-ENDM
-
-EMIT_VALUE 5
-EMIT_VALUE 0
-```
-
-### Number gutter toggle
-
-A new `⇤`/`⇥` button beside the fold-all button on the tab bar toggles line-number column width between 46dp and a compact 26dp. It updates editor left padding, retains line numbers with a smaller font in compact mode, and saves the selection in the app's editor preferences across restarts. Inline fold arrows are hidden in compact mode to avoid overlapping line numbers; the toolbar fold-all button remains available.
-
-## v0.35.0 — IFN conditional assembly
-
-The assembler now accepts `IFN expression` and `.IFN expression` with `ELSE`, `ELSEIF`/`ELIF` and `ENDIF`/`.ENDIF`. As in SjASMPlus, the IFN branch is assembled only if the expression evaluates to **zero**; otherwise the ELSE/ELSEIF branch runs. IFN is available within macro bodies and normal ASM sources (including INCLUDE), supports nested conditions and macro arguments, and honors previously resolved EQU constants. Unresolved expressions and unclosed IFN blocks report preprocessor errors. `IFN` is also recognized by syntax highlighting and keyword formatting.
-
-```asm
-CHECK MACRO value
-    IFN value
-        XOR A
-    ELSE
-        LD A,value
-    ENDIF
-ENDM
-
-CHECK 0
-CHECK 5
-```
-
-
-## v0.36.0 — Quoted character literals in Z80 expressions
-
-Character immediates are now accepted everywhere the assembler expects a numeric expression: `LD A,'1'`, `LD B,'a'`, `CP 'Z'`, `DB 'A'+1`, `DW '0'+1`, and `KEY EQU 'x'`. One character in single quotes resolves to its 8-bit code (`'1'` = 49 / `31h`; `'a'` = 97 / `61h`). Character case is preserved independently of case-insensitive mnemonic, register, and label recognition.
-
-Supported character escapes: `\n`, `\r`, `\t`, `\0`, `\\`, `\'`, `\"`, `\xHH` (two hex digits). Empty or multi-character operands used as expressions, invalid escapes, and Unicode characters outside 0..255 produce clear assembler errors instead of silent truncation. Multi-character strings such as `DB 'Hello'` continue to work as data strings.
-
-The operand parser preserves quoted text, including commas and spaces, while uppercasing registers and symbols. The editor highlights single-quoted literals, and macro substitution / conditional IF expressions accept character values. `AF'` remains a Z80 alternate register, not a quoted character.
-
-```asm
-ORG $8000
-LD A,'1'       ; LD A,$31
-LD B,'a'       ; LD B,$61
-CP 'Z'         ; CP $5A
-NEWLINE EQU '\n'
-DB 'B'+1,NEWLINE
-```
-
-
-## v0.37.0 — Project settings and ZX Spectrum loading screens
-
-The main application menu now contains **Project / Проект** with: Open project, Project settings, choose root, auto-detect `main.asm`, choose project folder, build, run and export TAP. The Open toolbar dropdown still offers Open file / Open project.
-
-**Project settings** (Android native dialog, no AndroidX): select a display name, entry-point ASM file (default `main.asm`), enable an optional `.scr` or raw `.bin` loading screen anywhere inside the selected SAF project folder, see a real Spectrum 256×192 preview, and choose a start delay: immediately, 1/2/3/5 seconds, or wait for a keypress. The preview reads the full 6912 bytes (6144 bitmap + 768 attributes), decodes Spectrum's non-linear pixel memory layout and INK/PAPER/BRIGHT palette. Flash is shown in its normal phase. Incorrect-size files are rejected.
-
-Settings are saved as a portable `.z80pocketide.json` at the project root; its project-relative paths work when the folder is moved or synchronized with Git. A separate per-folder local backup is used when Android's document provider denies writing; the app reports this clearly. Existing projects without settings continue to produce their original two-file BASIC + CODE TAP.
-
-Example:
-```json
-{
-  "name": "SpaceCan",
-  "root": "main.asm",
-  "loadingScreen": {
-    "enabled": true,
-    "file": "assets/loading.scr",
-    "pauseFrames": 100
-  }
-}
-```
-
-**When enabled**, the auto-start TAP is assembled in this order: BASIC loader, `SCREEN$` CODE block (6912 bytes at `$4000`), game CODE block (the assembler's ORG address). The loader runs `CLEAR origin-1 : LOAD "" SCREEN$ : LOAD "" CODE : [PAUSE frames] : RANDOMIZE USR origin`. The pause is in 50 Hz frames; value `0` means no delay and `-1` maps to `PAUSE 0` (wait for keypress). The screen is always included in exported TAP files, not the source ASM; no game source changes are needed.
-
-**Validation:** screen file must be exactly 6912 bytes; invalid/missing resources stop the build. Game CODE must not overlap `$4000-$5AFF` while loading SCREEN$ is enabled, or exceed the 64K address space. The normal BASIC ROM loader may still display its status messages over the lower screen; a custom clean loader is deliberately postponed.
-
-Tests cover loader block sequence/addresses/tokens, optional PAUSE, invalid screen sizes, screen memory conflicts, project path validation and ZX pixel/attribute layout. These changes are backward-compatible with legacy projects.
-
-
-## v0.38.0 — Full-screen ZX Spectrum SCREEN$ editor
-
-A dedicated native-Java SCREEN$ editor is now accessible from **Project → Screen editor** and the **SCR** button in the Tools workshop. In **Project → Project settings**, tap **Edit loading screen** next to the existing SCREEN$ preview to open the chosen project image; if no file is selected, start a blank screen. On return, the project loads the saved screen bytes into TAP. The main **Open file** dialog also routes .scr and .bin files to the screen editor instead of trying to read binary bytes as assembler source.
-
-**Canvas:** faithful 256×192 bitmap with Spectrum's physical pixel address ordering, 32×24 independent 8×8 INK/PAPER attributes and shared BRIGHT/FLASH flags. One-finger brush when unlocked; pinch zoom and two-finger pan; locked mode allows safe one-finger pan. Tap the padlock to switch modes. The first finger of a multi-touch gesture does not draw a dot. Grids appear at appropriate zoom levels. Portrait/landscape toggle retains viewport and unsaved changes, with system-bar safe insets.
-
-**Floating palette:** semi-transparent upper-right swatches, selectable INK vs PAPER, BRIGHT and FLASH checkboxes, Draw / Attribute / Pick / Erase tools. Tap the chevron to collapse it to a small chip. Only the 8×8 tile under the brush changes; BRIGHT and FLASH are preserved unless the brush explicitly overrides them. Picking reads the selected cell without painting. The other colors in the tile behave exactly as Spectrum hardware dictates.
-
-**File support:** open an existing 6912-byte .scr or .bin, or import a data-only .asm/.z80/.s source containing DB/DEFB plus labels and EQU constants. The ASM importer explicitly rejects executable code, includes, unsupported directives and anything that does not produce exactly 6912 bytes. **Save** updates an existing SCR/BIN via Android's Storage Access Framework; **Save as** creates a .scr or .bin; **Export ASM** emits human-readable labels SCREEN_BITMAP / SCREEN_ATTRS and 6912 DB bytes. Importing ASM never overwrites the source file. Newly created screens inside the selected SAF project folder can be offered as the project's loading screen. Cancelled writes and errors keep the unsaved document.
-
-**Editing safety:** stroke-level byte-diff Undo/Redo (up to 100 steps), accurate saved-vs-current dirty detection, Save/Discard/Cancel on Back, drawing lock on startup, recovery of document bytes and brush/zoom/orientation flags after activity recreation. Unmodified SCR import/export is byte-for-byte identical.
-
-**Tests:** unit coverage for interleaved screen bitmap addressing, edge pixels, tile-local INK/PAPER/BRIGHT/FLASH, pixel-versus-attribute brush semantics, byte-exact SCR↔ASM roundtrip, malformed ASM, one-stroke Undo/Redo and saved-revision tracking. Physical-device gestures and external SAF provider behaviors still require manual verification.
-
-Implementation requirements and test checklist are in [docs/SCREEN_EDITOR_V0.38.0.md](docs/SCREEN_EDITOR_V0.38.0.md).
-
-
-## v0.39.0 — SCR tab, ZX palette, flashing attributes and launcher icon
-
-- **New launcher icon:** graphite gray rounded square, a retro computer and the classic four Spectrum rainbow stripes on its screen (Android vector resource `app/src/main/res/drawable/ic_spectrum.xml`, still referenced by `android:icon` and `android:roundIcon`).
-- **Tools → Screen / Экран:** a fifth tab next to the existing sprite editor with a live 256×192 SCREEN$ drawing canvas, zoom/pan, 8×8 attribute grid, a floating palette, Undo/Redo, lock and a **full-screen** button. The Tools tab and `ScreenEditorActivity` share the same 6912-byte in-memory screen and history; Open/Save from the compact tab routes to full-screen Android SAF file operations. No bitmap copy or loss of unsaved drawing on switching views.
-- **Palette redesigned to match the sprite editor:** two separate INK/PAPER color selectors with numeric indicators, a row of eight filled Spectrum swatches and the orange outlined checkmark for the selected color. Changing **BRIGHT** immediately updates swatch brightness and, when unlocked, the currently selected 8×8 cell. **FLASH** toggles the cell's attribute and the screen visibly alternates INK and PAPER on flashing cells approximately every 320 ms (ZX Spectrum 16-frame half-period). The palette remains collapsible and semi-transparent.
-- The user-facing tools are **Pen (INK)**, **Eraser (PAPER)** and **Picker**; redundant Attribute mode was removed from the palette. The eraser clears the pixel bit and paints the chosen PAPER color only in the current 8×8 cell; existing `ATTRIBUTE` enum remains internally for compatibility. Picker samples both tile colors and flags, then automatically returns to the tool and INK/PAPER side selected before picking; that return tool survives rotation and transitions between Tools and full-screen editor. A locked canvas allows read-only picker taps and finger panning.
-- **Much larger zoom:** pinch zoom increases up to 96dp per Spectrum pixel rather than the previous 40px; easier to use with fingertips.
-- Byte-exact SCR format, project file links, Save/Save As, ASM import/export and the existing BASIC loading-screen TAP export remain supported.
-
-Regression tests cover actual FLASH phase inversion, preservation of adjacent tile colors/flags and the PAPER eraser. CI builds and tests are run by GitHub Actions for the release. Physical-device verification of gestures, orientation, SAF providers and toolbar/insets is still recommended.
-
-## v0.39.1 — Compact SCR editor palette
-
-- Removed the two redundant INK/PAPER buttons from the top of the screen editor palette. The **Pen (INK)** and **Eraser (PAPER)** tools remain the sole way to select the paint target; color swatches apply to that target.
-- When collapsed, the floating palette shows **three compact, functional tools** (pen, eraser and eyedropper) under the small expand chevron. The currently active tool is highlighted, and the tools work without reopening the palette.
-- Palette collapse state is preserved when switching between the embedded **Tools → Screen** tab and the full-screen SCR editor, including orientation changes. Color selection, Bright/Flash, and picker-return behavior remain unchanged.
-
-
-## v0.40.0 — SCR rectangle select, copy/paste and character-aligned attributes
-
-The Screen Editor (Tools → Screen tab and full-screen mode) now supports **pixel-accurate rectangular selections** and a shared two-row selection toolbar. Tap **▭** (or **Select** in the expanded palette) and drag across any pixels to draw a rectangle; this does not change screen bytes even when drawing is locked. Tap **Copy / Копия** to store bitmap bits and the 8×8 attribute cells touched by the selection into the IDE's persistent private clipboard. Open another SCR/BIN or a different part of the current screen, tap a destination pixel in Select mode, then **Paste / Встав.**. The paste begins a visible preview; use the **← ↑ ↓ →** buttons to nudge one pixel at a time. The clipboard survives switching documents and IDE restarts.
-
-**Attribute movement toggle:** **Shift attrs 8px / Сдвиг атр. 8px** is initially off. Off = copy/move only bitmap pixels, while the existing attribute bytes remain where they are. On = copy complete original 8×8 attribute cells along with the pixel selection. Attributes are anchored to source cell column 0, and shift exactly **one character cell per complete 8-pixel movement**. Offsets -1..-7 and +1..+7 do not shift any attribute cells; -8/+8 shift exactly one cell. This applies independently to X and Y and holds even when the selected pixel rectangle starts at an unaligned column (e.g. x=3). The source attribute bytes are intentionally preserved to avoid recoloring any pixels outside the selected region.
-
-**Non-destructive movement:** the first arrow lifts the selection, clears the selected bitmap pixels at the starting position and renders the selection over a fixed original-screen snapshot. Subsequent arrows always rerender from the same baseline: no intermediate positions damage the background. **✓** commits the current preview as a single undoable operation; **×** cancels it and restores every original byte. Pasting also requires ✓ to commit. Leaving the editor while a move is pending prompts Apply/Cancel; Save is blocked until confirmation. Moving/pasting requires unlocking the edit lock, while marking and copying a selection remains read-only.
-
-The collapsed floating color palette retains its three prior tools (Pen, Eraser, Picker); the expanded palette additionally offers Select. The selection controls are available in both embedded and full-screen SCR editors. New tests cover clipboard serialization/round-trip across screens, arbitrary unaligned rectangles, positive/negative 1–7/8 pixel attribute boundaries, exact source restoration on cancel and one-step Undo/Redo for multi-arrow movement.
-
-
-### Navigation and workspace (0.44.0)
-
-- Main menu groups: **File**, **Project**, **Edit**, **Build**, **Tools**, **Settings**,
-  with direct **Z80 / Spectrum reference**. Editor formatting, emulator
-  choice and screen editor now appear in their respective groups.
-- **Project → Main ASM: filename** selects a root from the project directory
-  (or currently opened ASM tabs if no project tree is selected). Auto-root
-  toggle was removed from the menu.
-- The tab bar's trailing **INC** opens an INCLUDE file; the fold-all and
-  line-number width controls are no longer displayed. Label folding is
-  temporarily disabled, including its setting and gutter affordance.
-- The keyboard accessory includes quotation mark `"` and semicolon `;`
-  next to apostrophe and colon respectively.
-- A new or emptied workspace has **zero open tabs**, with a centered new-file
-  action and links to open files/projects in the menu. Empty workspace state
-  survives app relaunch; existing saved tabs and unsaved drafts still restore.
-- **Settings → Interface language: EN/RU** toggles immediately.
-- The example gallery, detail view, and screen editor chrome share the main
-  application's light/mint/green theme. Spectrum pixel preview canvas
-  remains dark for pixel/color contrast.
+**Documentation:** [Version history](CHANGELOG.md) · [Screen editor notes](docs/SCREEN_EDITOR_V0.38.0.md) · [Source code](app/src/main/java/com/alexzab/z80pocketide)
