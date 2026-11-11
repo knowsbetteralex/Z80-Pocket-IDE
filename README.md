@@ -512,3 +512,25 @@ The Screen Editor (Tools → Screen tab and full-screen mode) now supports **pix
 **Non-destructive movement:** the first arrow lifts the selection, clears the selected bitmap pixels at the starting position and renders the selection over a fixed original-screen snapshot. Subsequent arrows always rerender from the same baseline: no intermediate positions damage the background. **✓** commits the current preview as a single undoable operation; **×** cancels it and restores every original byte. Pasting also requires ✓ to commit. Leaving the editor while a move is pending prompts Apply/Cancel; Save is blocked until confirmation. Moving/pasting requires unlocking the edit lock, while marking and copying a selection remains read-only.
 
 The collapsed floating color palette retains its three prior tools (Pen, Eraser, Picker); the expanded palette additionally offers Select. The selection controls are available in both embedded and full-screen SCR editors. New tests cover clipboard serialization/round-trip across screens, arbitrary unaligned rectangles, positive/negative 1–7/8 pixel attribute boundaries, exact source restoration on cancel and one-step Undo/Redo for multi-arrow movement.
+
+
+### Navigation and workspace (0.44.0)
+
+- Main menu groups: **File**, **Project**, **Edit**, **Build**, **Tools**, **Settings**,
+  with direct **Z80 / Spectrum reference**. Editor formatting, emulator
+  choice and screen editor now appear in their respective groups.
+- **Project → Main ASM: filename** selects a root from the project directory
+  (or currently opened ASM tabs if no project tree is selected). Auto-root
+  toggle was removed from the menu.
+- The tab bar's trailing **INC** opens an INCLUDE file; the fold-all and
+  line-number width controls are no longer displayed. Label folding is
+  temporarily disabled, including its setting and gutter affordance.
+- The keyboard accessory includes quotation mark `"` and semicolon `;`
+  next to apostrophe and colon respectively.
+- A new or emptied workspace has **zero open tabs**, with a centered new-file
+  action and links to open files/projects in the menu. Empty workspace state
+  survives app relaunch; existing saved tabs and unsaved drafts still restore.
+- **Settings → Interface language: EN/RU** toggles immediately.
+- The example gallery, detail view, and screen editor chrome share the main
+  application's light/mint/green theme. Spectrum pixel preview canvas
+  remains dark for pixel/color contrast.
