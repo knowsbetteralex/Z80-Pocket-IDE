@@ -1143,6 +1143,7 @@ public class MainActivity extends Activity {
             updateUndoRedoButtons();
             refreshStatusPanel();
             setStatus(t("No open files","Нет открытых файлов"),Color.rgb(90,90,90));
+            scheduleWorkspaceSave();
         } finally {loadingDocument=false;}
     }
 
