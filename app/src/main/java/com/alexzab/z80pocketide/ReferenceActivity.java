@@ -60,12 +60,12 @@ public final class ReferenceActivity extends Activity {
         super.onCreate(savedInstanceState);
         language = LanguageSettings.get(this);
 
-        getWindow().setStatusBarColor(Color.rgb(244, 248, 246));
-        getWindow().setNavigationBarColor(Color.rgb(244, 248, 246));
+        getWindow().setStatusBarColor(UiStyle.APP_BACKGROUND);
+        getWindow().setNavigationBarColor(UiStyle.APP_BACKGROUND);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(244, 248, 246));
+        root.setBackgroundColor(UiStyle.APP_BACKGROUND);
 
         final int side = dp(12);
         final int vertical = dp(8);
@@ -101,13 +101,6 @@ public final class ReferenceActivity extends Activity {
         header.addView(titles, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button languageButton = new Button(this);
-        languageButton.setText(language == AppLanguage.RU ? "RU" : "EN");
-        languageButton.setMinWidth(0);
-        languageButton.setMinimumWidth(0);
-        languageButton.setPadding(dp(10), 0, dp(10), 0);
-        UiStyle.styleSoftGreenButton(languageButton);
-        header.addView(languageButton);
         root.addView(header);
 
         SpectrumStripeView stripe = new SpectrumStripeView(this);
@@ -150,11 +143,6 @@ public final class ReferenceActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
         back.setOnClickListener(v -> finish());
-        languageButton.setOnClickListener(v -> {
-            LanguageSettings.set(this,
-                    language == AppLanguage.RU ? AppLanguage.EN : AppLanguage.RU);
-            recreate();
-        });
         z80Tab.setOnClickListener(v -> setSection(SECTION_Z80));
         zxTab.setOnClickListener(v -> setSection(SECTION_ZX));
         romTab.setOnClickListener(v -> setSection(SECTION_ROM));
