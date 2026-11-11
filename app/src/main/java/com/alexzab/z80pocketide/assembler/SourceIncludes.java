@@ -81,6 +81,15 @@ public final class SourceIncludes {
   for(int i=1;i<4;i++)if(m.group(i)!=null)return m.group(i);
   return null;
  }
+ /** True only when the caret is on a syntactically valid INCLUDE directive line.
+  * Uses the same parser as project expansion and scans only the active line. */
+ public static boolean isIncludeAtCursor(CharSequence source,int cursor){
+  if(source==null || cursor<0 || cursor>source.length())return false;
+  int start=cursor,end=cursor;
+  while(start>0 && source.charAt(start-1)!='\n')start--;
+  while(end<source.length() && source.charAt(end)!='\n')end++;
+  return includePath(source.subSequence(start,end).toString())!=null;
+ }
  public static boolean containsInclude(String source){
   if(source==null)return false;
   for(String line:source.split("\n",-1))if(START.matcher(line).find())return true;
