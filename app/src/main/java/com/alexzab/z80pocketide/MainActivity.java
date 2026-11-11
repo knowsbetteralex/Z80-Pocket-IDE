@@ -159,6 +159,7 @@ public class MainActivity extends Activity {
     private Button clearLinesButton;
     private Button mainMenuButton;
     private Button includeTabButton;
+    private boolean includeLineHighlighted;
     private ImageButton saveSourceButton, findSourceButton;
     private AssemblyResult liveAnalysis;
     private String analyzedSource;
@@ -353,7 +354,7 @@ public class MainActivity extends Activity {
         LinearLayout workspaceBar = new LinearLayout(this);
         workspaceBar.setOrientation(LinearLayout.HORIZONTAL);
         workspaceBar.setGravity(Gravity.CENTER_VERTICAL);
-        workspaceBar.setPadding(dp(4), dp(4), dp(4), dp(4));
+        workspaceBar.setPadding(dp(3), dp(2), dp(3), dp(2));
         workspaceBar.setBackground(UiStyle.rounded(this,
                 Color.rgb(235, 243, 238), 18, Color.rgb(205, 222, 212), 1));
 
@@ -373,7 +374,7 @@ public class MainActivity extends Activity {
                 t("Open INCLUDE","Открыть INCLUDE"),false);
         Button includeFromTabs=includeTabButton;
         includeFromTabs.setTextSize(12);
-        LinearLayout.LayoutParams includeTabParams=new LinearLayout.LayoutParams(dp(43),dp(40));
+        LinearLayout.LayoutParams includeTabParams=new LinearLayout.LayoutParams(dp(43),dp(32));
         includeTabParams.setMargins(dp(3),0,dp(1),0);
         workspaceBar.addView(includeFromTabs,includeTabParams);
         includeFromTabs.setOnClickListener(v->showIncludeFiles());
@@ -489,6 +490,7 @@ public class MainActivity extends Activity {
         editor.setOnLineSelectionChanged(this::updateStatistics);
         editor.setOnCaretMoved(() -> {
             updateStatistics();
+            updateIncludeHighlight();
             if (editorInputBar != null) editorInputBar.requestSuggestions();
         });
         refreshEditorTools();
@@ -612,6 +614,7 @@ public class MainActivity extends Activity {
                 saveTap.setEnabled(false);
                 scheduleAnalysis();
                 scheduleSearchRefresh();
+                updateIncludeHighlight();
                 if (editorInputBar != null) editorInputBar.requestSuggestions();
                 setStatus(t("Modified · source file not saved",
                         "Изменено · исходный файл не сохранён"), Color.rgb(120, 85, 0));
@@ -1026,7 +1029,7 @@ public class MainActivity extends Activity {
             tabTitle.setTextColor(Color.rgb(35, 35, 35));
             tabTitle.setTypeface(Typeface.DEFAULT,
                     i == activeIndex ? Typeface.BOLD : Typeface.NORMAL);
-            tabTitle.setPadding(dp(9), dp(7), dp(6), dp(7));
+            tabTitle.setPadding(dp(9), dp(3), dp(6), dp(3));
             tabTitle.setSingleLine(true);
             tabTitle.setOnClickListener(v -> selectTab(index));
             tabTitle.setOnLongClickListener(v -> {
@@ -1042,7 +1045,7 @@ public class MainActivity extends Activity {
             close.setTextColor(Color.rgb(100, 100, 100));
             close.setPadding(dp(6), dp(2), dp(7), dp(2));
             close.setOnClickListener(v -> requestCloseTab(index));
-            cell.addView(close, new LinearLayout.LayoutParams(dp(34), dp(38)));
+            cell.addView(close, new LinearLayout.LayoutParams(dp(32), dp(30)));
 
             LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1092,6 +1095,7 @@ public class MainActivity extends Activity {
         editor.setUndoHistory(doc.history, this::updateUndoRedoButtons);
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
+        updateIncludeHighlight();
         if (editorInputBar != null) editorInputBar.requestSuggestions();
         editor.post(() -> {
             editor.scrollToVerticalOffset(doc.scrollY);
@@ -1130,6 +1134,8 @@ public class MainActivity extends Activity {
             findSourceButton.setEnabled(false);
             findSourceButton.setAlpha(.45f);
             includeTabButton.setEnabled(false);
+            includeLineHighlighted=false;
+            UiStyle.styleButton(includeTabButton,0xFFF2F4F2,0xFF456454,12);
             includeTabButton.setAlpha(.45f);
             runTap.setVisibility(View.GONE);
             runTap.setEnabled(false);
@@ -1145,6 +1151,22 @@ public class MainActivity extends Activity {
             setStatus(t("No open files","Нет открытых файлов"),Color.rgb(90,90,90));
             scheduleWorkspaceSave();
         } finally {loadingDocument=false;}
+    }
+
+    /**
+     * INC stays a normal quick action for the INCLUDE list. It becomes solid
+     * green only when the cursor is on a valid INCLUDE line.
+     */
+    private void updateIncludeHighlight() {
+        if(includeTabButton==null || editor==null)return;
+        boolean highlighted=hasActiveDocument() &&
+                SourceIncludes.isIncludeAtCursor(editor.getText(),editor.getSelectionStart());
+        if(highlighted==includeLineHighlighted && includeTabButton.getTag()!=null)return;
+        includeLineHighlighted=highlighted;
+        if(highlighted)UiStyle.styleGreenButton(includeTabButton);
+        else UiStyle.styleButton(includeTabButton,0xFFF2F4F2,0xFF456454,12);
+        includeTabButton.setTextSize(12);
+        includeTabButton.setTag(Boolean.TRUE);
     }
 
     private void updateUndoRedoButtons() {
