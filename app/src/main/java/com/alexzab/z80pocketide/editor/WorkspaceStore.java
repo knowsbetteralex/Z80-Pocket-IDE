@@ -44,8 +44,9 @@ public final class WorkspaceStore {
     private WorkspaceStore() {}
 
     public static byte[] encode(Session session) throws IOException {
-        if (session == null || session.tabs.isEmpty() || session.tabs.size() > MAX_TABS
-                || session.activeIndex < 0 || session.activeIndex >= session.tabs.size())
+        if (session == null || session.tabs.size() > MAX_TABS
+                || (session.tabs.isEmpty() ? session.activeIndex != -1
+                    : session.activeIndex < 0 || session.activeIndex >= session.tabs.size()))
             throw new IOException("Invalid workspace session");
 
         ByteArrayOutputStream bodyBytes = new ByteArrayOutputStream();
@@ -103,7 +104,8 @@ public final class WorkspaceStore {
         if (version != 1 && version != VERSION) throw new IOException("Unsupported workspace version");
         int count = input.readInt();
         int active = input.readInt();
-        if (count < 1 || count > MAX_TABS || active < 0 || active >= count)
+        if (count < 0 || count > MAX_TABS
+                || (count == 0 ? active != -1 : active < 0 || active >= count))
             throw new IOException("Invalid workspace tab count/index");
         Session restored = new Session();
         restored.activeIndex = active;
