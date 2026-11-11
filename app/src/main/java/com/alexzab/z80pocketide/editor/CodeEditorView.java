@@ -35,7 +35,7 @@ public class CodeEditorView extends EditText {
     private static final String PREFS = "code_editor";
     private static final String PREF_FONT_SP = "font_sp";
     private static final String PREF_COMPACT_GUTTER = "compact_gutter";
-    private static final int GUTTER_REGULAR_DP = 46;
+    private static final int GUTTER_REGULAR_DP = 30; // Practical minimum for ~5-digit line numbers and touch selection
     private static final int GUTTER_COMPACT_DP = 26;
     private static final float DEFAULT_FONT_SP = 16f;
     private static final float MIN_FONT_SP = 10f;
@@ -386,7 +386,7 @@ public class CodeEditorView extends EditText {
 
     /** Called after the activity sets standard editor padding. */
     public void syncGutterPadding() {
-        setPadding(gutterWidth + dp(8), getPaddingTop(),
+        setPadding(gutterWidth + dp(5), getPaddingTop(),
                 getPaddingRight(), getPaddingBottom());
         requestLayout();
         invalidate();
@@ -913,7 +913,7 @@ public class CodeEditorView extends EditText {
         if (layout == null) return;
 
         canvas.drawRect(sx, sy, sx + gutterWidth, sy + getHeight(), gutterPaint);
-        lineNumberPaint.setTextSize(getTextSize() * (compactGutter ? 0.53f : 0.67f));
+        lineNumberPaint.setTextSize(getTextSize() * (compactGutter ? 0.53f : 0.61f));
         int first = layout.getLineForVertical(Math.max(0, sy - getTotalPaddingTop()));
         int last = layout.getLineForVertical(Math.max(0,
                 sy + getHeight() - getTotalPaddingTop()));
@@ -933,7 +933,7 @@ public class CodeEditorView extends EditText {
                     ? Color.rgb(47, 125, 88) : Color.rgb(125, 147, 133));
             lineNumberPaint.setFakeBoldText(i == currentLine || selectedLines.contains(i));
             canvas.drawText(String.valueOf(i + 1),
-                    sx + gutterWidth - dp(compactGutter ? 3 : 7), baseline, lineNumberPaint);
+                    sx + gutterWidth - dp(3), baseline, lineNumberPaint);
             if (!compactGutter && isFoldableLine(i, layout, visibleSource)) {
                 foldPaint.setTextSize(dp(15));
                 canvas.drawText(isFoldedLine(i, layout, visibleSource) ? "▸" : "▾",

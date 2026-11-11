@@ -30,6 +30,27 @@ public class SourceIncludesTest {
         assertFalse(SourceIncludes.containsInclude("; INCLUDE \"unused.asm\""));
     }
 
+    @Test public void highlightsIncOnlyWhenCaretIsOnIncludeDirectiveLine() {
+        String source="ORG $8000\n"
+                +" INCLUDE \"part.asm\" ; comment\n"
+                +"  LD A,1\n"
+                +"; INCLUDE \"commented.asm\"\n"
+                +".include 'sub/child.asm'\n"
+                +"DB \"INCLUDE fake.asm\"\n";
+        assertFalse(SourceIncludes.isIncludeAtCursor(source,source.indexOf("ORG")));
+        assertTrue(SourceIncludes.isIncludeAtCursor(source,source.indexOf("part.asm")));
+        assertTrue(SourceIncludes.isIncludeAtCursor(source,source.indexOf(" INCLUDE") + 1));
+        assertFalse(SourceIncludes.isIncludeAtCursor(source,source.indexOf("LD A,1")));
+        assertFalse(SourceIncludes.isIncludeAtCursor(source,source.indexOf("commented.asm")));
+        assertTrue(SourceIncludes.isIncludeAtCursor(source,source.indexOf("child.asm")));
+        assertFalse(SourceIncludes.isIncludeAtCursor(source,source.indexOf("fake.asm")));
+        assertFalse(SourceIncludes.isIncludeAtCursor(source,-1));
+        assertFalse(SourceIncludes.isIncludeAtCursor(source,source.length()+1));
+        assertFalse(SourceIncludes.isIncludeAtCursor(null,0));
+        assertTrue(SourceIncludes.isIncludeAtCursor("INCLUDE 'a.asm'",0));
+        assertTrue(SourceIncludes.isIncludeAtCursor("INCLUDE 'a.asm'",15));
+    }
+
     @Test public void cyclesAndRootTraversalAreRejected() {
         assertThrows(IllegalArgumentException.class,
                 ()->SourceIncludes.resolve("main.asm","../escape.asm"));
