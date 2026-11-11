@@ -1014,16 +1014,6 @@ public class MainActivity extends Activity {
         return p;
     }
 
-    private void updateFoldAllButton() {
-        if (foldAllButton == null || editor == null) return;
-        boolean folded = editor.isFolded();
-        foldAllButton.setImageResource(folded
-                ? R.drawable.ic_unfold_all : R.drawable.ic_fold_all);
-        foldAllButton.setContentDescription(folded
-                ? t("Expand all label blocks", "Развернуть все блоки меток")
-                : t("Collapse top-level labels", "Свернуть верхние метки"));
-    }
-
     private void renderTabs() {
         if (tabRow == null) return;
         tabRow.removeAllViews();
@@ -1436,110 +1426,112 @@ public class MainActivity extends Activity {
 
     private void showMainMenu() {
         PopupMenu popup = new PopupMenu(this, mainMenuButton);
-        Menu menu = popup.getMenu();
-
-        Menu files = menu.addSubMenu(t("Files", "Файлы"));
-        files.add(0, 1, 0, t("New tab", "Новая вкладка"));
-        files.add(0, 2, 1, t("Open file…", "Открыть файл…"));
-        files.add(0, 3, 2, t("Save source", "Сохранить исходник"));
-        files.add(0, 4, 3, t("Save as…", "Сохранить как…"));
-        files.add(0, 5, 4, t("Close tab", "Закрыть вкладку"));
-        Menu projectMenu = menu.addSubMenu(t("Project", "Проект"));
-        projectMenu.add(0, 28, 0, t("Open project…", "Открыть проект…"));
-        projectMenu.add(0, 29, 1, t("Project settings…", "Настройки проекта…"));
-        projectMenu.add(0, 31, 2, t("Screen editor…", "Редактор экрана…"));
-        projectMenu.add(0, 26, 2, t("Set current file as project root", "Сделать файл корнем проекта"));
-        projectMenu.add(0, 27, 3, t("Auto-detect main.asm root", "Корень проекта: авто main.asm"));
-        projectMenu.add(0, 24, 4, t("Choose project folder…", "Выбрать папку проекта…"));
-        projectMenu.add(0, 20, 5, t("Build project", "Собрать проект"));
-        projectMenu.add(0, 22, 6, t("Build and run", "Собрать и запустить"));
-        projectMenu.add(0, 21, 7, t("Export TAP…", "Экспортировать TAP…"));
-
-        menu.add(0, 10, 10, t("Examples / Routines", "Примеры / Подпрограммы"));
-        menu.add(0, 11, 11, t("Z80 / Spectrum reference", "Справочник Z80 / Spectrum"));
-
-        Menu edit = menu.addSubMenu(t("Edit", "Правка"));
-        edit.add(0, 23, 0, t("Find / Replace…", "Найти / Заменить…"));
-        edit.add(0, 13, 1, t("Format document", "Форматировать код"));
-        edit.add(0, 17, 2, t("UPPERCASE entire source", "ВЕСЬ КОД → ЗАГЛАВНЫМИ"));
-        edit.add(0, 12, 3, t("Number / Address / Sprite tools", "Калькулятор / Адреса / Спрайты"));
-        edit.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
-
-        menu.add(0, 15, 100, t("Editor settings", "Настройки редактора"));
-        menu.add(0, 25, 102, t("Open INCLUDE…", "Открыть INCLUDE…"));
-
-        popup.setOnMenuItemClickListener(item -> {
-            switch (item.getItemId()) {
-                case 1: newTab(); break;
-                case 2: openSourceFilePicker(); break;
-                case 28: chooseProjectFolder(); break;
-                case 29: showProjectSettings(); break;
-                case 31: openScreenEditor(null); break;
-                case 3: saveDocument(activeIndex, false); break;
-                case 4: requestSaveAs(activeIndex, false); break;
-                case 5: requestCloseTab(activeIndex); break;
-                case 20: buildSource(); break;
-                case 21: saveTapFile(); break;
-                case 22: runTapInEmulator(); break;
-                case 10: showExamples(); break;
-                case 11: openReference(); break;
-                case 12: openTools(); break;
-                case 23: showSearchPanel(); break;
-                case 13:
-                    editor.formatAllFromSettings();
-                    setStatus(t("Document formatted", "Документ отформатирован"),
-                            Color.rgb(45, 100, 72));
-                    scheduleAnalysis();
-                    break;
-                case 15: showEditorSettings(); break;
-                case 24: chooseIncludeFolder(); break;
-                case 25: showIncludeFiles(); break;
-                case 26: selectCurrentRoot(); break;
-                case 27: useAutoRoot(); break;
-                case 16: showEmulatorDialog(); break;
-                case 17:
-                    if (editor.uppercaseEntireDocument()) {
-                        scheduleAnalysis();
-                        setStatus(t("Uppercased all text (including strings/comments)",
-                                        "Весь текст заглавными (включая строки и комментарии)"),
-                                Color.rgb(45, 100, 72));
-                    } else {
-                        setStatus(t("Already uppercase", "Текст уже заглавными"),
-                                Color.rgb(45, 100, 72));
-                    }
-                    break;
-                default: return false;
-            }
-            return true;
-        });
+        String root = AndroidIncludeFiles.selectedRoot(this);
+        IdeMenu.populate(popup.getMenu(),language==AppLanguage.RU,
+                hasActiveDocument(),root,language==AppLanguage.RU);
+        popup.setOnMenuItemClickListener(this::handleMainMenuAction);
         popup.show();
     }
 
-    private void showFileMenu() {
-        String[] items = {
-                t("New tab", "Новая вкладка"),
-                t("Open file…", "Открыть файл…"),
-                t("Open project…", "Открыть проект…"),
-                t("Save source", "Сохранить исходник"),
-                t("Save source as…", "Сохранить исходник как…"),
-                t("Close tab", "Закрыть вкладку"),
-                t("Editor settings…", "Настройки редактора…")
-        };
+    private boolean handleMainMenuAction(MenuItem item) {
+        switch(item.getItemId()) {
+            case IdeMenu.NEW_TAB: newTab(); break;
+            case IdeMenu.OPEN_FILE: openSourceFilePicker(); break;
+            case IdeMenu.OPEN_INCLUDE: showIncludeFiles(); break;
+            case IdeMenu.SAVE: saveDocument(activeIndex,false); break;
+            case IdeMenu.SAVE_AS: requestSaveAs(activeIndex,false); break;
+            case IdeMenu.CLOSE_TAB: requestCloseTab(activeIndex); break;
+            case IdeMenu.OPEN_PROJECT: chooseProjectFolder(); break;
+            case IdeMenu.PROJECT_SETTINGS: showProjectSettings(); break;
+            case IdeMenu.MAIN_ASM: showMainAsmPicker(); break;
+            case IdeMenu.FIND: showSearchPanel(); break;
+            case IdeMenu.FORMAT:
+                if(!hasActiveDocument())return true;
+                editor.formatAllFromSettings();
+                setStatus(t("Document formatted","Документ отформатирован"),
+                        Color.rgb(45,100,72));
+                scheduleAnalysis();
+                break;
+            case IdeMenu.UPPERCASE:
+                if(!hasActiveDocument())return true;
+                if(editor.uppercaseEntireDocument()) {
+                    scheduleAnalysis();
+                    setStatus(t("Uppercased all text (including strings/comments)",
+                                    "Весь текст заглавными (включая строки/комментарии)"),
+                            Color.rgb(45,100,72));
+                } else setStatus(t("Already uppercase","Текст уже заглавными"),
+                        Color.rgb(45,100,72));
+                break;
+            case IdeMenu.BUILD: buildSource(); break;
+            case IdeMenu.BUILD_RUN: runTapInEmulator(); break;
+            case IdeMenu.EXPORT_TAP: saveTapFile(); break;
+            case IdeMenu.SCREEN_EDITOR: openScreenEditor(null); break;
+            case IdeMenu.TOOLS: openTools(); break;
+            case IdeMenu.EXAMPLES: showExamples(); break;
+            case IdeMenu.EDITOR_SETTINGS: showEditorSettings(); break;
+            case IdeMenu.EMULATOR_SETTINGS: showEmulatorDialog(); break;
+            case IdeMenu.LANGUAGE: toggleLanguage(); break;
+            case IdeMenu.REFERENCE: openReference(); break;
+            default: return false;
+        }
+        return true;
+    }
+
+    /** List the available ASM entry points instead of exposing an auto-root toggle. */
+    private void showMainAsmPicker() {
+        if(AndroidIncludeFiles.projectTree(this)!=null) {
+            try {
+                List<String> names=AndroidIncludeFiles.sourceFiles(this);
+                if(names.isEmpty()) {
+                    setStatus(t("No ASM files in project","В проекте нет ASM-файлов"),
+                            Color.rgb(180,30,30));
+                    return;
+                }
+                String current=AndroidIncludeFiles.selectedRoot(this);
+                int selected=-1;
+                for(int i=0;i<names.size();i++)
+                    if(names.get(i).equalsIgnoreCase(current)) {selected=i;break;}
+                String[] choices=names.toArray(new String[0]);
+                new AlertDialog.Builder(this)
+                        .setTitle(t("Main ASM file","Главный ASM"))
+                        .setSingleChoiceItems(choices,selected,(dialog,which)->{
+                            dialog.dismiss();
+                            openProjectRoot(choices[which]);
+                        })
+                        .setNegativeButton(t("Cancel","Отмена"),null)
+                        .show();
+            } catch(Exception ex) {
+                setStatus(t("Cannot list main ASM files · ","Ошибка выбора главного ASM · ")
+                        +safeMessage(ex),Color.rgb(180,30,30));
+            }
+            return;
+        }
+        if(documents.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("Main ASM file","Главный ASM"))
+                    .setMessage(t("Open a project to choose the main ASM file.",
+                            "Открой проект, чтобы выбрать главный ASM-файл."))
+                    .setPositiveButton(t("Open project","Открыть проект"),
+                            (dialog,which)->chooseProjectFolder())
+                    .setNegativeButton(t("Cancel","Отмена"),null)
+                    .show();
+            return;
+        }
+        String[] labels=new String[documents.size()];
+        int checked=-1;
+        String root=AndroidIncludeFiles.selectedRoot(this);
+        for(int i=0;i<documents.size();i++) {
+            labels[i]=AndroidIncludeFiles.relativePath(this,documents.get(i));
+            if(labels[i].equalsIgnoreCase(root))checked=i;
+        }
         new AlertDialog.Builder(this)
-                .setTitle(t("File", "Файл"))
-                .setItems(items, (dialog, which) -> {
-                    switch (which) {
-                        case 0: newTab(); break;
-                        case 1: openSourceFilePicker(); break;
-                        case 2: chooseProjectFolder(); break;
-                        case 3: saveDocument(activeIndex, false); break;
-                        case 4: requestSaveAs(activeIndex, false); break;
-                        case 5: requestCloseTab(activeIndex); break;
-                        case 6: showEditorSettings(); break;
-                        default: break;
-                    }
+                .setTitle(t("Main ASM file","Главный ASM"))
+                .setSingleChoiceItems(labels,checked,(dialog,which)->{
+                    dialog.dismiss();
+                    selectTab(which);
+                    selectCurrentRoot();
                 })
-                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .setNegativeButton(t("Cancel","Отмена"),null)
                 .show();
     }
 
@@ -1550,15 +1542,6 @@ public class MainActivity extends Activity {
             setStatus(t("Editor settings applied", "Настройки редактора применены"),
                     Color.rgb(45, 80, 150));
         });
-    }
-
-    private void updateGutterWidthButton(Button button) {
-        if (editor == null) return;
-        boolean narrow = editor.isGutterCompact();
-        button.setText(narrow ? "⇥" : "⇤");
-        button.setContentDescription(narrow
-                ? t("Widen line number column", "Расширить столбец номеров строк")
-                : t("Narrow line number column", "Сузить столбец номеров строк"));
     }
 
     private void refreshEditorTools() {
