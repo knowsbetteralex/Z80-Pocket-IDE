@@ -54,12 +54,12 @@ public final class ToolsActivity extends Activity {
         super.onCreate(state);
         language = LanguageSettings.get(this);
         ru = language == AppLanguage.RU;
-        getWindow().setStatusBarColor(0xFFF6FAF7);
-        getWindow().setNavigationBarColor(0xFFF6FAF7);
+        getWindow().setStatusBarColor(UiStyle.APP_BACKGROUND);
+        getWindow().setNavigationBarColor(UiStyle.APP_BACKGROUND);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFFF6FAF7);
+        root.setBackgroundColor(UiStyle.APP_BACKGROUND);
         int padding = dp(11);
 
         if(Build.VERSION.SDK_INT>=30){
