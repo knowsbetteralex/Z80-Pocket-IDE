@@ -24,6 +24,14 @@ public final class WorkspaceStoreTest {
         return UndoHistory.readFrom(new DataInputStream(new ByteArrayInputStream(bytes)));
     }
 
+    @Test public void emptyWorkspaceRoundTripsWithoutRecreatingTab() throws Exception {
+        WorkspaceStore.Session session=new WorkspaceStore.Session();
+        session.activeIndex=-1;
+        WorkspaceStore.Session restored=WorkspaceStore.decode(WorkspaceStore.encode(session));
+        assertEquals(0,restored.tabs.size());
+        assertEquals(-1,restored.activeIndex);
+    }
+
     @Test public void recoversMultipleTabsIncludingUnsavedUnicodeDraftAndLocation() throws Exception {
         WorkspaceStore.Session session = new WorkspaceStore.Session();
         WorkspaceStore.Tab file = new WorkspaceStore.Tab();
