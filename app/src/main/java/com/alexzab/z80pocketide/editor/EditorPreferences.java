@@ -27,7 +27,7 @@ public final class EditorPreferences {
                 p.getInt(TAB_SIZE, 4),
                 p.getBoolean(USE_SPACES, true),
                 p.getBoolean(SHOW_TAB, true),
-                p.getBoolean(FOLDING, true),
+                false, // Label folding is temporarily removed from the UI.
                 p.getBoolean(QUICK_SYMBOLS, true),
                 p.getBoolean(LABEL_COMPLETION, true)
         );
