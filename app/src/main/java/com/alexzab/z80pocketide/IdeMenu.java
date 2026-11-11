@@ -14,7 +14,7 @@ public final class IdeMenu {
     public static final int EDITOR_SETTINGS=15, EMULATOR_SETTINGS=16, UPPERCASE=17;
     public static final int BUILD=20, EXPORT_TAP=21, BUILD_RUN=22, FIND=23;
     public static final int OPEN_INCLUDE=25, OPEN_PROJECT=28, PROJECT_SETTINGS=29;
-    public static final int SCREEN_EDITOR=31, MAIN_ASM=32, LANGUAGE=33;
+    public static final int SCREEN_EDITOR=31, MAIN_ASM=32, LANGUAGE=33, USER_GUIDE=34;
 
     private IdeMenu() {}
 
@@ -71,6 +71,7 @@ public final class IdeMenu {
         settings.add(0,LANGUAGE,2,
                 t(ru,"Interface language: ","Язык интерфейса: ")+(isRussian?"RU":"EN"));
 
-        item(menu,REFERENCE,6,ru,"Z80 / Spectrum reference","Справочник Z80 / Spectrum");
+        item(menu,USER_GUIDE,6,ru,"User guide","Руководство");
+        item(menu,REFERENCE,7,ru,"Z80 / Spectrum reference","Справочник Z80 / Spectrum");
     }
 }
