@@ -66,7 +66,6 @@ public final class EditorSettingsDialog {
                     LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         }
         box.addView(widths);
-        box.addView(folding);
         box.addView(quickSymbols);
         box.addView(labelCompletion);
 
