@@ -42,6 +42,8 @@ gradle assembleDebug
 
 APK появится в `app/build/outputs/apk/debug/app-debug.apk`.
 
+**Руководство пользователя:** [Русский](app/src/main/assets/help/guide_ru.md) · [English](app/src/main/assets/help/guide_en.md)
+
 **Документация:** [История версий](CHANGELOG.md) · [Материалы по редактору экранов](docs/SCREEN_EDITOR_V0.38.0.md) · [Исходный код](app/src/main/java/com/alexzab/z80pocketide)
 
 ---
@@ -81,5 +83,7 @@ gradle assembleDebug
 ```
 
 The APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+
+**User guide:** [English](app/src/main/assets/help/guide_en.md) · [Русский](app/src/main/assets/help/guide_ru.md)
 
 **Documentation:** [Version history](CHANGELOG.md) · [Screen editor notes](docs/SCREEN_EDITOR_V0.38.0.md) · [Source code](app/src/main/java/com/alexzab/z80pocketide)
