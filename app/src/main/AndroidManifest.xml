@@ -36,6 +36,9 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
         <activity
+            android:name=".HelpActivity"
+            android:exported="false" />
+        <activity
             android:name=".ReferenceActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />

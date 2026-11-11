@@ -4,6 +4,12 @@
 
 Detailed Z80 Pocket IDE release history. Earlier release notes are preserved in their original English.
 
+## v0.45.0 — Offline user guide / Встроенное руководство
+
+- Added a chapter-based, Russian/English offline user guide, accessible from the main menu without replacing the technical Z80/Spectrum reference.
+- Eleven chapters cover editing, files, projects, INCLUDE/INCBIN, assembler, TAP, screen editor, tools, settings, and troubleshooting; native table of contents plus previous/next navigation.
+- Full Markdown guides are bundled in `app/src/main/assets/help/` and linked from README.
+
 ## v0.44.1 — Compact editor and APK downloads
 
 - Narrow line-number gutter (46 → 30 dp), shorter tab strip and caret-aware `INC` highlighting on `INCLUDE` lines.

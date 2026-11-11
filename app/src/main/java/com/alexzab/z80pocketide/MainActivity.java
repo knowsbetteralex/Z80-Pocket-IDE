@@ -1522,6 +1522,7 @@ public class MainActivity extends Activity {
             case IdeMenu.EDITOR_SETTINGS: showEditorSettings(); break;
             case IdeMenu.EMULATOR_SETTINGS: showEmulatorDialog(); break;
             case IdeMenu.LANGUAGE: toggleLanguage(); break;
+            case IdeMenu.USER_GUIDE: startActivity(new Intent(this, HelpActivity.class)); break;
             case IdeMenu.REFERENCE: openReference(); break;
             default: return false;
         }
