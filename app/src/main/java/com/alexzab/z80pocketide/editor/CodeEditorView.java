@@ -130,7 +130,7 @@ public class CodeEditorView extends EditText {
         setVerticalScrollBarEnabled(true);
         setOverScrollMode(OVER_SCROLL_NEVER);
 
-        compactGutter = preferences().getBoolean(PREF_COMPACT_GUTTER, false);
+        compactGutter = false; // Fixed width while gutter-width UI is removed.
         gutterWidth = dp(compactGutter ? GUTTER_COMPACT_DP : GUTTER_REGULAR_DP);
         gutterPaint.setColor(Color.rgb(242, 245, 243));
         lineNumberPaint.setTextAlign(Paint.Align.RIGHT);
