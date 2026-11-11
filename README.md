@@ -2,7 +2,20 @@
 
 A small Android IDE for writing, checking, assembling and running Z80 code, with ZX Spectrum-oriented output formats.
 
-## Current development build (v0.28.0)
+## 📲 Download the latest APK
+
+**[⬇️ Download latest Z80 Pocket IDE APK](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest/download/Z80-Pocket-IDE.apk)**
+
+[View latest release and version](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest) · [All releases](https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases)
+
+Every successful `main` build is published automatically to GitHub Releases, with the
+tested APK and SHA-256 checksum. The download link always points to the newest
+published release (no workflow artifact login or expiring artifact link required).
+**Note:** These APKs are signed with the Android debug key for direct installation;
+they are not production/Google Play-signed releases.
+
+
+## Features
 
 - Pure Java Android app, no AndroidX/Jetpack dependency.
 - Mobile-safe UI that respects Android system bars.
