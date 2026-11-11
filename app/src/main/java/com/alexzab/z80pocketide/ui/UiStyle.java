@@ -10,6 +10,16 @@ import android.os.Build;
 import android.widget.Button;
 
 public final class UiStyle {
+    /** Shared visual language for editor and every auxiliary screen. */
+    public static final int APP_BACKGROUND = 0xFFF4F8F6;
+    public static final int PANEL_BACKGROUND = 0xFFFFFFFF;
+    public static final int PANEL_STROKE = 0xFFCFDED5;
+    public static final int HEADER_BACKGROUND = 0xFFE7F2EB;
+    public static final int TEXT_PRIMARY = 0xFF1C3228;
+    public static final int TEXT_SECONDARY = 0xFF63786D;
+    public static final int ACCENT_GREEN = 0xFF2F7D58;
+    public static final int ERROR_RED = 0xFFB33342;
+
     private static final int GREEN = 0xFF2F7D58;
     private static final int GREEN_DARK = 0xFF235E43;
     private static final int GREEN_SOFT = 0xFFE3F1E8;

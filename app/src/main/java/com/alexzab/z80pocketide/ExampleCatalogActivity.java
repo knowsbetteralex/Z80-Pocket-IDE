@@ -38,7 +38,7 @@ public final class ExampleCatalogActivity extends Activity {
         super.onCreate(savedInstanceState);
         language = LanguageSettings.get(this);
 
-        final int bg = Color.rgb(16, 25, 32);
+        final int bg = UiStyle.APP_BACKGROUND;
         getWindow().setStatusBarColor(bg);
         getWindow().setNavigationBarColor(bg);
 
@@ -66,14 +66,14 @@ public final class ExampleCatalogActivity extends Activity {
         back.setText("←");
         back.setTextSize(19);
         back.setMinWidth(0);
-        UiStyle.styleButton(back, Color.rgb(27, 45, 57), 0xFFFFD43B, 16);
+        UiStyle.styleSoftGreenButton(back);
         header.addView(back, new LinearLayout.LayoutParams(dp(52), dp(48)));
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label(t("Library", "Библиотека"), 24, 0xFFFFD43B);
+        TextView title = label(t("Library", "Библиотека"), 24, UiStyle.ACCENT_GREEN);
         TextView subtitle = label(t("Visual demos and reusable Z80 building blocks",
-                "Наглядные примеры и готовые блоки Z80"), 12, 0xFFA8BAC5);
+                "Наглядные примеры и готовые блоки Z80"), 12, UiStyle.TEXT_SECONDARY);
         titles.addView(title);
         titles.addView(subtitle);
         header.addView(titles, new LinearLayout.LayoutParams(
@@ -140,7 +140,7 @@ public final class ExampleCatalogActivity extends Activity {
                     "Готовые подпрограммы с контрактами IN / OUT / ПОРТИТ.")
                 : t("Small runnable programs that demonstrate Spectrum hardware and Z80 techniques.",
                     "Небольшие запускаемые программы, показывающие железо Spectrum и приёмы Z80.");
-        TextView intro = label(introText, 13, 0xFFA8BAC5);
+        TextView intro = label(introText, 13, UiStyle.TEXT_SECONDARY);
         intro.setPadding(dp(4), 0, dp(4), dp(10));
         list.addView(intro);
 
@@ -151,7 +151,7 @@ public final class ExampleCatalogActivity extends Activity {
 
             String category = example.category(language);
             if (!showRoutines && !category.equals(previousCategory)) {
-                TextView heading = label(category, 21, 0xFFFFD43B);
+                TextView heading = label(category, 21, UiStyle.ACCENT_GREEN);
                 heading.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                 heading.setPadding(0, dp(previousCategory == null ? 2 : 18), 0, dp(7));
                 list.addView(heading);
@@ -167,11 +167,8 @@ public final class ExampleCatalogActivity extends Activity {
     }
 
     private void styleTab(Button button, boolean active) {
-        if (active) {
-            UiStyle.styleButton(button, 0xFFFFD43B, Color.rgb(20, 28, 34), 16);
-        } else {
-            UiStyle.styleButton(button, Color.rgb(27, 45, 57), 0xFFD9E0E4, 16);
-        }
+        if(active) UiStyle.styleGreenButton(button);
+        else UiStyle.styleSoftGreenButton(button);
     }
 
     private View card(ExamplePrograms.Example example) {
@@ -179,8 +176,8 @@ public final class ExampleCatalogActivity extends Activity {
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(0, 0, dp(8), 0);
-        card.setBackground(UiStyle.rounded(this, Color.rgb(27, 45, 57),
-                18, Color.rgb(42, 63, 75), 1));
+        card.setBackground(UiStyle.rounded(this, UiStyle.PANEL_BACKGROUND,
+                18, UiStyle.PANEL_STROKE, 1));
         if (Build.VERSION.SDK_INT >= 21) card.setElevation(dp(1));
 
         LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
@@ -197,9 +194,9 @@ public final class ExampleCatalogActivity extends Activity {
         textBlock.setOrientation(LinearLayout.VERTICAL);
         textBlock.setPadding(dp(12), dp(9), dp(3), dp(7));
 
-        TextView title = label(example.title(language), 18, 0xFFFFD43B);
+        TextView title = label(example.title(language), 18, UiStyle.ACCENT_GREEN);
         title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        TextView desc = label(example.description(language), 13, 0xFFE5E8EA);
+        TextView desc = label(example.description(language), 13, UiStyle.TEXT_SECONDARY);
         desc.setMaxLines(showRoutines ? 2 : 3);
         textBlock.addView(title);
         textBlock.addView(desc);
@@ -207,7 +204,7 @@ public final class ExampleCatalogActivity extends Activity {
         if (showRoutines && example.hasIo()) {
             String io = example.io(language);
             String first = io == null ? "" : io.split("\n", 2)[0];
-            TextView contract = label(first, 11, 0xFF9ED9B5);
+            TextView contract = label(first, 11, UiStyle.ACCENT_GREEN);
             contract.setTypeface(android.graphics.Typeface.MONOSPACE);
             contract.setPadding(0, dp(4), 0, 0);
             contract.setMaxLines(1);
@@ -217,7 +214,7 @@ public final class ExampleCatalogActivity extends Activity {
         card.addView(textBlock, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
 
-        TextView arrow = label("›", 28, 0xFFB9C8D0);
+        TextView arrow = label("›", 28, UiStyle.TEXT_SECONDARY);
         arrow.setGravity(Gravity.CENTER);
         card.addView(arrow, new LinearLayout.LayoutParams(
                 dp(26), LinearLayout.LayoutParams.MATCH_PARENT));

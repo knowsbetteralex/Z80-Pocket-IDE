@@ -33,8 +33,6 @@ public final class EditorSettingsDialog {
                 "Автоматические отступы"), current.autoIndent);
         CheckBox spaces = check(activity, t(language, "Use spaces instead of TAB character",
                 "Использовать пробелы вместо символа TAB"), current.useSpaces);
-        CheckBox folding = check(activity, t(language, "Enable label block folding",
-                "Разрешить сворачивание блоков под метками"), current.folding);
         CheckBox quickSymbols = check(activity, t(language,
                 "Quick symbols above Android keyboard",
                 "Полоса знаков над системной клавиатурой"), current.quickSymbols);
@@ -66,7 +64,6 @@ public final class EditorSettingsDialog {
                     LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         }
         box.addView(widths);
-        box.addView(folding);
         box.addView(quickSymbols);
         box.addView(labelCompletion);
 
@@ -83,7 +80,7 @@ public final class EditorSettingsDialog {
                     int tabSize = checked == 2 || checked == 8 ? checked : 4;
                     EditorPreferences.set(activity, new EditorPreferences.Snapshot(
                             upper.isChecked(), allUpper.isChecked(), indent.isChecked(), tabSize,
-                            spaces.isChecked(), true, folding.isChecked(),
+                            spaces.isChecked(), true, false,
                             quickSymbols.isChecked(), labelCompletion.isChecked()));
                     if (onChanged != null) onChanged.run();
                 })

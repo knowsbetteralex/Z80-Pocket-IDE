@@ -37,12 +37,12 @@ public final class NumberConverterActivity extends Activity {
         super.onCreate(state);
         language = LanguageSettings.get(this);
 
-        getWindow().setStatusBarColor(Color.rgb(245, 248, 246));
-        getWindow().setNavigationBarColor(Color.rgb(245, 248, 246));
+        getWindow().setStatusBarColor(UiStyle.APP_BACKGROUND);
+        getWindow().setNavigationBarColor(UiStyle.APP_BACKGROUND);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(245, 248, 246));
+        root.setBackgroundColor(UiStyle.APP_BACKGROUND);
 
         final int side = dp(16);
         if (Build.VERSION.SDK_INT >= 30) {

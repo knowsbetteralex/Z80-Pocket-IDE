@@ -158,6 +158,8 @@ public class MainActivity extends Activity {
     private TextView statistics;
     private Button clearLinesButton;
     private Button mainMenuButton;
+    private Button includeTabButton;
+    private ImageButton saveSourceButton, findSourceButton;
     private AssemblyResult liveAnalysis;
     private String analyzedSource;
     private String analysisError;
@@ -188,7 +190,7 @@ public class MainActivity extends Activity {
     private List<AssemblyDiagnostics.Issue> analysisIssues = new ArrayList<>();
     private HorizontalScrollView tabStrip;
     private SourceScrollRail sourceScrollRail;
-    private ImageButton foldAllButton;
+    private View emptyWorkspaceView;
     private SearchReplacePanel searchPanel;
     private final List<SourceSearch.Match> searchMatches = new ArrayList<>();
     private int searchMatchIndex = -1;
@@ -266,7 +268,7 @@ public class MainActivity extends Activity {
         topBar.addView(quickScroll, new LinearLayout.LayoutParams(0, dp(43), 1f));
 
         mainMenuButton = headerButton("☰", t("Menu", "Меню"), false);
-        ImageButton saveSourceButton = new ImageButton(this);
+        saveSourceButton = new ImageButton(this);
         saveSourceButton.setContentDescription(t("Save source", "Сохранить исходник"));
         saveSourceButton.setImageResource(R.drawable.ic_header_save);
         saveSourceButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -289,7 +291,8 @@ public class MainActivity extends Activity {
         redoButton = headerButton("↷", t("Redo", "Повторить"), false);
         undoButton.setEnabled(false);
         redoButton.setEnabled(false);
-        ImageButton findButton = new ImageButton(this);
+        findSourceButton = new ImageButton(this);
+        ImageButton findButton=findSourceButton;
         findButton.setContentDescription(t("Find / Replace", "Найти / Заменить"));
         findButton.setImageResource(R.drawable.ic_header_search);
         findButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -301,7 +304,6 @@ public class MainActivity extends Activity {
         findButtonParams.setMargins(dp(1), 0, dp(1), 0);
         findButton.setLayoutParams(findButtonParams);
         Button referenceButton = headerButton("?", t("Reference", "Справочник"), false);
-        Button includeButton = headerButton("INC", t("Open INCLUDE", "Открыть INCLUDE"), false);
         ImageButton converterButton = new ImageButton(this);
         converterButton.setContentDescription(t("Tools", "Инструменты"));
         converterButton.setImageResource(R.drawable.ic_header_tools);
@@ -311,24 +313,18 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams workshopParams = new LinearLayout.LayoutParams(dp(34), dp(42));
         workshopParams.setMargins(dp(1), 0, dp(1), 0);
         converterButton.setLayoutParams(workshopParams);
-        Button languageButton = headerButton(language == AppLanguage.RU ? "RU" : "EN",
-                t("Switch language", "Переключить язык"), false);
         quickActions.addView(openSourceButton);
         quickActions.addView(saveSourceButton);
         quickActions.addView(undoButton);
         quickActions.addView(redoButton);
         quickActions.addView(findButton);
         quickActions.addView(converterButton);
-        quickActions.addView(languageButton);
-        quickActions.addView(includeButton);
         quickActions.addView(referenceButton);
         topBar.addView(mainMenuButton);
         root.addView(topBar);
 
         referenceButton.setOnClickListener(v -> openReference());
-        includeButton.setOnClickListener(v -> showIncludeFiles());
         converterButton.setOnClickListener(v -> openTools());
-        languageButton.setOnClickListener(v -> toggleLanguage());
         mainMenuButton.setOnClickListener(v -> showMainMenu());
         saveSourceButton.setOnClickListener(v -> saveDocument(activeIndex, false));
         openSourceButton.setOnClickListener(v -> {
@@ -373,46 +369,14 @@ public class MainActivity extends Activity {
         workspaceBar.addView(tabStrip, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        foldAllButton = new ImageButton(this);
-        foldAllButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        foldAllButton.setPadding(dp(6), dp(6), dp(6), dp(6));
-        foldAllButton.setBackground(UiStyle.ripple(this,
-                0xFFE3F1E8, 12, 0xFFB8D7C5));
-        LinearLayout.LayoutParams foldParams = new LinearLayout.LayoutParams(
-                dp(40), dp(40));
-        foldParams.setMargins(dp(3), 0, dp(1), 0);
-        workspaceBar.addView(foldAllButton, foldParams);
-
-        Button gutterWidthButton = headerButton("⇤",
-                t("Narrow line numbers", "Сузить номера строк"), false);
-        gutterWidthButton.setTextSize(19);
-        LinearLayout.LayoutParams gutterButtonParams = new LinearLayout.LayoutParams(
-                dp(37), dp(40));
-        gutterButtonParams.setMargins(dp(2), 0, dp(1), 0);
-        workspaceBar.addView(gutterWidthButton, gutterButtonParams);
-        gutterWidthButton.setOnClickListener(v -> {
-            if (editor == null) return;
-            editor.setGutterCompact(!editor.isGutterCompact());
-            updateGutterWidthButton(gutterWidthButton);
-            if (sourceScrollRail != null) sourceScrollRail.onViewportChanged();
-        });
-
-        foldAllButton.setOnClickListener(v -> {
-            if (editor == null) return;
-            boolean changed;
-            if (editor.isFolded()) {
-                editor.unfoldAll();
-                changed = true;
-            } else {
-                changed = editor.foldTopLevelLabels();
-            }
-            if (changed) {
-                sourceScrollRail.onViewportChanged();
-                scheduleAnalysis();
-                scheduleSearchRefresh();
-            }
-            updateFoldAllButton();
-        });
+        includeTabButton = headerButton("INC",
+                t("Open INCLUDE","Открыть INCLUDE"),false);
+        Button includeFromTabs=includeTabButton;
+        includeFromTabs.setTextSize(12);
+        LinearLayout.LayoutParams includeTabParams=new LinearLayout.LayoutParams(dp(43),dp(40));
+        includeTabParams.setMargins(dp(3),0,dp(1),0);
+        workspaceBar.addView(includeFromTabs,includeTabParams);
+        includeFromTabs.setOnClickListener(v->showIncludeFiles());
         LinearLayout.LayoutParams workspaceParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         workspaceParams.setMargins(0, dp(5), 0, dp(4));
@@ -443,7 +407,6 @@ public class MainActivity extends Activity {
         // circular bounds, without a full-width empty strip below the code.
         editor.setPadding(dp(54), dp(12), dp(14), dp(12));
         editor.syncGutterPadding();
-        updateGutterWidthButton(gutterWidthButton);
         editor.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
@@ -470,8 +433,6 @@ public class MainActivity extends Activity {
         editorHost.addView(sourceScrollRail, railParams);
         editor.setOnViewportScrolled(sourceScrollRail::onViewportChanged);
         editor.setOnUserFingerScroll(sourceScrollRail::onUserScroll);
-        editor.setOnFoldStateChanged(this::updateFoldAllButton);
-        updateFoldAllButton();
 
         // Build + Run sits over the code canvas instead of consuming header width.
         runTap = new ImageButton(this);
@@ -490,6 +451,38 @@ public class MainActivity extends Activity {
         runParams.setMargins(0, 0, dp(13), dp(13));
         editorHost.addView(runTap, runParams);
         runTap.setOnClickListener(v -> runTapInEmulator());
+
+        // No hidden scratch document: the blank canvas offers an explicit new-file action.
+        LinearLayout empty=new LinearLayout(this);
+        empty.setOrientation(LinearLayout.VERTICAL);
+        empty.setGravity(Gravity.CENTER);
+        empty.setBackground(UiStyle.rounded(this,Color.rgb(252,253,252),20,
+                Color.rgb(207,222,213),1));
+        Button create=actionButton("+");
+        create.setTextSize(34);
+        create.setContentDescription(t("Create new ASM file","Создать новый ASM-файл"));
+        empty.addView(create,new LinearLayout.LayoutParams(dp(72),dp(72)));
+        create.setOnClickListener(v->newTab());
+        TextView emptyTitle=new TextView(this);
+        emptyTitle.setText(t("New ASM file","Новый ASM-файл"));
+        emptyTitle.setTextColor(0xFF255D43);
+        emptyTitle.setTextSize(18);
+        emptyTitle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams=new LinearLayout.LayoutParams(-2,-2);
+        titleParams.setMargins(0,dp(15),0,0);
+        empty.addView(emptyTitle,titleParams);
+        TextView emptyHint=new TextView(this);
+        emptyHint.setText(t("Or open a file / project from the menu",
+                "Или открой файл / проект через меню"));
+        emptyHint.setTextSize(13);
+        emptyHint.setGravity(Gravity.CENTER);
+        emptyHint.setTextColor(0xFF6B8274);
+        LinearLayout.LayoutParams hintParams=new LinearLayout.LayoutParams(-2,-2);
+        hintParams.setMargins(dp(14),dp(8),dp(14),0);
+        empty.addView(emptyHint,hintParams);
+        emptyWorkspaceView=empty;
+        editorHost.addView(empty,new FrameLayout.LayoutParams(-1,-1));
+        empty.setVisibility(View.GONE);
 
         SyntaxHighlighter.attach(editor);
 
@@ -790,11 +783,8 @@ public class MainActivity extends Activity {
             pendingCloseAfterSave = state.getBoolean(STATE_PENDING_CLOSE, false);
         }
 
-        if (documents.isEmpty()) {
-            documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
-            activeIndex = 0;
-        }
-        activeIndex = Math.max(0, Math.min(activeIndex, documents.size() - 1));
+        activeIndex = documents.isEmpty() ? -1
+                : Math.max(0, Math.min(activeIndex, documents.size() - 1));
         updateUntitledCounter();
         renderTabs();
         loadActiveDocument();
@@ -808,8 +798,8 @@ public class MainActivity extends Activity {
     private WorkspaceStore.Session snapshotWorkspace() throws IOException {
         captureCurrentDocument();
         WorkspaceStore.Session session = new WorkspaceStore.Session();
-        if (documents.isEmpty()) throw new IOException("No open source tabs");
-        session.activeIndex = Math.max(0, Math.min(activeIndex, documents.size() - 1));
+        session.activeIndex = documents.isEmpty() ? -1
+                : Math.max(0, Math.min(activeIndex, documents.size() - 1));
         for (EditorDocument doc : documents) {
             WorkspaceStore.Tab tab = new WorkspaceStore.Tab();
             tab.title = doc.title;
@@ -831,7 +821,7 @@ public class MainActivity extends Activity {
     }
 
     private void scheduleWorkspaceSave() {
-        if (workspaceFile == null || documents.isEmpty()) return;
+        if (workspaceFile == null) return;
         workspaceRevision.incrementAndGet();
         workspaceHandler.removeCallbacks(delayedWorkspaceSave);
         workspaceHandler.postDelayed(delayedWorkspaceSave, WORKSPACE_IDLE_MS);
@@ -929,10 +919,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private String starterSource() {
-        return "ORG $8000\n\nSTART:\n    NOP\n    RET\n";
-    }
-
     private String untitledName(int number, AppLanguage lang) {
         return Texts.pick(lang, "Untitled ", "Без имени ") + number + ".asm";
     }
@@ -1014,16 +1000,6 @@ public class MainActivity extends Activity {
         return p;
     }
 
-    private void updateFoldAllButton() {
-        if (foldAllButton == null || editor == null) return;
-        boolean folded = editor.isFolded();
-        foldAllButton.setImageResource(folded
-                ? R.drawable.ic_unfold_all : R.drawable.ic_fold_all);
-        foldAllButton.setContentDescription(folded
-                ? t("Expand all label blocks", "Развернуть все блоки меток")
-                : t("Collapse top-level labels", "Свернуть верхние метки"));
-    }
-
     private void renderTabs() {
         if (tabRow == null) return;
         tabRow.removeAllViews();
@@ -1091,7 +1067,19 @@ public class MainActivity extends Activity {
     }
 
     private void loadActiveDocument() {
-        if (!hasActiveDocument()) return;
+        if (!hasActiveDocument()) {
+            showEmptyWorkspace();
+            return;
+        }
+        editor.setVisibility(View.VISIBLE);
+        sourceScrollRail.setVisibility(View.VISIBLE);
+        saveSourceButton.setEnabled(true);
+        saveSourceButton.setAlpha(1f);
+        findSourceButton.setEnabled(true);
+        findSourceButton.setAlpha(1f);
+        includeTabButton.setEnabled(true);
+        includeTabButton.setAlpha(1f);
+        if(emptyWorkspaceView!=null)emptyWorkspaceView.setVisibility(View.GONE);
         EditorDocument doc = currentDocument();
         loadingDocument = true;
         liveAnalysis = null;
@@ -1105,7 +1093,6 @@ public class MainActivity extends Activity {
         editor.setSelection(Math.max(0, Math.min(doc.cursor, editor.length())));
         loadingDocument = false;
         if (editorInputBar != null) editorInputBar.requestSuggestions();
-        updateFoldAllButton();
         editor.post(() -> {
             editor.scrollToVerticalOffset(doc.scrollY);
             editor.scrollTo(doc.scrollX, editor.getScrollY());
@@ -1114,6 +1101,7 @@ public class MainActivity extends Activity {
 
         boolean built = doc.buildIsCurrent();
         // Run always builds stale or never-built sources; only Save TAP depends on Build.
+        runTap.setVisibility(View.VISIBLE);
         runTap.setEnabled(true);
         saveTap.setEnabled(built);
         scheduleAnalysis();
@@ -1125,6 +1113,38 @@ public class MainActivity extends Activity {
                             ? t("File · ", "Файл · ") + doc.title
                             : t("Tab · ", "Вкладка · ") + doc.title),
                 doc.dirty ? Color.rgb(120, 85, 0) : Color.rgb(90, 90, 90));
+    }
+
+    private void showEmptyWorkspace() {
+        hideKeyboard();
+        loadingDocument=true;
+        try {
+            editor.setSourceText("");
+            editor.setUndoHistory(new UndoHistory(),this::updateUndoRedoButtons);
+            editor.setProjectSymbolsSource(null);
+            if(editorInputBar!=null)editorInputBar.setProjectSymbolsSource(null);
+            editor.setVisibility(View.GONE);
+            sourceScrollRail.setVisibility(View.GONE);
+            saveSourceButton.setEnabled(false);
+            saveSourceButton.setAlpha(.45f);
+            findSourceButton.setEnabled(false);
+            findSourceButton.setAlpha(.45f);
+            includeTabButton.setEnabled(false);
+            includeTabButton.setAlpha(.45f);
+            runTap.setVisibility(View.GONE);
+            runTap.setEnabled(false);
+            saveTap.setEnabled(false);
+            if(emptyWorkspaceView!=null)emptyWorkspaceView.setVisibility(View.VISIBLE);
+            if(searchPanel!=null)searchPanel.setVisibility(View.GONE);
+            liveAnalysis=null;
+            analyzedSource=null;
+            analysisError=null;
+            analysisIssues.clear();
+            updateUndoRedoButtons();
+            refreshStatusPanel();
+            setStatus(t("No open files","Нет открытых файлов"),Color.rgb(90,90,90));
+            scheduleWorkspaceSave();
+        } finally {loadingDocument=false;}
     }
 
     private void updateUndoRedoButtons() {
@@ -1436,110 +1456,112 @@ public class MainActivity extends Activity {
 
     private void showMainMenu() {
         PopupMenu popup = new PopupMenu(this, mainMenuButton);
-        Menu menu = popup.getMenu();
-
-        Menu files = menu.addSubMenu(t("Files", "Файлы"));
-        files.add(0, 1, 0, t("New tab", "Новая вкладка"));
-        files.add(0, 2, 1, t("Open file…", "Открыть файл…"));
-        files.add(0, 3, 2, t("Save source", "Сохранить исходник"));
-        files.add(0, 4, 3, t("Save as…", "Сохранить как…"));
-        files.add(0, 5, 4, t("Close tab", "Закрыть вкладку"));
-        Menu projectMenu = menu.addSubMenu(t("Project", "Проект"));
-        projectMenu.add(0, 28, 0, t("Open project…", "Открыть проект…"));
-        projectMenu.add(0, 29, 1, t("Project settings…", "Настройки проекта…"));
-        projectMenu.add(0, 31, 2, t("Screen editor…", "Редактор экрана…"));
-        projectMenu.add(0, 26, 2, t("Set current file as project root", "Сделать файл корнем проекта"));
-        projectMenu.add(0, 27, 3, t("Auto-detect main.asm root", "Корень проекта: авто main.asm"));
-        projectMenu.add(0, 24, 4, t("Choose project folder…", "Выбрать папку проекта…"));
-        projectMenu.add(0, 20, 5, t("Build project", "Собрать проект"));
-        projectMenu.add(0, 22, 6, t("Build and run", "Собрать и запустить"));
-        projectMenu.add(0, 21, 7, t("Export TAP…", "Экспортировать TAP…"));
-
-        menu.add(0, 10, 10, t("Examples / Routines", "Примеры / Подпрограммы"));
-        menu.add(0, 11, 11, t("Z80 / Spectrum reference", "Справочник Z80 / Spectrum"));
-
-        Menu edit = menu.addSubMenu(t("Edit", "Правка"));
-        edit.add(0, 23, 0, t("Find / Replace…", "Найти / Заменить…"));
-        edit.add(0, 13, 1, t("Format document", "Форматировать код"));
-        edit.add(0, 17, 2, t("UPPERCASE entire source", "ВЕСЬ КОД → ЗАГЛАВНЫМИ"));
-        edit.add(0, 12, 3, t("Number / Address / Sprite tools", "Калькулятор / Адреса / Спрайты"));
-        edit.add(0, 16, 4, t("Choose TAP app", "Выбрать эмулятор TAP"));
-
-        menu.add(0, 15, 100, t("Editor settings", "Настройки редактора"));
-        menu.add(0, 25, 102, t("Open INCLUDE…", "Открыть INCLUDE…"));
-
-        popup.setOnMenuItemClickListener(item -> {
-            switch (item.getItemId()) {
-                case 1: newTab(); break;
-                case 2: openSourceFilePicker(); break;
-                case 28: chooseProjectFolder(); break;
-                case 29: showProjectSettings(); break;
-                case 31: openScreenEditor(null); break;
-                case 3: saveDocument(activeIndex, false); break;
-                case 4: requestSaveAs(activeIndex, false); break;
-                case 5: requestCloseTab(activeIndex); break;
-                case 20: buildSource(); break;
-                case 21: saveTapFile(); break;
-                case 22: runTapInEmulator(); break;
-                case 10: showExamples(); break;
-                case 11: openReference(); break;
-                case 12: openTools(); break;
-                case 23: showSearchPanel(); break;
-                case 13:
-                    editor.formatAllFromSettings();
-                    setStatus(t("Document formatted", "Документ отформатирован"),
-                            Color.rgb(45, 100, 72));
-                    scheduleAnalysis();
-                    break;
-                case 15: showEditorSettings(); break;
-                case 24: chooseIncludeFolder(); break;
-                case 25: showIncludeFiles(); break;
-                case 26: selectCurrentRoot(); break;
-                case 27: useAutoRoot(); break;
-                case 16: showEmulatorDialog(); break;
-                case 17:
-                    if (editor.uppercaseEntireDocument()) {
-                        scheduleAnalysis();
-                        setStatus(t("Uppercased all text (including strings/comments)",
-                                        "Весь текст заглавными (включая строки и комментарии)"),
-                                Color.rgb(45, 100, 72));
-                    } else {
-                        setStatus(t("Already uppercase", "Текст уже заглавными"),
-                                Color.rgb(45, 100, 72));
-                    }
-                    break;
-                default: return false;
-            }
-            return true;
-        });
+        String root = AndroidIncludeFiles.selectedRoot(this);
+        IdeMenu.populate(popup.getMenu(),language==AppLanguage.RU,
+                hasActiveDocument(),root,language==AppLanguage.RU);
+        popup.setOnMenuItemClickListener(this::handleMainMenuAction);
         popup.show();
     }
 
-    private void showFileMenu() {
-        String[] items = {
-                t("New tab", "Новая вкладка"),
-                t("Open file…", "Открыть файл…"),
-                t("Open project…", "Открыть проект…"),
-                t("Save source", "Сохранить исходник"),
-                t("Save source as…", "Сохранить исходник как…"),
-                t("Close tab", "Закрыть вкладку"),
-                t("Editor settings…", "Настройки редактора…")
-        };
+    private boolean handleMainMenuAction(MenuItem item) {
+        switch(item.getItemId()) {
+            case IdeMenu.NEW_TAB: newTab(); break;
+            case IdeMenu.OPEN_FILE: openSourceFilePicker(); break;
+            case IdeMenu.OPEN_INCLUDE: showIncludeFiles(); break;
+            case IdeMenu.SAVE: saveDocument(activeIndex,false); break;
+            case IdeMenu.SAVE_AS: requestSaveAs(activeIndex,false); break;
+            case IdeMenu.CLOSE_TAB: requestCloseTab(activeIndex); break;
+            case IdeMenu.OPEN_PROJECT: chooseProjectFolder(); break;
+            case IdeMenu.PROJECT_SETTINGS: showProjectSettings(); break;
+            case IdeMenu.MAIN_ASM: showMainAsmPicker(); break;
+            case IdeMenu.FIND: showSearchPanel(); break;
+            case IdeMenu.FORMAT:
+                if(!hasActiveDocument())return true;
+                editor.formatAllFromSettings();
+                setStatus(t("Document formatted","Документ отформатирован"),
+                        Color.rgb(45,100,72));
+                scheduleAnalysis();
+                break;
+            case IdeMenu.UPPERCASE:
+                if(!hasActiveDocument())return true;
+                if(editor.uppercaseEntireDocument()) {
+                    scheduleAnalysis();
+                    setStatus(t("Uppercased all text (including strings/comments)",
+                                    "Весь текст заглавными (включая строки/комментарии)"),
+                            Color.rgb(45,100,72));
+                } else setStatus(t("Already uppercase","Текст уже заглавными"),
+                        Color.rgb(45,100,72));
+                break;
+            case IdeMenu.BUILD: buildSource(); break;
+            case IdeMenu.BUILD_RUN: runTapInEmulator(); break;
+            case IdeMenu.EXPORT_TAP: saveTapFile(); break;
+            case IdeMenu.SCREEN_EDITOR: openScreenEditor(null); break;
+            case IdeMenu.TOOLS: openTools(); break;
+            case IdeMenu.EXAMPLES: showExamples(); break;
+            case IdeMenu.EDITOR_SETTINGS: showEditorSettings(); break;
+            case IdeMenu.EMULATOR_SETTINGS: showEmulatorDialog(); break;
+            case IdeMenu.LANGUAGE: toggleLanguage(); break;
+            case IdeMenu.REFERENCE: openReference(); break;
+            default: return false;
+        }
+        return true;
+    }
+
+    /** List the available ASM entry points instead of exposing an auto-root toggle. */
+    private void showMainAsmPicker() {
+        if(AndroidIncludeFiles.projectTree(this)!=null) {
+            try {
+                List<String> names=AndroidIncludeFiles.sourceFiles(this);
+                if(names.isEmpty()) {
+                    setStatus(t("No ASM files in project","В проекте нет ASM-файлов"),
+                            Color.rgb(180,30,30));
+                    return;
+                }
+                String current=AndroidIncludeFiles.selectedRoot(this);
+                int selected=-1;
+                for(int i=0;i<names.size();i++)
+                    if(names.get(i).equalsIgnoreCase(current)) {selected=i;break;}
+                String[] choices=names.toArray(new String[0]);
+                new AlertDialog.Builder(this)
+                        .setTitle(t("Main ASM file","Главный ASM"))
+                        .setSingleChoiceItems(choices,selected,(dialog,which)->{
+                            dialog.dismiss();
+                            openProjectRoot(choices[which]);
+                        })
+                        .setNegativeButton(t("Cancel","Отмена"),null)
+                        .show();
+            } catch(Exception ex) {
+                setStatus(t("Cannot list main ASM files · ","Ошибка выбора главного ASM · ")
+                        +safeMessage(ex),Color.rgb(180,30,30));
+            }
+            return;
+        }
+        if(documents.isEmpty()) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("Main ASM file","Главный ASM"))
+                    .setMessage(t("Open a project to choose the main ASM file.",
+                            "Открой проект, чтобы выбрать главный ASM-файл."))
+                    .setPositiveButton(t("Open project","Открыть проект"),
+                            (dialog,which)->chooseProjectFolder())
+                    .setNegativeButton(t("Cancel","Отмена"),null)
+                    .show();
+            return;
+        }
+        String[] labels=new String[documents.size()];
+        int checked=-1;
+        String root=AndroidIncludeFiles.selectedRoot(this);
+        for(int i=0;i<documents.size();i++) {
+            labels[i]=AndroidIncludeFiles.relativePath(this,documents.get(i));
+            if(labels[i].equalsIgnoreCase(root))checked=i;
+        }
         new AlertDialog.Builder(this)
-                .setTitle(t("File", "Файл"))
-                .setItems(items, (dialog, which) -> {
-                    switch (which) {
-                        case 0: newTab(); break;
-                        case 1: openSourceFilePicker(); break;
-                        case 2: chooseProjectFolder(); break;
-                        case 3: saveDocument(activeIndex, false); break;
-                        case 4: requestSaveAs(activeIndex, false); break;
-                        case 5: requestCloseTab(activeIndex); break;
-                        case 6: showEditorSettings(); break;
-                        default: break;
-                    }
+                .setTitle(t("Main ASM file","Главный ASM"))
+                .setSingleChoiceItems(labels,checked,(dialog,which)->{
+                    dialog.dismiss();
+                    selectTab(which);
+                    selectCurrentRoot();
                 })
-                .setNegativeButton(t("Cancel", "Отмена"), null)
+                .setNegativeButton(t("Cancel","Отмена"),null)
                 .show();
     }
 
@@ -1550,15 +1572,6 @@ public class MainActivity extends Activity {
             setStatus(t("Editor settings applied", "Настройки редактора применены"),
                     Color.rgb(45, 80, 150));
         });
-    }
-
-    private void updateGutterWidthButton(Button button) {
-        if (editor == null) return;
-        boolean narrow = editor.isGutterCompact();
-        button.setText(narrow ? "⇥" : "⇤");
-        button.setContentDescription(narrow
-                ? t("Widen line number column", "Расширить столбец номеров строк")
-                : t("Narrow line number column", "Сузить столбец номеров строк"));
     }
 
     private void refreshEditorTools() {
@@ -1591,7 +1604,7 @@ public class MainActivity extends Activity {
 
     private void newTab() {
         captureCurrentDocument();
-        documents.add(new EditorDocument(nextUntitledName(), starterSource(), null, false));
+        documents.add(new EditorDocument(nextUntitledName(), "", null, false));
         activeIndex = documents.size() - 1;
         renderTabs();
         loadActiveDocument();
@@ -1612,21 +1625,6 @@ public class MainActivity extends Activity {
         }
         invalidateProjectBuilds();
         setStatus(t("Project root: ", "Корневой файл: ") + path, Color.rgb(30, 110, 70));
-    }
-
-    private void useAutoRoot() {
-        AndroidIncludeFiles.setRoot(this, null);
-        if(AndroidIncludeFiles.projectTree(this)!=null) {
-            try {
-                projectConfiguration=configuration().withRoot("main.asm");
-                ProjectSettingsStore.save(this,projectConfiguration);
-            }catch(Exception ex) {
-                Toast.makeText(this,safeMessage(ex),Toast.LENGTH_LONG).show();
-            }
-        }
-        invalidateProjectBuilds();
-        setStatus(t("Project root: automatic main.asm", "Корень проекта: main.asm автоматически"),
-                Color.rgb(30, 110, 70));
     }
 
     private void invalidateProjectBuilds() {
@@ -2094,11 +2092,7 @@ public class MainActivity extends Activity {
         if (index < 0 || index >= documents.size()) return;
         documents.remove(index);
         if (documents.isEmpty()) {
-            // Keep one quiet, truly blank scratch tab. Repeatedly closing the last tab
-            // must not just count Untitled 1, 2, 3... in front of the user.
-            untitledCounter = 2;
-            documents.add(new EditorDocument(untitledName(1, language), "", null, false));
-            activeIndex = 0;
+            activeIndex = -1;
         } else if (index < activeIndex) {
             activeIndex--;
         } else if (index == activeIndex) {

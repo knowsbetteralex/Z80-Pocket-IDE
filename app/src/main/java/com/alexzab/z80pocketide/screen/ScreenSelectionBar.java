@@ -9,6 +9,7 @@ import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 import com.alexzab.z80pocketide.project.SpectrumScreenDocument;
+import com.alexzab.z80pocketide.ui.UiStyle;
 
 /** Shared compact UI for rectangle selection, clipboard and one-pixel nudges. */
 public final class ScreenSelectionBar extends LinearLayout {
@@ -33,7 +34,7 @@ public final class ScreenSelectionBar extends LinearLayout {
         this.palette=palette;
         this.onRefresh=onRefresh;
         setOrientation(VERTICAL);
-        setBackgroundColor(0xFF264336);
+        setBackgroundColor(UiStyle.HEADER_BACKGROUND);
         setPadding(dp(3),dp(2),dp(3),dp(3));
 
         LinearLayout top=row();
@@ -41,9 +42,9 @@ public final class ScreenSelectionBar extends LinearLayout {
         copy=button(ru?"Копия":"Copy",ru?"Копировать область":"Copy rectangle");
         paste=button(ru?"Встав.":"Paste",ru?"Вставить область":"Paste rectangle");
         attrs=new CheckBox(activity);
-        attrs.setButtonTintList(android.content.res.ColorStateList.valueOf(0xFFB2EDD0));
+        attrs.setButtonTintList(android.content.res.ColorStateList.valueOf(UiStyle.ACCENT_GREEN));
         attrs.setText(ru?"Сдвиг атр. 8px":"Shift attrs 8px");
-        attrs.setTextColor(Color.WHITE);
+        attrs.setTextColor(UiStyle.TEXT_PRIMARY);
         attrs.setTextSize(12);
         attrs.setChecked(session.selection.moveAttributes());
         top.addView(select,new LayoutParams(dp(45),dp(39)));
@@ -175,15 +176,11 @@ public final class ScreenSelectionBar extends LinearLayout {
     private Button button(String text,String description){
         Button b=new Button(activity);
         b.setText(text);b.setTextSize(14);b.setAllCaps(false);
-        b.setTextColor(Color.WHITE);
         b.setContentDescription(description);
         b.setMinWidth(0);b.setMinimumWidth(0);
         b.setMinHeight(0);b.setMinimumHeight(0);
         b.setPadding(dp(2),0,dp(2),0);
-        GradientDrawable bg=new GradientDrawable();
-        bg.setColor(0xFF37725B);bg.setCornerRadius(dp(8));
-        bg.setStroke(dp(1),0xFF619780);
-        b.setBackground(bg);
+        UiStyle.styleSoftGreenButton(b);
         return b;
     }
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
