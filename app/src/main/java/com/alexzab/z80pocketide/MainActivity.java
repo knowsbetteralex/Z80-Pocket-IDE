@@ -915,10 +915,6 @@ public class MainActivity extends Activity {
         }
     }
 
-    private String starterSource() {
-        return "ORG $8000\n\nSTART:\n    NOP\n    RET\n";
-    }
-
     private String untitledName(int number, AppLanguage lang) {
         return Texts.pick(lang, "Untitled ", "Без имени ") + number + ".asm";
     }
@@ -1611,21 +1607,6 @@ public class MainActivity extends Activity {
         }
         invalidateProjectBuilds();
         setStatus(t("Project root: ", "Корневой файл: ") + path, Color.rgb(30, 110, 70));
-    }
-
-    private void useAutoRoot() {
-        AndroidIncludeFiles.setRoot(this, null);
-        if(AndroidIncludeFiles.projectTree(this)!=null) {
-            try {
-                projectConfiguration=configuration().withRoot("main.asm");
-                ProjectSettingsStore.save(this,projectConfiguration);
-            }catch(Exception ex) {
-                Toast.makeText(this,safeMessage(ex),Toast.LENGTH_LONG).show();
-            }
-        }
-        invalidateProjectBuilds();
-        setStatus(t("Project root: automatic main.asm", "Корень проекта: main.asm автоматически"),
-                Color.rgb(30, 110, 70));
     }
 
     private void invalidateProjectBuilds() {
