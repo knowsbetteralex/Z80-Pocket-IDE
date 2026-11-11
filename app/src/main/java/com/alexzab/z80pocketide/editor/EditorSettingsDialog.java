@@ -82,7 +82,7 @@ public final class EditorSettingsDialog {
                     int tabSize = checked == 2 || checked == 8 ? checked : 4;
                     EditorPreferences.set(activity, new EditorPreferences.Snapshot(
                             upper.isChecked(), allUpper.isChecked(), indent.isChecked(), tabSize,
-                            spaces.isChecked(), true, folding.isChecked(),
+                            spaces.isChecked(), true, false,
                             quickSymbols.isChecked(), labelCompletion.isChecked()));
                     if (onChanged != null) onChanged.run();
                 })
