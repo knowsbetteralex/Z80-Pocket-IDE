@@ -5,6 +5,8 @@ import android.content.*;
 import android.content.pm.ActivityInfo;
 import android.database.Cursor;
 import android.graphics.Color;
+import com.alexzab.z80pocketide.ui.UiStyle;
+import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import android.net.Uri;
 import android.os.*;
 import android.provider.OpenableColumns;
@@ -95,8 +97,8 @@ public final class ScreenEditorActivity extends Activity {
     }
 
     private void configureWindow(){
-        getWindow().setStatusBarColor(0xFF142B20);
-        getWindow().setNavigationBarColor(0xFF15251B);
+        getWindow().setStatusBarColor(UiStyle.APP_BACKGROUND);
+        getWindow().setNavigationBarColor(UiStyle.APP_BACKGROUND);
         if(Build.VERSION.SDK_INT>=30)getWindow().setDecorFitsSystemWindows(false);
         if(state.landscape)getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
@@ -105,7 +107,7 @@ public final class ScreenEditorActivity extends Activity {
     private void buildUi(){
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(0xFF15251B);
+        root.setBackgroundColor(UiStyle.APP_BACKGROUND);
         if(Build.VERSION.SDK_INT>=30) {
             root.setOnApplyWindowInsetsListener((view,insets)->{
                 android.graphics.Insets safe=insets.getInsets(
@@ -120,16 +122,18 @@ public final class ScreenEditorActivity extends Activity {
         LinearLayout bar=new LinearLayout(this);
         bar.setPadding(dp(3),dp(3),dp(3),dp(3));
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setBackgroundColor(0xFF223B2D);
+        bar.setBackgroundColor(UiStyle.HEADER_BACKGROUND);
         toolbarScroll.addView(bar,new HorizontalScrollView.LayoutParams(-2,-2));
         LinearLayout toolbar=new LinearLayout(this);
         toolbar.setOrientation(LinearLayout.HORIZONTAL);
-        toolbar.setBackgroundColor(0xFF223B2D);
+        toolbar.setBackgroundColor(UiStyle.HEADER_BACKGROUND);
         toolbar.addView(toolbarScroll,new LinearLayout.LayoutParams(0,dp(49),1));
         LinearLayout fixedActions=new LinearLayout(this);
         fixedActions.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.addView(fixedActions,new LinearLayout.LayoutParams(dp(50),dp(49)));
         root.addView(toolbar,new LinearLayout.LayoutParams(-1,dp(49)));
+        SpectrumStripeView stripe=new SpectrumStripeView(this);
+        root.addView(stripe,new LinearLayout.LayoutParams(-1,dp(5)));
 
         action(bar,"‹",ru?"Назад":"Back",v->requestExit());
         action(bar,"📂",ru?"Открыть":"Open",v->requestOpen());
@@ -149,10 +153,10 @@ public final class ScreenEditorActivity extends Activity {
         action(fixedActions,"⤢",ru?"Сменить ориентацию":"Toggle orientation",v->toggleOrientation());
 
         title=new TextView(this);
-        title.setTextColor(Color.WHITE);title.setTextSize(14);
+        title.setTextColor(UiStyle.TEXT_PRIMARY);title.setTextSize(14);
         title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         title.setPadding(dp(10),dp(5),dp(8),dp(4));
-        title.setBackgroundColor(0xFF1C3325);
+        title.setBackgroundColor(UiStyle.HEADER_BACKGROUND);
         root.addView(title,new LinearLayout.LayoutParams(-1,dp(28)));
 
         FrameLayout holder=new FrameLayout(this);
@@ -219,8 +223,8 @@ public final class ScreenEditorActivity extends Activity {
 
         status=new TextView(this);
         status.setTextSize(11);
-        status.setTextColor(0xFFD5E5D9);
-        status.setBackgroundColor(0xFF243D30);
+        status.setTextColor(UiStyle.TEXT_SECONDARY);
+        status.setBackgroundColor(UiStyle.HEADER_BACKGROUND);
         status.setGravity(Gravity.CENTER_VERTICAL);
         status.setPadding(dp(10),0,dp(5),0);
         root.addView(status,new LinearLayout.LayoutParams(-1,dp(23)));
@@ -240,12 +244,12 @@ public final class ScreenEditorActivity extends Activity {
                           android.view.View.OnClickListener click){
         Button button=new Button(this);
         button.setText(glyph);button.setTextSize(20);
-        button.setTextColor(0xFFF4FFF8);
+        button.setTextColor(UiStyle.TEXT_PRIMARY);
         button.setContentDescription(description);
         button.setAllCaps(false);
         button.setPadding(dp(4),0,dp(4),0);
         button.setMinimumWidth(0);button.setMinWidth(0);
-        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF3B6650));
+        UiStyle.styleSoftGreenButton(button);
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(46),dp(42));
         p.setMargins(dp(2),0,dp(2),0);
         row.addView(button,p);button.setOnClickListener(click);
