@@ -158,6 +158,8 @@ public class MainActivity extends Activity {
     private TextView statistics;
     private Button clearLinesButton;
     private Button mainMenuButton;
+    private Button includeTabButton;
+    private ImageButton saveSourceButton, findSourceButton;
     private AssemblyResult liveAnalysis;
     private String analyzedSource;
     private String analysisError;
@@ -266,7 +268,7 @@ public class MainActivity extends Activity {
         topBar.addView(quickScroll, new LinearLayout.LayoutParams(0, dp(43), 1f));
 
         mainMenuButton = headerButton("☰", t("Menu", "Меню"), false);
-        ImageButton saveSourceButton = new ImageButton(this);
+        saveSourceButton = new ImageButton(this);
         saveSourceButton.setContentDescription(t("Save source", "Сохранить исходник"));
         saveSourceButton.setImageResource(R.drawable.ic_header_save);
         saveSourceButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -289,7 +291,8 @@ public class MainActivity extends Activity {
         redoButton = headerButton("↷", t("Redo", "Повторить"), false);
         undoButton.setEnabled(false);
         redoButton.setEnabled(false);
-        ImageButton findButton = new ImageButton(this);
+        findSourceButton = new ImageButton(this);
+        ImageButton findButton=findSourceButton;
         findButton.setContentDescription(t("Find / Replace", "Найти / Заменить"));
         findButton.setImageResource(R.drawable.ic_header_search);
         findButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -366,8 +369,9 @@ public class MainActivity extends Activity {
         workspaceBar.addView(tabStrip, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button includeFromTabs = headerButton("INC",
+        includeTabButton = headerButton("INC",
                 t("Open INCLUDE","Открыть INCLUDE"),false);
+        Button includeFromTabs=includeTabButton;
         includeFromTabs.setTextSize(12);
         LinearLayout.LayoutParams includeTabParams=new LinearLayout.LayoutParams(dp(43),dp(40));
         includeTabParams.setMargins(dp(3),0,dp(1),0);
@@ -1069,6 +1073,12 @@ public class MainActivity extends Activity {
         }
         editor.setVisibility(View.VISIBLE);
         sourceScrollRail.setVisibility(View.VISIBLE);
+        saveSourceButton.setEnabled(true);
+        saveSourceButton.setAlpha(1f);
+        findSourceButton.setEnabled(true);
+        findSourceButton.setAlpha(1f);
+        includeTabButton.setEnabled(true);
+        includeTabButton.setAlpha(1f);
         if(emptyWorkspaceView!=null)emptyWorkspaceView.setVisibility(View.GONE);
         EditorDocument doc = currentDocument();
         loadingDocument = true;
@@ -1106,6 +1116,7 @@ public class MainActivity extends Activity {
     }
 
     private void showEmptyWorkspace() {
+        hideKeyboard();
         loadingDocument=true;
         try {
             editor.setSourceText("");
@@ -1114,6 +1125,12 @@ public class MainActivity extends Activity {
             if(editorInputBar!=null)editorInputBar.setProjectSymbolsSource(null);
             editor.setVisibility(View.GONE);
             sourceScrollRail.setVisibility(View.GONE);
+            saveSourceButton.setEnabled(false);
+            saveSourceButton.setAlpha(.45f);
+            findSourceButton.setEnabled(false);
+            findSourceButton.setAlpha(.45f);
+            includeTabButton.setEnabled(false);
+            includeTabButton.setAlpha(.45f);
             runTap.setVisibility(View.GONE);
             runTap.setEnabled(false);
             saveTap.setEnabled(false);
