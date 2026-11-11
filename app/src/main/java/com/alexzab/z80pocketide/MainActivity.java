@@ -159,7 +159,7 @@ public class MainActivity extends Activity {
     private Button clearLinesButton;
     private Button mainMenuButton;
     private Button includeTabButton;
-    private boolean includeLineHighlighted;
+    private Boolean includeLineHighlighted;
     private ImageButton saveSourceButton, findSourceButton;
     private AssemblyResult liveAnalysis;
     private String analyzedSource;
@@ -1161,12 +1161,11 @@ public class MainActivity extends Activity {
         if(includeTabButton==null || editor==null)return;
         boolean highlighted=hasActiveDocument() &&
                 SourceIncludes.isIncludeAtCursor(editor.getText(),editor.getSelectionStart());
-        if(highlighted==includeLineHighlighted && includeTabButton.getTag()!=null)return;
+        if(includeLineHighlighted!=null && highlighted==includeLineHighlighted)return;
         includeLineHighlighted=highlighted;
         if(highlighted)UiStyle.styleGreenButton(includeTabButton);
         else UiStyle.styleButton(includeTabButton,0xFFF2F4F2,0xFF456454,12);
         includeTabButton.setTextSize(12);
-        includeTabButton.setTag(Boolean.TRUE);
     }
 
     private void updateUndoRedoButtons() {
