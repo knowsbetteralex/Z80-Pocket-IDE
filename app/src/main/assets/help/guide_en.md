@@ -50,18 +50,18 @@ For multi-file work, choose **☰ → Project → Open project**, then authorize
 
 INCLUDE inserts another source file:
 
-\`\`\`asm
+```asm
 INCLUDE "lib/sprites.asm"
-\`\`\`
+```
 
 The tab-strip **INC** button and **File → Open INCLUDE** help you open an included file for editing. Relative INCLUDE paths are resolved from the ASM file containing the directive.
 
 INCBIN inserts **raw bytes without conversion**:
 
-\`\`\`asm
+```asm
 SPRITE: INCBIN "assets/ship.bin"
 INCBIN "assets/title.scr", 6144, 768
-\`\`\`
+```
 
 Optional offset and length arguments are in bytes. The resource path is relative to the ASM file containing INCBIN. Access to project assets requires permission for the project folder. Check diagnostics for invalid paths, lengths or size limits.
 
@@ -71,22 +71,22 @@ Z80 Pocket IDE includes a **two-pass Z80 assembler**. It supports CPU instructio
 
 A minimal program:
 
-\`\`\`asm
+```asm
 ORG $8000
 
 START:
     LD A,2
     OUT ($FE),A
     RET
-\`\`\`
+```
 
 Choose **Build → Build project**. If successful, the status bar displays code size and ORG address, and an autorun TAP is ready to save or run.
 
 You can split larger programs with INCLUDE, and check assumptions with ASSERT:
 
-\`\`\`asm
+```asm
 ASSERT END_CODE - START <= 16384, "Code too large"
-\`\`\`
+```
 
 Assembly errors indicate source lines. For errors in an included file, inspect both the path and the line number in diagnostics.
 
