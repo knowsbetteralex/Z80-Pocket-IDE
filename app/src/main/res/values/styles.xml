@@ -2,6 +2,9 @@
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <!-- The code editor explicitly uses monospace; UI menus use modern sans. -->
         <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">#2F7D58</item>
+        <item name="android:colorControlHighlight">#1F2F7D58</item>
+        <item name="android:windowBackground">#F4F8F6</item>
         <item name="android:popupMenuStyle">@style/Z80PopupMenu</item>
         <item name="android:textAppearanceSmallPopupMenu">@style/Z80PopupMenuText</item>
         <item name="android:textAppearanceLargePopupMenu">@style/Z80PopupMenuText</item>
