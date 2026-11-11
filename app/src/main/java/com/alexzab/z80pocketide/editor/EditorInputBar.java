@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
  * punctuation and label-completion rows. Neither row can steal keyboard focus.
  */
 public final class EditorInputBar extends LinearLayout {
-    private static final String[] SYMBOLS = {"_", ",", "'", ":", "#", "%", "$", "(", ")"};
+    private static final String[] SYMBOLS = {"_", ",", "'", "\"", ":", ";", "#", "%", "$", "(", ")"};
     private static final int SUGGESTION_LIMIT = 7;
     private static final long COMPLETION_IDLE_MS = 280L;
 
