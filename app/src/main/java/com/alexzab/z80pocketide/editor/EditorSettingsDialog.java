@@ -33,8 +33,6 @@ public final class EditorSettingsDialog {
                 "Автоматические отступы"), current.autoIndent);
         CheckBox spaces = check(activity, t(language, "Use spaces instead of TAB character",
                 "Использовать пробелы вместо символа TAB"), current.useSpaces);
-        CheckBox folding = check(activity, t(language, "Enable label block folding",
-                "Разрешить сворачивание блоков под метками"), current.folding);
         CheckBox quickSymbols = check(activity, t(language,
                 "Quick symbols above Android keyboard",
                 "Полоса знаков над системной клавиатурой"), current.quickSymbols);
