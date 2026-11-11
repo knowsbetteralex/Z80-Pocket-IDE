@@ -20,6 +20,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Validate bilingual release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/release-notes.sh
+          bash scripts/release-notes.sh 0.0.0 123456789abcdef 0 owner/repo > /tmp/z80-release-notes.md
+          grep -q '^## Русский$' /tmp/z80-release-notes.md
+          grep -q '^## English$' /tmp/z80-release-notes.md
+          grep -q 'v0.0.0' /tmp/z80-release-notes.md
       - name: Unit tests
         run: gradle testDebugUnitTest --stacktrace
       - name: Build debug APK
@@ -60,8 +69,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           mv dist/app-debug.apk dist/Z80-Pocket-IDE.apk
           (cd dist && sha256sum Z80-Pocket-IDE.apk > Z80-Pocket-IDE.apk.sha256)
-          printf 'Automatically built from the main branch at commit `%s`.\n\n' "$GITHUB_SHA" > dist/RELEASE_NOTES.md
-          printf 'This is a debug-signed Android APK for sideloading; it is not a Google Play production build.\n' >> dist/RELEASE_NOTES.md
+          bash scripts/release-notes.sh "$version" "$GITHUB_SHA" \
+            "$GITHUB_RUN_NUMBER" "$GITHUB_REPOSITORY" > dist/RELEASE_NOTES.md
       - name: Publish GitHub Release with APK
         shell: bash
         env:
