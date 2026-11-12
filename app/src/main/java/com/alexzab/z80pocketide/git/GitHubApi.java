@@ -121,7 +121,9 @@ public final class GitHubApi {
                 ref.optJSONObject("object").optString("sha");
         if (head.isEmpty()) throw new IOException("Branch has no head commit");
         JSONObject commit = request("GET", prefix + "/git/commits/" + head, null);
-        String treeSha = commit.getJSONObject("tree").optString("sha");
+        JSONObject commitTree = commit.optJSONObject("tree");
+        if (commitTree == null) throw new IOException("Commit is missing a tree");
+        String treeSha = commitTree.optString("sha");
         JSONObject tree = request("GET", prefix + "/git/trees/" + treeSha + "?recursive=1", null);
         if (tree.optBoolean("truncated", false))
             throw new IOException("GitHub tree is too large; incomplete trees cannot be synced");
