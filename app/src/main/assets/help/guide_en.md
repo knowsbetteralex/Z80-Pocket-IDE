@@ -20,6 +20,8 @@ Select **☰ → File → New file** for a blank tab. **Open file** uses the And
 
 **Save** writes changes back to an existing document; for a new tab it opens Android's save dialog. **Save as** creates a separately named file or saves to another location. A ● marker on a tab indicates unsaved edits. Closing a modified tab asks whether to save or discard them.
 
+The IDE checks open files for external changes on return and about every 12 seconds while running. Use **File → Check external file changes** to check immediately. Clean tabs reload automatically; tabs with unsaved edits are marked ↻ and let you reload, save a local copy, or keep your edits. Overwriting an externally changed source requires confirmation.
+
 The IDE maintains local **drafts, cursor/scroll positions and Undo/Redo history** for recovery after restarting. This is not a substitute for saving your source to disk: uninstalling the app or clearing its data also removes internal drafts.
 
 You can open an ASM file using Android **Open with** when the file manager provides a supported file type. If a provider grants read-only access, the IDE can ask you to select the same file again for write permission.
