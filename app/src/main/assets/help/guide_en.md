@@ -96,6 +96,8 @@ Assembly errors indicate source lines. For errors in an included file, inspect b
 
 **☰ → Build → Build project** assembles the main source and prepares a TAP with a BASIC loader. **Build and run** assembles and sends the TAP to an installed Spectrum emulator. The floating round ▶ runs this same action.
 
+**Build → Export 48K SNA** creates a 49,179-byte ZX Spectrum memory snapshot. Android's system file picker selects the location and name of the .sna file. Unlike TAP, SNA starts at **ORG** without a BASIC loader, embedding the project's configured SCREEN$ when enabled. The project loading-screen delay does not apply. Code must be in RAM $4000–$FFFF; it cannot overlap an enabled SCREEN$. The exporter sets SP and places PC on the stack. Programs must initialize any required system variables/hardware state themselves. The floating ▶ button shows a spinning progress indicator during compilation.
+
 **Build → Export TAP** lets you pick a destination using the Android document picker. Running the TAP requires a **separately installed ZX Spectrum emulator** capable of opening TAP files.
 
 If several emulators are installed, choose the preferred app in **☰ → Settings → TAP emulator**. When none can handle TAP, Android or the IDE may display an error.

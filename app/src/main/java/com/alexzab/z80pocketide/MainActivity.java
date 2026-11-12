@@ -42,6 +42,9 @@ import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
+import android.content.res.ColorStateList;
+import android.os.SystemClock;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -77,6 +80,7 @@ import com.alexzab.z80pocketide.source.AndroidIncludeFiles;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
+import com.alexzab.z80pocketide.zx.SnaWriter;
 import com.alexzab.z80pocketide.project.ProjectConfiguration;
 import com.alexzab.z80pocketide.project.ProjectSettingsDialog;
 import com.alexzab.z80pocketide.screen.ScreenEditorActivity;
@@ -111,6 +115,7 @@ import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
+    private static final int REQUEST_SAVE_SNA = 1010;
     private static final int REQUEST_EXAMPLE = 1002;
     private static final int REQUEST_OPEN_SOURCE = 1003;
     private static final int REQUEST_SAVE_SOURCE_AS = 1004;
@@ -211,6 +216,24 @@ public class MainActivity extends Activity {
     private int resultRevision = -1;
     private final Runnable delayedAnalyze = this::performLiveAnalysis;
     private ImageButton runTap;
+    private ProgressBar buildSpinner;
+    private boolean buildInProgress;
+    private int buildRevision;
+    private static final long MIN_BUILD_INDICATOR_MS = 320;
+    private final ExecutorService buildExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "z80-project-builder");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private enum BuildAction { BUILD, RUN, EXPORT_TAP, EXPORT_SNA }
+    private static final class BuildOutput {
+        ProjectSource project;
+        AssemblyResult result;
+        ProjectConfiguration settings;
+        byte[] tap, sna;
+        Exception error;
+    }
+
     private Button undoButton;
     private Button redoButton;
     private Button saveTap;
@@ -240,6 +263,7 @@ public class MainActivity extends Activity {
     private boolean pendingGrantCloseAfterSave;
     private boolean loadingDocument;
     private byte[] pendingTapToSave;
+    private byte[] pendingSnaToSave;
     private int untitledCounter = 1;
 
     @Override
@@ -486,6 +510,15 @@ public class MainActivity extends Activity {
         runParams.setMargins(0, 0, dp(13), dp(13));
         editorHost.addView(runTap, runParams);
         runTap.setOnClickListener(v -> runTapInEmulator());
+        buildSpinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+        buildSpinner.setIndeterminate(true);
+        buildSpinner.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
+        buildSpinner.setVisibility(View.GONE);
+        buildSpinner.setClickable(false);
+        FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(
+                dp(30), dp(30), Gravity.BOTTOM | Gravity.RIGHT);
+        spinnerParams.setMargins(0, 0, dp(27), dp(27));
+        editorHost.addView(buildSpinner, spinnerParams);
 
         // No hidden scratch document: the blank canvas offers an explicit new-file action.
         LinearLayout empty=new LinearLayout(this);
@@ -711,6 +744,8 @@ public class MainActivity extends Activity {
         externalHandler.removeCallbacks(periodicExternalScan);
         externalReader.shutdownNow();
         workspaceWriter.shutdown();
+        buildRevision++;
+        buildExecutor.shutdownNow();
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
         // Finishing the IDE ends the in-memory sprite editing session;
@@ -1179,7 +1214,7 @@ public class MainActivity extends Activity {
         boolean built = doc.buildIsCurrent();
         // Run always builds stale or never-built sources; only Save TAP depends on Build.
         runTap.setVisibility(View.VISIBLE);
-        runTap.setEnabled(true);
+        runTap.setEnabled(!buildInProgress);
         saveTap.setEnabled(built);
         scheduleAnalysis();
         scheduleSearchRefresh();
@@ -1599,6 +1634,7 @@ public class MainActivity extends Activity {
             case IdeMenu.BUILD: buildSource(); break;
             case IdeMenu.BUILD_RUN: runTapInEmulator(); break;
             case IdeMenu.EXPORT_TAP: saveTapFile(); break;
+            case IdeMenu.EXPORT_SNA: exportSnaFile(); break;
             case IdeMenu.SCREEN_EDITOR: openScreenEditor(null); break;
             case IdeMenu.TOOLS: openTools(); break;
             case IdeMenu.EXAMPLES: showExamples(); break;
@@ -2716,84 +2752,155 @@ public class MainActivity extends Activity {
         return Character.isLetterOrDigit(c) || c == '_' || c == '\'';
     }
 
-    private boolean buildSource() {
+    private void buildSource() {
+        startBuild(BuildAction.BUILD);
+    }
+
+    private void setBuildProgress(boolean busy) {
+        buildInProgress = busy;
+        if (buildSpinner != null) buildSpinner.setVisibility(busy ? View.VISIBLE : View.GONE);
+        if (runTap != null) {
+            runTap.setImageAlpha(busy ? 0 : 255);
+            runTap.setEnabled(!busy && hasActiveDocument());
+            runTap.setContentDescription(busy ? t("Building project…", "Сборка проекта…")
+                    : t("Build and run TAP", "Собрать и запустить TAP"));
+        }
+    }
+
+    /**
+     * All Build menu actions share one asynchronous compilation pipeline.
+     * The file/symbol snapshot comes from the UI thread, but INCLUDE expansion,
+     * assembler, SCREEN$ loading, TAP and SNA generation run on a worker thread.
+     */
+    private void startBuild(BuildAction action) {
+        if (buildInProgress || !hasActiveDocument() || buildExecutor.isShutdown()) return;
         hideKeyboard();
         captureCurrentDocument();
-        if (!hasActiveDocument()) return false;
-        EditorDocument doc = currentDocument();
-        setStatus(t("Building…", "Сборка…"), Color.DKGRAY);
-        saveTap.setEnabled(false);
-        doc.invalidateBuild();
-
-        ProjectSource project = null;
+        final EditorDocument doc = currentDocument();
+        final String source = doc.text;
+        final Map<String, String> buffers = includeBuffers();
+        final ProjectConfiguration settings;
         try {
-            // Refresh settings on every build. A SCR editor launched from Tools,
-            // Git-sync or an external file manager may have changed the project.
-            ProjectConfiguration settings=AndroidIncludeFiles.projectTree(this)==null
-                    ?null:ProjectSettingsStore.load(this);
-            if(settings!=null) {
-                projectConfiguration=settings;
-                AndroidIncludeFiles.setRoot(this,settings.root);
+            // Refresh project settings; another app may have updated the JSON or SCR.
+            settings = AndroidIncludeFiles.projectTree(this) == null
+                    ? null : ProjectSettingsStore.load(this);
+            if (settings != null) {
+                projectConfiguration = settings;
+                AndroidIncludeFiles.setRoot(this, settings.root);
             }
-            project = projectFor(doc, doc.text, includeBuffers());
-            AssemblyResult rawResult = new Assembler().assemble(project.expanded.source);
-            AssemblyResult result = project.metrics(rawResult, doc.text);
-            String programName=tapProgramName(settings==null
-                    ?project.rootPath:settings.name);
-            byte[] game=result.getBytes();
-            if(settings!=null && settings.screenEnabled) {
-                ProjectConfiguration.checkScreenConflict(result.getOrigin(),game.length);
-                byte[] loadingScreen=ProjectSettingsStore.readScreen(this,settings.screenPath);
-                doc.lastTap=new TapWriter().programTapWithScreen(
-                        programName,result.getOrigin(),game,
-                        loadingScreen,settings.pauseFrames);
-            } else {
-                doc.lastTap=new TapWriter().programTap(
-                        programName,result.getOrigin(),game);
-            }
-            doc.lastBuiltSource = doc.text;
-            liveAnalysis = result;
-            resultRevision = analysisRevision;
-            analyzedSource = doc.text;
-            analysisError = null;
-            analysisIssues.clear();
-            editor.setProjectSymbolsSource(project.expanded.source);
-            if (editorInputBar != null)
-                editorInputBar.setProjectSymbolsSource(project.expanded.source);
-            SyntaxHighlighter.setErrorLine(editor, 0);
-            editor.setInstructionMetrics(result.getLineSizes(),
-                    result.getLineMinCyclesArray(), result.getLineMaxCyclesArray(),
-                    result.getInstructionFlags());
-            updateStatistics();
-            runTap.setEnabled(true);
-            saveTap.setEnabled(true);
+        } catch (Exception failure) {
+            String message = t("Build settings error · ", "Ошибка настроек сборки · ")
+                    + safeMessage(failure);
+            setStatus(message, Color.rgb(180, 30, 30));
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            return;
+        }
 
-            String message = language == AppLanguage.RU
-                    ? String.format(Locale.US,
-                    "Сборка успешна · %d байт · ORG $%04X · autorun TAP готов",
-                    result.getBytes().length, result.getOrigin() & 0xFFFF)
-                    : String.format(Locale.US,
-                    "Build OK · %d bytes · ORG $%04X · autorun TAP ready",
-                    result.getBytes().length, result.getOrigin() & 0xFFFF);
-            setStatus(message, Color.rgb(0, 110, 45));
-            Toast.makeText(this, t("Build OK", "Сборка успешна"), Toast.LENGTH_SHORT).show();
-            return true;
-        } catch (Exception ex) {
-            runTap.setEnabled(true);
-            String raw = ex.getMessage();
-            String explained = projectFailure(ex, project, doc);
+        final String root = AndroidIncludeFiles.selectedRoot(this);
+        final String displayName = settings == null ? doc.title : settings.name;
+        doc.invalidateBuild();
+        saveTap.setEnabled(false);
+        ++analysisRevision;
+        analyzeHandler.removeCallbacks(delayedAnalyze);
+        if (runningAnalysis != null) runningAnalysis.cancel(true);
+        final int revision = ++buildRevision;
+        final long started = SystemClock.uptimeMillis();
+        setBuildProgress(true);
+        setStatus(t("Building…", "Сборка…"), Color.rgb(45, 80, 150));
+
+        buildExecutor.execute(() -> {
+            BuildOutput output = new BuildOutput();
+            output.settings = settings;
+            try {
+                output.project = projectFor(doc, source, buffers);
+                AssemblyResult compiled = new Assembler().assemble(
+                        output.project.expanded.source);
+                output.result = output.project.metrics(compiled, source);
+                byte[] game = compiled.getBytes();
+                byte[] screen = null;
+                if (settings != null && settings.screenEnabled) {
+                    ProjectConfiguration.checkScreenConflict(compiled.getOrigin(), game.length);
+                    screen = ProjectSettingsStore.readScreen(this, settings.screenPath);
+                }
+                String programName = tapProgramName(settings == null
+                        ? output.project.rootPath : settings.name);
+                output.tap = screen == null
+                        ? new TapWriter().programTap(programName, compiled.getOrigin(), game)
+                        : new TapWriter().programTapWithScreen(
+                                programName, compiled.getOrigin(), game,
+                                screen, settings.pauseFrames);
+                if (action == BuildAction.EXPORT_SNA)
+                    output.sna = new SnaWriter().programSna(compiled.getOrigin(), game, screen);
+            } catch (Exception failure) {
+                output.error = failure;
+            }
+            long elapsed = SystemClock.uptimeMillis() - started;
+            long remaining = Math.max(0, MIN_BUILD_INDICATOR_MS - elapsed);
+            analyzeHandler.postDelayed(() -> completeBuild(
+                    action, doc, source, root, displayName, revision, output), remaining);
+        });
+    }
+
+    /** Back on the UI thread: never apply a stale build after an edit/tab switch. */
+    private void completeBuild(BuildAction action, EditorDocument doc, String source,
+                               String root, String displayName, int revision,
+                               BuildOutput output) {
+        if (isFinishing() || isDestroyed() || revision != buildRevision) return;
+        setBuildProgress(false);
+        captureCurrentDocument();
+        if (!hasActiveDocument() || currentDocument() != doc
+                || !source.equals(doc.text) || !documents.contains(doc)
+                || !java.util.Objects.equals(root, AndroidIncludeFiles.selectedRoot(this))) {
+            setStatus(t("Source/project changed during build — please build again",
+                    "Исходник или проект изменился при сборке — соберите заново"),
+                    Color.rgb(164, 92, 19));
+            return;
+        }
+
+        if (output.error != null) {
+            String explained = projectFailure(output.error, output.project, doc);
             analysisError = Texts.localizeAssemblerError(language, explained);
-            analysisIssues = includeIssues(project == null ? null : project.expanded,
-                    explained, project == null ? "" : project.visiblePath);
-            SyntaxHighlighter.setErrorLine(editor, editor.isFolded() ? 0 : diagnosticLine(explained));
+            analysisIssues = includeIssues(
+                    output.project == null ? null : output.project.expanded,
+                    explained, output.project == null ? "" : output.project.visiblePath);
+            SyntaxHighlighter.setErrorLine(editor,
+                    editor.isFolded() ? 0 : diagnosticLine(explained));
             updateStatistics();
-            String detail = Texts.localizeAssemblerError(language, explained);
-            String message = t("Build error · ", "Ошибка сборки · ") + detail;
+            String message = t("Build error · ", "Ошибка сборки · ")
+                    + Texts.localizeAssemblerError(language, explained);
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
             jumpToErrorLine(explained);
-            return false;
+            return;
         }
+
+        doc.lastTap = output.tap;
+        doc.lastBuiltSource = source;
+        liveAnalysis = output.result;
+        resultRevision = analysisRevision;
+        analyzedSource = source;
+        analysisError = null;
+        analysisIssues.clear();
+        editor.setProjectSymbolsSource(output.project.expanded.source);
+        if (editorInputBar != null)
+            editorInputBar.setProjectSymbolsSource(output.project.expanded.source);
+        SyntaxHighlighter.setErrorLine(editor, 0);
+        editor.setInstructionMetrics(output.result.getLineSizes(),
+                output.result.getLineMinCyclesArray(), output.result.getLineMaxCyclesArray(),
+                output.result.getInstructionFlags());
+        updateStatistics();
+        saveTap.setEnabled(true);
+
+        String message = String.format(Locale.US,
+                t("Build OK · %d bytes · ORG $%04X", "Сборка успешна · %d байт · ORG $%04X"),
+                output.result.getBytes().length, output.result.getOrigin() & 0xFFFF);
+        setStatus(message, Color.rgb(0, 110, 45));
+        if (action == BuildAction.RUN) openBuiltTapInEmulator(doc);
+        else if (action == BuildAction.EXPORT_TAP) showTapSavePicker(doc, displayName);
+        else if (action == BuildAction.EXPORT_SNA)
+            showSnaSavePicker(displayName, output.sna);
+        else Toast.makeText(this, t("Build OK", "Сборка успешна"),
+                Toast.LENGTH_SHORT).show();
     }
 
     private String tapProgramName(String title) {
@@ -2818,17 +2925,10 @@ public class MainActivity extends Activity {
     }
 
     private void runTapInEmulator() {
-        captureCurrentDocument();
-        if (!hasActiveDocument()) return;
-        EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
-                || AndroidIncludeFiles.selectedRoot(this) != null
-                || SourceIncludes.containsInclude(doc.text)
-                || SourceBinaryIncludes.containsIncbin(doc.text)) {
-            if (!buildSource()) return;
-            doc = currentDocument();
-        }
+        startBuild(BuildAction.RUN);
+    }
 
+    private void openBuiltTapInEmulator(EditorDocument doc) {
         try {
             File dir = new File(getCacheDir(), "shared");
             if (!dir.exists() && !dir.mkdirs()) {
@@ -2882,27 +2982,45 @@ public class MainActivity extends Activity {
     }
 
     private void saveTapFile() {
-        captureCurrentDocument();
-        if (!hasActiveDocument()) return;
-        EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
-                || AndroidIncludeFiles.selectedRoot(this) != null
-                || SourceIncludes.containsInclude(doc.text)
-                || SourceBinaryIncludes.containsIncbin(doc.text)) {
-            if (!buildSource()) return;
-            doc = currentDocument();
-        }
+        startBuild(BuildAction.EXPORT_TAP);
+    }
 
+    private void showTapSavePicker(EditorDocument doc, String displayName) {
+        if (!doc.buildIsCurrent()) return;
         pendingTapToSave = doc.lastTap;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/octet-stream");
-        String fileName=doc.title;
+        intent.putExtra(Intent.EXTRA_TITLE,
+                tapProgramName(displayName).toLowerCase(Locale.ROOT) + ".tap");
         try {
-            if(AndroidIncludeFiles.projectTree(this)!=null)fileName=configuration().name;
-        }catch(Exception ignored) { }
-        intent.putExtra(Intent.EXTRA_TITLE, tapProgramName(fileName).toLowerCase(Locale.ROOT) + ".tap");
-        startActivityForResult(intent, REQUEST_SAVE_TAP);
+            startActivityForResult(intent, REQUEST_SAVE_TAP);
+        } catch (ActivityNotFoundException ex) {
+            pendingTapToSave = null;
+            setStatus(t("Android file picker unavailable", "Файловый пикер Android недоступен"),
+                    Color.rgb(180, 30, 30));
+        }
+    }
+
+    private void exportSnaFile() {
+        startBuild(BuildAction.EXPORT_SNA);
+    }
+
+    private void showSnaSavePicker(String displayName, byte[] sna) {
+        if (sna == null) return;
+        pendingSnaToSave = sna;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/octet-stream");
+        intent.putExtra(Intent.EXTRA_TITLE, tapProgramName(displayName)
+                .toLowerCase(Locale.ROOT) + ".sna");
+        try {
+            startActivityForResult(intent, REQUEST_SAVE_SNA);
+        } catch (ActivityNotFoundException ex) {
+            pendingSnaToSave = null;
+            setStatus(t("Android file picker unavailable", "Файловый пикер Android недоступен"),
+                    Color.rgb(180, 30, 30));
+        }
     }
 
     @Override
@@ -3071,24 +3189,26 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (requestCode != REQUEST_SAVE_TAP || resultCode != RESULT_OK
-                || data == null || pendingTapToSave == null) {
+        if (requestCode != REQUEST_SAVE_TAP && requestCode != REQUEST_SAVE_SNA)
             return;
-        }
+        boolean isSna = requestCode == REQUEST_SAVE_SNA;
+        byte[] bytes = isSna ? pendingSnaToSave : pendingTapToSave;
+        pendingSnaToSave = null;
+        pendingTapToSave = null; // Also release memory after cancelled picker.
+        if (resultCode != RESULT_OK || data == null || data.getData() == null
+                || bytes == null) return;
 
         Uri uri = data.getData();
-        if (uri == null) return;
-        byte[] bytes = pendingTapToSave;
-        pendingTapToSave = null;
-
         try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
             if (stream == null) throw new IllegalStateException(t("cannot open output file",
                     "не удалось открыть выходной файл"));
             stream.write(bytes);
             stream.flush();
-            setStatus(t("TAP saved · ", "TAP сохранён · ") + uri.getLastPathSegment(),
+            String format = isSna ? "SNA" : "TAP";
+            setStatus(format + t(" saved · ", " сохранён · ") + uri.getLastPathSegment(),
                     Color.rgb(0, 110, 45));
-            Toast.makeText(this, t("TAP saved", "TAP сохранён"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, format + t(" saved", " сохранён"),
+                    Toast.LENGTH_SHORT).show();
         } catch (Exception ex) {
             String message = t("Save error · ", "Ошибка сохранения · ") + safeMessage(ex);
             setStatus(message, Color.rgb(180, 30, 30));

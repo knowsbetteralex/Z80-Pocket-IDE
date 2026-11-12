@@ -12,7 +12,7 @@ public final class IdeMenu {
     public static final int NEW_TAB=1, OPEN_FILE=2, SAVE=3, SAVE_AS=4, CLOSE_TAB=5;
     public static final int EXAMPLES=10, REFERENCE=11, TOOLS=12, FORMAT=13;
     public static final int EDITOR_SETTINGS=15, EMULATOR_SETTINGS=16, UPPERCASE=17;
-    public static final int BUILD=20, EXPORT_TAP=21, BUILD_RUN=22, FIND=23;
+    public static final int BUILD=20, EXPORT_TAP=21, BUILD_RUN=22, FIND=23, EXPORT_SNA=24;
     public static final int OPEN_INCLUDE=25, OPEN_PROJECT=28, PROJECT_SETTINGS=29;
     public static final int SCREEN_EDITOR=31, MAIN_ASM=32, LANGUAGE=33, USER_GUIDE=34;
     public static final int CHECK_EXTERNAL=35;
@@ -60,6 +60,8 @@ public final class IdeMenu {
         item(build,BUILD_RUN,1,ru,"Build and run","Собрать и запустить")
                 .setEnabled(hasDocument);
         item(build,EXPORT_TAP,2,ru,"Export TAP…","Экспорт TAP…")
+                .setEnabled(hasDocument);
+        item(build,EXPORT_SNA,3,ru,"Export 48K SNA…","Экспорт SNA 48K…")
                 .setEnabled(hasDocument);
 
         SubMenu tools=menu.addSubMenu(t(ru,"Tools","Инструменты"));
