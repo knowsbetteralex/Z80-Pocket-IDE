@@ -58,6 +58,7 @@ import com.alexzab.z80pocketide.editor.SourceScrollRail;
 import com.alexzab.z80pocketide.editor.SourceSearch;
 import com.alexzab.z80pocketide.editor.SearchReplacePanel;
 import com.alexzab.z80pocketide.editor.EditorDocument;
+import com.alexzab.z80pocketide.editor.ExternalSourceState;
 import com.alexzab.z80pocketide.editor.EditorPreferences;
 import com.alexzab.z80pocketide.editor.EditorSettingsDialog;
 import com.alexzab.z80pocketide.editor.EditorInputBar;
@@ -125,6 +126,7 @@ public class MainActivity extends Activity {
     private static final String STATE_TEXTS = "tab_texts";
     private static final String STATE_URIS = "tab_uris";
     private static final String STATE_PROJECT_PATHS = "tab_project_paths";
+    private static final String STATE_SYNC_HASHES = "tab_sync_hashes";
     private static final String STATE_DIRTY = "tab_dirty";
     private static final String STATE_CURSORS = "tab_cursors";
     private static final String STATE_SCROLL_X = "tab_scroll_x";
@@ -136,6 +138,37 @@ public class MainActivity extends Activity {
     private static final String STATE_PENDING_GRANT_CLOSE = "pending_grant_close";
 
     private final List<EditorDocument> documents = new ArrayList<>();
+    /** Poll only while the editor is visible; providers need not publish file events. */
+    private static final long EXTERNAL_SCAN_INTERVAL_MS = 12000L;
+    private final Handler externalHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService externalReader = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "z80-external-source-check");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final Runnable periodicExternalScan = new Runnable() {
+        @Override public void run() {
+            scanExternalSources();
+            if (externalForeground)
+                externalHandler.postDelayed(this, EXTERNAL_SCAN_INTERVAL_MS);
+        }
+    };
+    private boolean externalForeground, externalScanRunning, externalDialogShowing;
+    private int externalGeneration;
+    private static final class SourceCheck {
+        final EditorDocument doc;
+        final String uri;
+        final String baseline;
+        final String buffer;
+        String disk, error;
+        SourceCheck(EditorDocument doc) {
+            this.doc = doc;
+            uri = doc.uriString;
+            baseline = doc.syncedSourceHash;
+            buffer = doc.text;
+        }
+    }
+
     private static final String WORKSPACE_FILE = "workspace-session.bin";
     private static final long WORKSPACE_IDLE_MS = 650L;
     private final Handler workspaceHandler = new Handler(Looper.getMainLooper());
@@ -666,6 +699,10 @@ public class MainActivity extends Activity {
         analyzeHandler.removeCallbacks(delayedAnalyze);
         analyzeHandler.removeCallbacks(delayedSearch);
         workspaceHandler.removeCallbacks(delayedWorkspaceSave);
+        externalForeground = false;
+        externalGeneration++;
+        externalHandler.removeCallbacks(periodicExternalScan);
+        externalReader.shutdownNow();
         workspaceWriter.shutdown();
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
@@ -676,7 +713,18 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        externalForeground = true;
+        externalHandler.removeCallbacks(periodicExternalScan);
+        externalHandler.postDelayed(periodicExternalScan, 850L);
+    }
+
+    @Override
     protected void onPause() {
+        externalForeground = false;
+        ++externalGeneration;
+        externalHandler.removeCallbacks(periodicExternalScan);
         // System may kill our process after onPause. Flush synchronously here;
         // normal typing saves are debounced and use the background writer.
         flushWorkspaceNow();
@@ -692,6 +740,7 @@ public class MainActivity extends Activity {
         ArrayList<String> texts = new ArrayList<>();
         ArrayList<String> uris = new ArrayList<>();
         ArrayList<String> projectPaths = new ArrayList<>();
+        ArrayList<String> syncHashes = new ArrayList<>();
         ArrayList<Integer> dirty = new ArrayList<>();
         ArrayList<Integer> cursors = new ArrayList<>();
         ArrayList<Integer> scrollX = new ArrayList<>();
@@ -702,6 +751,7 @@ public class MainActivity extends Activity {
             texts.add(doc.text);
             uris.add(doc.uriString == null ? "" : doc.uriString);
             projectPaths.add(doc.projectPath == null ? "" : doc.projectPath);
+            syncHashes.add(doc.syncedSourceHash == null ? "" : doc.syncedSourceHash);
             dirty.add(doc.dirty ? 1 : 0);
             cursors.add(doc.cursor);
             scrollX.add(doc.scrollX);
@@ -712,6 +762,7 @@ public class MainActivity extends Activity {
         outState.putStringArrayList(STATE_TEXTS, texts);
         outState.putStringArrayList(STATE_URIS, uris);
         outState.putStringArrayList(STATE_PROJECT_PATHS, projectPaths);
+        outState.putStringArrayList(STATE_SYNC_HASHES, syncHashes);
         outState.putIntegerArrayList(STATE_DIRTY, dirty);
         outState.putIntegerArrayList(STATE_CURSORS, cursors);
         outState.putIntegerArrayList(STATE_SCROLL_X, scrollX);
@@ -762,6 +813,7 @@ public class MainActivity extends Activity {
             ArrayList<String> texts = state.getStringArrayList(STATE_TEXTS);
             ArrayList<String> uris = state.getStringArrayList(STATE_URIS);
             ArrayList<String> projectPaths = state.getStringArrayList(STATE_PROJECT_PATHS);
+            ArrayList<String> syncHashes = state.getStringArrayList(STATE_SYNC_HASHES);
             ArrayList<Integer> dirty = state.getIntegerArrayList(STATE_DIRTY);
             ArrayList<Integer> cursors = state.getIntegerArrayList(STATE_CURSORS);
             ArrayList<Integer> scrollX = state.getIntegerArrayList(STATE_SCROLL_X);
@@ -775,6 +827,8 @@ public class MainActivity extends Activity {
                             dirty != null && i < dirty.size() && dirty.get(i) != 0);
                     doc.projectPath = projectPaths != null && i < projectPaths.size()
                             && !projectPaths.get(i).isEmpty() ? projectPaths.get(i) : null;
+                    doc.syncedSourceHash = syncHashes != null && i < syncHashes.size()
+                            && !syncHashes.get(i).isEmpty() ? syncHashes.get(i) : null;
                     doc.cursor = cursors != null && i < cursors.size() ? cursors.get(i) : 0;
                     doc.scrollX = scrollX != null && i < scrollX.size() ? scrollX.get(i) : 0;
                     doc.scrollY = scrollY != null && i < scrollY.size() ? scrollY.get(i) : 0;
@@ -810,6 +864,7 @@ public class MainActivity extends Activity {
             tab.uri = doc.uriString == null ? "" : doc.uriString;
             tab.projectPath = doc.projectPath == null ? "" : doc.projectPath;
             tab.dirty = doc.dirty;
+            tab.syncedSourceHash = doc.syncedSourceHash == null ? "" : doc.syncedSourceHash;
             tab.cursor = doc.cursor;
             tab.scrollX = doc.scrollX;
             tab.scrollY = doc.scrollY;
@@ -897,6 +952,8 @@ public class MainActivity extends Activity {
                 EditorDocument doc = new EditorDocument(tab.title, tab.source,
                         tab.uri.isEmpty() ? null : tab.uri, tab.dirty);
                 doc.projectPath = tab.projectPath.isEmpty() ? null : tab.projectPath;
+                doc.syncedSourceHash = tab.syncedSourceHash.isEmpty()
+                        ? null : tab.syncedSourceHash;
                 doc.cursor = Math.max(0, Math.min(tab.cursor, tab.source.length()));
                 doc.scrollX = Math.max(0, tab.scrollX);
                 doc.scrollY = Math.max(0, tab.scrollY);
@@ -1024,14 +1081,21 @@ public class MainActivity extends Activity {
             cell.setBackground(bg);
 
             TextView tabTitle = new TextView(this);
-            tabTitle.setText((doc.dirty ? "● " : "") + doc.title);
+            tabTitle.setText((doc.externalChanged ? "↻ " : "")
+                    + (doc.externalUnavailable ? "⚠ " : "")
+                    + (doc.dirty ? "● " : "") + doc.title);
+            if (doc.externalChanged || doc.externalUnavailable)
+                tabTitle.setTextColor(Color.rgb(160, 83, 20));
             tabTitle.setTextSize(13);
             tabTitle.setTextColor(Color.rgb(35, 35, 35));
             tabTitle.setTypeface(Typeface.DEFAULT,
                     i == activeIndex ? Typeface.BOLD : Typeface.NORMAL);
             tabTitle.setPadding(dp(9), dp(3), dp(6), dp(3));
             tabTitle.setSingleLine(true);
-            tabTitle.setOnClickListener(v -> selectTab(index));
+            tabTitle.setOnClickListener(v -> {
+                if (index == activeIndex && doc.externalChanged) showExternalConflict(doc);
+                else selectTab(index);
+            });
             tabTitle.setOnLongClickListener(v -> {
                 showTabMenu(index);
                 return true;
@@ -1067,6 +1131,8 @@ public class MainActivity extends Activity {
         activeIndex = index;
         renderTabs();
         loadActiveDocument();
+        if (currentDocument().externalChanged) showExternalConflict(currentDocument());
+        else scanExternalSources();
     }
 
     private void loadActiveDocument() {
@@ -2038,6 +2104,9 @@ public class MainActivity extends Activity {
         EditorDocument doc = documents.get(index);
         doc.history.markSaved();
         doc.dirty = false;
+        doc.syncedSourceHash = ExternalSourceState.fingerprint(doc.text);
+        doc.externalChanged = false;
+        doc.externalUnavailable = false;
         scheduleWorkspaceSave();
         updateUndoRedoButtons();
         renderTabs();
@@ -2128,6 +2197,8 @@ public class MainActivity extends Activity {
     private void addSourceTab(String title, String source, String uriString, boolean dirty) {
         captureCurrentDocument();
         EditorDocument doc = new EditorDocument(title, source, uriString, dirty);
+        if (uriString != null && !dirty)
+            doc.syncedSourceHash = ExternalSourceState.fingerprint(source);
         documents.add(doc);
         activeIndex = documents.size() - 1;
         renderTabs();
@@ -2146,7 +2217,10 @@ public class MainActivity extends Activity {
                 if (projectPath != null) documents.get(i).projectPath = projectPath;
                 selectTab(i);
                 scheduleAnalysis();
-                setStatus(t("File is already open", "Файл уже открыт"), Color.rgb(90, 90, 90));
+                setStatus(t("File is already open · checking for changes",
+                        "Файл уже открыт · проверка изменений"), Color.rgb(90, 90, 90));
+                if (documents.get(i).externalChanged) showExternalConflict(documents.get(i));
+                else scanExternalSources();
                 return;
             }
         }
@@ -2730,6 +2804,9 @@ public class MainActivity extends Activity {
                 if (name != null && !name.trim().isEmpty()) doc.title = name;
                 doc.history.markSaved();
                 doc.dirty = false;
+                doc.syncedSourceHash = ExternalSourceState.fingerprint(doc.text);
+                doc.externalChanged = false;
+                doc.externalUnavailable = false;
                 scheduleWorkspaceSave();
                 updateUndoRedoButtons();
                 renderTabs();
