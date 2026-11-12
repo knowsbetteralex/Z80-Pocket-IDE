@@ -4,6 +4,15 @@
 
 Detailed Z80 Pocket IDE release history. Earlier release notes are preserved in their original English.
 
+## v0.46.0 — External file changes / Внешние изменения файлов
+
+- Open ASM files are rechecked from disk when the IDE returns to the foreground and periodically (every 12 seconds) while running; a manual check is available through File.
+- Clean tabs automatically refresh and invalidate stale TAP/diagnostics; dirty tabs show a conflict warning and stay unchanged until the user explicitly chooses a safe action.
+- A stale-tab marker identifies conflicts; Save asks before overwriting an externally changed original, with a Save as option.
+- External file checks run on a background executor and compare contents, independent of optional SAF last-modified metadata.
+- Source sync fingerprints persist with workspace sessions (v3), preserving compatibility with v1/v2 drafts.
+- Unreadable external files show a warning without discarding local source buffers.
+
 ## v0.45.0 — Offline user guide / Встроенное руководство
 
 - Added a chapter-based, Russian/English offline user guide, accessible from the main menu without replacing the technical Z80/Spectrum reference.

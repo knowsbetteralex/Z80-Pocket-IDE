@@ -19,7 +19,7 @@ import java.util.zip.CRC32;
  */
 public final class WorkspaceStore {
     private static final int MAGIC = 0x5A383057; // "Z80W"
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     private static final int MAX_TABS = 64;
     private static final int MAX_PAYLOAD = 48 * 1024 * 1024;
     private static final int MAX_STRING = 24 * 1024 * 1024;
@@ -31,6 +31,7 @@ public final class WorkspaceStore {
         public String uri = "";
         public String projectPath = "";
         public boolean dirty;
+        public String syncedSourceHash = "";
         public int cursor;
         public int scrollX, scrollY;
         public byte[] history = new byte[0];
@@ -68,6 +69,7 @@ public final class WorkspaceStore {
                 throw new IOException("Undo history exceeds limit");
             output.writeInt(tab.history.length);
             output.write(tab.history);
+            writeString(output, tab.syncedSourceHash);
         }
         output.flush();
         byte[] body = bodyBytes.toByteArray();
@@ -101,7 +103,7 @@ public final class WorkspaceStore {
         DataInputStream input = new DataInputStream(new ByteArrayInputStream(body));
         if (input.readInt() != MAGIC) throw new IOException("Not a workspace snapshot");
         int version = input.readInt();
-        if (version != 1 && version != VERSION) throw new IOException("Unsupported workspace version");
+        if (version < 1 || version > VERSION) throw new IOException("Unsupported workspace version");
         int count = input.readInt();
         int active = input.readInt();
         if (count < 0 || count > MAX_TABS
@@ -125,6 +127,7 @@ public final class WorkspaceStore {
                 throw new IOException("Invalid stored history");
             tab.history = new byte[historyLength];
             input.readFully(tab.history);
+            if (version >= 3) tab.syncedSourceHash = readString(input);
             restored.tabs.add(tab);
         }
         if (input.available() != 0) throw new IOException("Unexpected trailing workspace data");

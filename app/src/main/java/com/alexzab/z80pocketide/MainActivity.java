@@ -58,6 +58,7 @@ import com.alexzab.z80pocketide.editor.SourceScrollRail;
 import com.alexzab.z80pocketide.editor.SourceSearch;
 import com.alexzab.z80pocketide.editor.SearchReplacePanel;
 import com.alexzab.z80pocketide.editor.EditorDocument;
+import com.alexzab.z80pocketide.editor.ExternalSourceState;
 import com.alexzab.z80pocketide.editor.EditorPreferences;
 import com.alexzab.z80pocketide.editor.EditorSettingsDialog;
 import com.alexzab.z80pocketide.editor.EditorInputBar;
@@ -125,6 +126,7 @@ public class MainActivity extends Activity {
     private static final String STATE_TEXTS = "tab_texts";
     private static final String STATE_URIS = "tab_uris";
     private static final String STATE_PROJECT_PATHS = "tab_project_paths";
+    private static final String STATE_SYNC_HASHES = "tab_sync_hashes";
     private static final String STATE_DIRTY = "tab_dirty";
     private static final String STATE_CURSORS = "tab_cursors";
     private static final String STATE_SCROLL_X = "tab_scroll_x";
@@ -136,6 +138,38 @@ public class MainActivity extends Activity {
     private static final String STATE_PENDING_GRANT_CLOSE = "pending_grant_close";
 
     private final List<EditorDocument> documents = new ArrayList<>();
+    /** Poll only while the editor is visible; providers need not publish file events. */
+    private static final long EXTERNAL_SCAN_INTERVAL_MS = 12000L;
+    private final Handler externalHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService externalReader = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "z80-external-source-check");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final Runnable periodicExternalScan = new Runnable() {
+        @Override public void run() {
+            scanExternalSources();
+            if (externalForeground)
+                externalHandler.postDelayed(this, EXTERNAL_SCAN_INTERVAL_MS);
+        }
+    };
+    private boolean externalForeground, externalScanRunning, externalDialogShowing;
+    private boolean externalManualRequested;
+    private int externalGeneration;
+    private static final class SourceCheck {
+        final EditorDocument doc;
+        final String uri;
+        final String baseline;
+        final String buffer;
+        String disk, error;
+        SourceCheck(EditorDocument doc) {
+            this.doc = doc;
+            uri = doc.uriString;
+            baseline = doc.syncedSourceHash;
+            buffer = doc.text;
+        }
+    }
+
     private static final String WORKSPACE_FILE = "workspace-session.bin";
     private static final long WORKSPACE_IDLE_MS = 650L;
     private final Handler workspaceHandler = new Handler(Looper.getMainLooper());
@@ -610,6 +644,12 @@ public class MainActivity extends Activity {
                 // tab changes, saving, building and Activity state persistence.
                 boolean wasDirty = doc.dirty;
                 doc.dirty = !doc.history.isAtSavePoint();
+                if (!doc.dirty && doc.externalChanged) {
+                    // Undo returned to the saved file state: it is now safe to
+                    // refresh automatically on the next external scan.
+                    doc.externalChanged = false;
+                    externalHandler.post(MainActivity.this::scanExternalSources);
+                }
                 doc.invalidateBuild();
                 saveTap.setEnabled(false);
                 scheduleAnalysis();
@@ -666,6 +706,10 @@ public class MainActivity extends Activity {
         analyzeHandler.removeCallbacks(delayedAnalyze);
         analyzeHandler.removeCallbacks(delayedSearch);
         workspaceHandler.removeCallbacks(delayedWorkspaceSave);
+        externalForeground = false;
+        externalGeneration++;
+        externalHandler.removeCallbacks(periodicExternalScan);
+        externalReader.shutdownNow();
         workspaceWriter.shutdown();
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
@@ -676,7 +720,18 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        externalForeground = true;
+        externalHandler.removeCallbacks(periodicExternalScan);
+        externalHandler.postDelayed(periodicExternalScan, 850L);
+    }
+
+    @Override
     protected void onPause() {
+        externalForeground = false;
+        ++externalGeneration;
+        externalHandler.removeCallbacks(periodicExternalScan);
         // System may kill our process after onPause. Flush synchronously here;
         // normal typing saves are debounced and use the background writer.
         flushWorkspaceNow();
@@ -692,6 +747,7 @@ public class MainActivity extends Activity {
         ArrayList<String> texts = new ArrayList<>();
         ArrayList<String> uris = new ArrayList<>();
         ArrayList<String> projectPaths = new ArrayList<>();
+        ArrayList<String> syncHashes = new ArrayList<>();
         ArrayList<Integer> dirty = new ArrayList<>();
         ArrayList<Integer> cursors = new ArrayList<>();
         ArrayList<Integer> scrollX = new ArrayList<>();
@@ -702,6 +758,7 @@ public class MainActivity extends Activity {
             texts.add(doc.text);
             uris.add(doc.uriString == null ? "" : doc.uriString);
             projectPaths.add(doc.projectPath == null ? "" : doc.projectPath);
+            syncHashes.add(doc.syncedSourceHash == null ? "" : doc.syncedSourceHash);
             dirty.add(doc.dirty ? 1 : 0);
             cursors.add(doc.cursor);
             scrollX.add(doc.scrollX);
@@ -712,6 +769,7 @@ public class MainActivity extends Activity {
         outState.putStringArrayList(STATE_TEXTS, texts);
         outState.putStringArrayList(STATE_URIS, uris);
         outState.putStringArrayList(STATE_PROJECT_PATHS, projectPaths);
+        outState.putStringArrayList(STATE_SYNC_HASHES, syncHashes);
         outState.putIntegerArrayList(STATE_DIRTY, dirty);
         outState.putIntegerArrayList(STATE_CURSORS, cursors);
         outState.putIntegerArrayList(STATE_SCROLL_X, scrollX);
@@ -762,6 +820,7 @@ public class MainActivity extends Activity {
             ArrayList<String> texts = state.getStringArrayList(STATE_TEXTS);
             ArrayList<String> uris = state.getStringArrayList(STATE_URIS);
             ArrayList<String> projectPaths = state.getStringArrayList(STATE_PROJECT_PATHS);
+            ArrayList<String> syncHashes = state.getStringArrayList(STATE_SYNC_HASHES);
             ArrayList<Integer> dirty = state.getIntegerArrayList(STATE_DIRTY);
             ArrayList<Integer> cursors = state.getIntegerArrayList(STATE_CURSORS);
             ArrayList<Integer> scrollX = state.getIntegerArrayList(STATE_SCROLL_X);
@@ -775,6 +834,8 @@ public class MainActivity extends Activity {
                             dirty != null && i < dirty.size() && dirty.get(i) != 0);
                     doc.projectPath = projectPaths != null && i < projectPaths.size()
                             && !projectPaths.get(i).isEmpty() ? projectPaths.get(i) : null;
+                    doc.syncedSourceHash = syncHashes != null && i < syncHashes.size()
+                            && !syncHashes.get(i).isEmpty() ? syncHashes.get(i) : null;
                     doc.cursor = cursors != null && i < cursors.size() ? cursors.get(i) : 0;
                     doc.scrollX = scrollX != null && i < scrollX.size() ? scrollX.get(i) : 0;
                     doc.scrollY = scrollY != null && i < scrollY.size() ? scrollY.get(i) : 0;
@@ -810,6 +871,7 @@ public class MainActivity extends Activity {
             tab.uri = doc.uriString == null ? "" : doc.uriString;
             tab.projectPath = doc.projectPath == null ? "" : doc.projectPath;
             tab.dirty = doc.dirty;
+            tab.syncedSourceHash = doc.syncedSourceHash == null ? "" : doc.syncedSourceHash;
             tab.cursor = doc.cursor;
             tab.scrollX = doc.scrollX;
             tab.scrollY = doc.scrollY;
@@ -897,6 +959,8 @@ public class MainActivity extends Activity {
                 EditorDocument doc = new EditorDocument(tab.title, tab.source,
                         tab.uri.isEmpty() ? null : tab.uri, tab.dirty);
                 doc.projectPath = tab.projectPath.isEmpty() ? null : tab.projectPath;
+                doc.syncedSourceHash = tab.syncedSourceHash.isEmpty()
+                        ? null : tab.syncedSourceHash;
                 doc.cursor = Math.max(0, Math.min(tab.cursor, tab.source.length()));
                 doc.scrollX = Math.max(0, tab.scrollX);
                 doc.scrollY = Math.max(0, tab.scrollY);
@@ -1024,14 +1088,21 @@ public class MainActivity extends Activity {
             cell.setBackground(bg);
 
             TextView tabTitle = new TextView(this);
-            tabTitle.setText((doc.dirty ? "● " : "") + doc.title);
+            tabTitle.setText((doc.externalChanged ? "↻ " : "")
+                    + (doc.externalUnavailable ? "⚠ " : "")
+                    + (doc.dirty ? "● " : "") + doc.title);
+            if (doc.externalChanged || doc.externalUnavailable)
+                tabTitle.setTextColor(Color.rgb(160, 83, 20));
             tabTitle.setTextSize(13);
             tabTitle.setTextColor(Color.rgb(35, 35, 35));
             tabTitle.setTypeface(Typeface.DEFAULT,
                     i == activeIndex ? Typeface.BOLD : Typeface.NORMAL);
             tabTitle.setPadding(dp(9), dp(3), dp(6), dp(3));
             tabTitle.setSingleLine(true);
-            tabTitle.setOnClickListener(v -> selectTab(index));
+            tabTitle.setOnClickListener(v -> {
+                if (index == activeIndex && doc.externalChanged) showExternalConflict(doc);
+                else selectTab(index);
+            });
             tabTitle.setOnLongClickListener(v -> {
                 showTabMenu(index);
                 return true;
@@ -1067,6 +1138,8 @@ public class MainActivity extends Activity {
         activeIndex = index;
         renderTabs();
         loadActiveDocument();
+        if (currentDocument().externalChanged) showExternalConflict(currentDocument());
+        else scanExternalSources();
     }
 
     private void loadActiveDocument() {
@@ -1182,6 +1255,10 @@ public class MainActivity extends Activity {
         boolean changed = undo ? editor.undoSourceEdit() : editor.redoSourceEdit();
         if (!changed) return;
         doc.dirty = !doc.history.isAtSavePoint();
+        if (!doc.dirty && doc.externalChanged) {
+            doc.externalChanged = false;
+            externalHandler.post(this::scanExternalSources);
+        }
         doc.invalidateBuild();
         saveTap.setEnabled(false);
         if (wasDirty != doc.dirty) renderTabs();
@@ -1488,6 +1565,12 @@ public class MainActivity extends Activity {
         switch(item.getItemId()) {
             case IdeMenu.NEW_TAB: newTab(); break;
             case IdeMenu.OPEN_FILE: openSourceFilePicker(); break;
+            case IdeMenu.CHECK_EXTERNAL:
+                externalManualRequested = true;
+                setStatus(t("Checking opened files…", "Проверка открытых файлов…"),
+                        Color.rgb(75, 100, 80));
+                scanExternalSources();
+                break;
             case IdeMenu.OPEN_INCLUDE: showIncludeFiles(); break;
             case IdeMenu.SAVE: saveDocument(activeIndex,false); break;
             case IdeMenu.SAVE_AS: requestSaveAs(activeIndex,false); break;
@@ -2019,6 +2102,28 @@ public class MainActivity extends Activity {
             return;
         }
 
+        if (doc.externalChanged) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("File changed externally", "Файл изменён извне"))
+                    .setMessage(t("The original file was modified by another app. "
+                                    + "Overwriting it will discard those external changes.",
+                            "Исходный файл изменён другим приложением. "
+                                    + "Перезапись уничтожит внешние изменения."))
+                    .setPositiveButton(t("Overwrite external file", "Перезаписать внешний файл"),
+                            (dialog, which) -> writeSourceWithoutConflictCheck(index, closeAfterSave))
+                    .setNeutralButton(t("Save as…", "Сохранить как…"),
+                            (dialog, which) -> requestSaveAs(index, closeAfterSave))
+                    .setNegativeButton(t("Cancel", "Отмена"), null)
+                    .show();
+            return;
+        }
+        writeSourceWithoutConflictCheck(index, closeAfterSave);
+    }
+
+    private void writeSourceWithoutConflictCheck(int index, boolean closeAfterSave) {
+        if (index < 0 || index >= documents.size()) return;
+        if (index == activeIndex) captureCurrentDocument();
+        EditorDocument doc = documents.get(index);
         try {
             writeSource(Uri.parse(doc.uriString), doc.text);
             markSourceSaved(index, closeAfterSave);
@@ -2038,6 +2143,9 @@ public class MainActivity extends Activity {
         EditorDocument doc = documents.get(index);
         doc.history.markSaved();
         doc.dirty = false;
+        doc.syncedSourceHash = ExternalSourceState.fingerprint(doc.text);
+        doc.externalChanged = false;
+        doc.externalUnavailable = false;
         scheduleWorkspaceSave();
         updateUndoRedoButtons();
         renderTabs();
@@ -2128,6 +2236,8 @@ public class MainActivity extends Activity {
     private void addSourceTab(String title, String source, String uriString, boolean dirty) {
         captureCurrentDocument();
         EditorDocument doc = new EditorDocument(title, source, uriString, dirty);
+        if (uriString != null && !dirty)
+            doc.syncedSourceHash = ExternalSourceState.fingerprint(source);
         documents.add(doc);
         activeIndex = documents.size() - 1;
         renderTabs();
@@ -2146,7 +2256,10 @@ public class MainActivity extends Activity {
                 if (projectPath != null) documents.get(i).projectPath = projectPath;
                 selectTab(i);
                 scheduleAnalysis();
-                setStatus(t("File is already open", "Файл уже открыт"), Color.rgb(90, 90, 90));
+                setStatus(t("File is already open · checking for changes",
+                        "Файл уже открыт · проверка изменений"), Color.rgb(90, 90, 90));
+                if (documents.get(i).externalChanged) showExternalConflict(documents.get(i));
+                else scanExternalSources();
                 return;
             }
         }
@@ -2168,6 +2281,213 @@ public class MainActivity extends Activity {
             setStatus(message, Color.rgb(180, 30, 30));
             Toast.makeText(this, message, Toast.LENGTH_LONG).show();
         }
+    }
+
+
+    /**
+     * Check all open file-backed tabs, even when they are not selected.
+     * Work is performed off the UI thread and never modifies a dirty buffer.
+     * Comparing actual UTF-8 source contents handles SAF providers that do not
+     * expose a trustworthy last-modified timestamp or ContentObserver events.
+     */
+    private void scanExternalSources() {
+        if (!externalForeground || externalScanRunning || externalReader.isShutdown()) return;
+        captureCurrentDocument();
+        final List<SourceCheck> checks = new ArrayList<>();
+        for (EditorDocument doc : documents)
+            if (doc.hasFile() && !doc.externalChanged) checks.add(new SourceCheck(doc));
+        if (checks.isEmpty()) {
+            if (externalManualRequested) {
+                externalManualRequested = false;
+                setStatus(t("No files need checking, or conflicts are already marked",
+                        "Нет файлов для проверки или конфликты уже отмечены"),
+                        Color.rgb(90, 90, 90));
+            }
+            return;
+        }
+        externalScanRunning = true;
+        final int generation = externalGeneration;
+        externalReader.execute(() -> {
+            for (SourceCheck check : checks) {
+                try {
+                    check.disk = readSourceForMonitor(Uri.parse(check.uri));
+                } catch (Exception ex) {
+                    check.error = safeMessage(ex);
+                }
+            }
+            externalHandler.post(() -> {
+                externalScanRunning = false;
+                if (!externalForeground || generation != externalGeneration || isFinishing()) {
+                    externalManualRequested = false;
+                    return;
+                }
+                boolean updateTabs = false;
+                boolean saveSession = false;
+                captureCurrentDocument();
+                for (SourceCheck check : checks) {
+                    EditorDocument doc = check.doc;
+                    if (!documents.contains(doc) || !check.uri.equals(doc.uriString)
+                            || !java.util.Objects.equals(check.baseline, doc.syncedSourceHash)
+                            || doc.externalChanged)
+                        continue; // Tab switched/reopened/saved during the async scan.
+                    if (check.error != null) {
+                        if (!doc.externalUnavailable) {
+                            doc.externalUnavailable = true;
+                            updateTabs = true;
+                            if (hasActiveDocument() && doc == currentDocument())
+                                setStatus(t("Cannot check source file · ",
+                                        "Не удалось проверить файл · ") + doc.title,
+                                        Color.rgb(164, 92, 19));
+                        }
+                        continue;
+                    }
+                    if (doc.externalUnavailable) {
+                        doc.externalUnavailable = false;
+                        updateTabs = true;
+                    }
+                    String observedHash = ExternalSourceState.fingerprint(check.disk);
+                    if (doc.syncedSourceHash == null) {
+                        // Legacy dirty drafts have no known on-disk baseline.
+                        // Establish one without falsely treating local edits as a conflict.
+                        doc.syncedSourceHash = doc.dirty ? observedHash
+                                : ExternalSourceState.fingerprint(check.buffer);
+                        saveSession = true;
+                    }
+                    if (observedHash.equals(doc.syncedSourceHash)) continue;
+                    if (doc.dirty) {
+                        doc.externalChanged = true;
+                        updateTabs = true;
+                        if (hasActiveDocument() && doc == currentDocument())
+                            showExternalConflict(doc);
+                    } else {
+                        applyExternalSource(doc, check.disk, observedHash);
+                        updateTabs = true;
+                        saveSession = true;
+                        if (hasActiveDocument() && doc == currentDocument())
+                            setStatus(t("Reloaded externally modified file · ",
+                                    "Внешнее изменение: файл обновлён · ") + doc.title,
+                                    Color.rgb(37, 110, 72));
+                    }
+                }
+                if (updateTabs) renderTabs();
+                if (saveSession) scheduleWorkspaceSave();
+                if (externalManualRequested) {
+                    externalManualRequested = false;
+                    if (!updateTabs) {
+                        boolean pending = false;
+                        for (EditorDocument doc : documents)
+                            if (doc.externalChanged || doc.externalUnavailable) {
+                                pending = true;
+                                break;
+                            }
+                        setStatus(pending
+                                ? t("Some tabs still need attention", "Некоторые вкладки требуют внимания")
+                                : t("No external changes found", "Внешних изменений не обнаружено"),
+                                pending ? Color.rgb(164, 92, 19) : Color.rgb(37, 110, 72));
+                    }
+                }
+            });
+        });
+    }
+
+    private String readSourceForMonitor(Uri uri) throws Exception {
+        try (InputStream stream = getContentResolver().openInputStream(uri)) {
+            if (stream == null) throw new IOException("Cannot open source for monitoring");
+            try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                StringBuilder source = new StringBuilder();
+                char[] part = new char[8192];
+                int n;
+                while ((n = reader.read(part)) != -1) {
+                    if (source.length() + n > 8 * 1024 * 1024)
+                        throw new IOException("Source exceeds 8 MiB monitoring limit");
+                    source.append(part, 0, n);
+                }
+                return source.toString();
+            }
+        }
+    }
+
+    /** Called on the UI thread only, after a scan or an explicit reload. */
+    private void applyExternalSource(EditorDocument doc, String diskText, String diskHash) {
+        if (hasActiveDocument() && currentDocument() == doc)
+            captureCurrentDocument();
+        doc.text = diskText;
+        doc.cursor = Math.min(doc.cursor, diskText.length());
+        doc.history.clear();
+        doc.dirty = false;
+        doc.syncedSourceHash = diskHash;
+        doc.externalChanged = false;
+        doc.externalUnavailable = false;
+        doc.invalidateBuild(); // The old TAP, metrics and diagnostics are stale.
+        if (hasActiveDocument() && currentDocument() == doc)
+            loadActiveDocument();
+    }
+
+    /** External edits and local dirty buffers are never merged automatically. */
+    private void showExternalConflict(EditorDocument doc) {
+        if (externalDialogShowing || !doc.externalChanged
+                || !hasActiveDocument() || doc != currentDocument()) return;
+        externalDialogShowing = true;
+        new AlertDialog.Builder(this)
+                .setTitle(t("File changed outside the IDE", "Файл изменён вне IDE"))
+                .setMessage(t("Another app modified \"" + doc.title + "\". "
+                        + "This tab has unsaved changes. Reloading will DISCARD local edits. "
+                        + "You can keep editing, save a separate copy, or reopen this dialog "
+                        + "by tapping the marked tab. Saving to the original file will "
+                        + "ask for confirmation.",
+                        "Другое приложение изменило «" + doc.title + "». "
+                        + "В этой вкладке есть несохранённые правки. Перечитывание "
+                        + "УДАЛИТ локальные изменения. Можно продолжить работу или "
+                        + "сохранить отдельную копию. Чтобы вновь открыть диалог, "
+                        + "нажми на помеченную вкладку. При записи поверх внешних "
+                        + "изменений IDE запросит подтверждение."))
+                .setPositiveButton(t("Reload from disk", "Перечитать с диска"),
+                        (dialog, which) -> reloadExternalSource(doc))
+                .setNeutralButton(t("Save a copy…", "Сохранить копию…"),
+                        (dialog, which) -> {
+                            int index = documents.indexOf(doc);
+                            if (index >= 0) requestSaveAs(index, false);
+                        })
+                .setNegativeButton(t("Keep local edits", "Оставить мои правки"), null)
+                .setOnDismissListener(dialog -> externalDialogShowing = false)
+                .show();
+    }
+
+    private void reloadExternalSource(EditorDocument doc) {
+        int index = documents.indexOf(doc);
+        if (index < 0 || !doc.hasFile()) return;
+        if (index == activeIndex) captureCurrentDocument();
+        final String uri = doc.uriString;
+        final String originalText = doc.text;
+        externalReader.execute(() -> {
+            String disk = null, error = null;
+            try {
+                disk = readSourceForMonitor(Uri.parse(uri));
+            } catch (Exception ex) {
+                error = safeMessage(ex);
+            }
+            final String loaded = disk, failure = error;
+            externalHandler.post(() -> {
+                if (isFinishing() || !documents.contains(doc) || !uri.equals(doc.uriString)) return;
+                if (failure != null) {
+                    setStatus(t("Cannot reload file · ", "Не удалось перечитать файл · ")
+                            + failure, Color.rgb(180, 30, 30));
+                    return;
+                }
+                if (hasActiveDocument() && currentDocument() == doc) captureCurrentDocument();
+                if (!originalText.equals(doc.text)) {
+                    setStatus(t("Local text changed during reload; nothing overwritten",
+                                    "Текст изменился во время чтения; правки сохранены"),
+                            Color.rgb(164, 92, 19));
+                    return;
+                }
+                applyExternalSource(doc, loaded, ExternalSourceState.fingerprint(loaded));
+                renderTabs();
+                scheduleWorkspaceSave();
+                setStatus(t("Reloaded from disk · ", "Перечитано с диска · ")
+                        + doc.title, Color.rgb(37, 110, 72));
+            });
+        });
     }
 
     private String readSource(Uri uri) throws Exception {
@@ -2730,6 +3050,9 @@ public class MainActivity extends Activity {
                 if (name != null && !name.trim().isEmpty()) doc.title = name;
                 doc.history.markSaved();
                 doc.dirty = false;
+                doc.syncedSourceHash = ExternalSourceState.fingerprint(doc.text);
+                doc.externalChanged = false;
+                doc.externalUnavailable = false;
                 scheduleWorkspaceSave();
                 updateUndoRedoButtons();
                 renderTabs();

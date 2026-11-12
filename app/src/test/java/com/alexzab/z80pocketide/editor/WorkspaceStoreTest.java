@@ -38,6 +38,7 @@ public final class WorkspaceStoreTest {
         file.title = "hero.asm";
         file.uri = "content://example/documents/hero";
         file.projectPath = "src/hero.asm";
+        file.syncedSourceHash = ExternalSourceState.fingerprint("ORG $8000\nSTART:\n  LD A,1\n");
         file.source = "ORG $8000\nSTART:\n  LD A,1\n";
         file.cursor = 18;
         file.scrollX = 25;
@@ -65,6 +66,7 @@ public final class WorkspaceStoreTest {
         assertEquals(1, recovered.activeIndex);
         assertEquals(file.uri, recovered.tabs.get(0).uri);
         assertEquals("src/hero.asm", recovered.tabs.get(0).projectPath);
+        assertEquals(file.syncedSourceHash, recovered.tabs.get(0).syncedSourceHash);
         assertEquals(file.source, recovered.tabs.get(0).source);
         assertEquals(25, recovered.tabs.get(0).scrollX);
         assertEquals(48, recovered.tabs.get(0).scrollY);
@@ -170,4 +172,39 @@ public final class WorkspaceStoreTest {
         assertEquals("ORG 32768\nRET", old.tabs.get(0).source);
         assertEquals("", old.tabs.get(0).projectPath);
     }
+    @Test public void readsLegacyVersionTwoSnapshotWithoutExternalBaseline() throws Exception {
+        ByteArrayOutputStream payload = new ByteArrayOutputStream();
+        DataOutputStream body = new DataOutputStream(payload);
+        body.writeInt(0x5A383057);
+        body.writeInt(2);
+        body.writeInt(1); // tab count
+        body.writeInt(0); // active
+        for (String text : new String[]{"src/main.asm", "ORG $8000\\nRET",
+                "content://example/main", "src/main.asm"}) {
+            byte[] bytes = text.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            body.writeInt(bytes.length);
+            body.write(bytes);
+        }
+        body.writeBoolean(false);
+        body.writeInt(0); // cursor
+        body.writeInt(0); // scroll X
+        body.writeInt(0); // scroll Y
+        byte[] history = historyBytes(new UndoHistory());
+        body.writeInt(history.length);
+        body.write(history);
+        body.flush();
+        byte[] raw = payload.toByteArray();
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update(raw);
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        DataOutputStream out = new DataOutputStream(result);
+        out.writeInt(raw.length);
+        out.write(raw);
+        out.writeInt((int) crc.getValue());
+        out.flush();
+        WorkspaceStore.Session restored = WorkspaceStore.decode(result.toByteArray());
+        assertEquals("src/main.asm", restored.tabs.get(0).projectPath);
+        assertEquals("", restored.tabs.get(0).syncedSourceHash);
+    }
+
 }

@@ -15,6 +15,7 @@ public final class IdeMenu {
     public static final int BUILD=20, EXPORT_TAP=21, BUILD_RUN=22, FIND=23;
     public static final int OPEN_INCLUDE=25, OPEN_PROJECT=28, PROJECT_SETTINGS=29;
     public static final int SCREEN_EDITOR=31, MAIN_ASM=32, LANGUAGE=33, USER_GUIDE=34;
+    public static final int CHECK_EXTERNAL=35;
 
     private IdeMenu() {}
 
@@ -37,6 +38,8 @@ public final class IdeMenu {
         item(file,SAVE,3,ru,"Save","Сохранить").setEnabled(hasDocument);
         item(file,SAVE_AS,4,ru,"Save as…","Сохранить как…").setEnabled(hasDocument);
         item(file,CLOSE_TAB,5,ru,"Close tab","Закрыть вкладку").setEnabled(hasDocument);
+        item(file,CHECK_EXTERNAL,6,ru,"Check external file changes","Проверить внешние изменения")
+                .setEnabled(hasDocument);
 
         SubMenu project=menu.addSubMenu(t(ru,"Project","Проект"));
         item(project,OPEN_PROJECT,0,ru,"Open project…","Открыть проект…");
