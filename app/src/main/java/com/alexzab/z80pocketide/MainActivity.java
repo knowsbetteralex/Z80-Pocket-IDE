@@ -154,6 +154,7 @@ public class MainActivity extends Activity {
         }
     };
     private boolean externalForeground, externalScanRunning, externalDialogShowing;
+    private boolean externalManualRequested;
     private int externalGeneration;
     private static final class SourceCheck {
         final EditorDocument doc;
@@ -1565,7 +1566,9 @@ public class MainActivity extends Activity {
             case IdeMenu.NEW_TAB: newTab(); break;
             case IdeMenu.OPEN_FILE: openSourceFilePicker(); break;
             case IdeMenu.CHECK_EXTERNAL:
-                setStatus(t("Checking opened files…", "Проверка открытых файлов…"), Color.rgb(75, 100, 80));
+                externalManualRequested = true;
+                setStatus(t("Checking opened files…", "Проверка открытых файлов…"),
+                        Color.rgb(75, 100, 80));
                 scanExternalSources();
                 break;
             case IdeMenu.OPEN_INCLUDE: showIncludeFiles(); break;
@@ -2293,7 +2296,15 @@ public class MainActivity extends Activity {
         final List<SourceCheck> checks = new ArrayList<>();
         for (EditorDocument doc : documents)
             if (doc.hasFile() && !doc.externalChanged) checks.add(new SourceCheck(doc));
-        if (checks.isEmpty()) return;
+        if (checks.isEmpty()) {
+            if (externalManualRequested) {
+                externalManualRequested = false;
+                setStatus(t("No files need checking, or conflicts are already marked",
+                        "Нет файлов для проверки или конфликты уже отмечены"),
+                        Color.rgb(90, 90, 90));
+            }
+            return;
+        }
         externalScanRunning = true;
         final int generation = externalGeneration;
         externalReader.execute(() -> {
@@ -2306,8 +2317,10 @@ public class MainActivity extends Activity {
             }
             externalHandler.post(() -> {
                 externalScanRunning = false;
-                if (!externalForeground || generation != externalGeneration || isFinishing())
+                if (!externalForeground || generation != externalGeneration || isFinishing()) {
+                    externalManualRequested = false;
                     return;
+                }
                 boolean updateTabs = false;
                 boolean saveSession = false;
                 captureCurrentDocument();
@@ -2358,6 +2371,21 @@ public class MainActivity extends Activity {
                 }
                 if (updateTabs) renderTabs();
                 if (saveSession) scheduleWorkspaceSave();
+                if (externalManualRequested) {
+                    externalManualRequested = false;
+                    if (!updateTabs) {
+                        boolean pending = false;
+                        for (EditorDocument doc : documents)
+                            if (doc.externalChanged || doc.externalUnavailable) {
+                                pending = true;
+                                break;
+                            }
+                        setStatus(pending
+                                ? t("Some tabs still need attention", "Некоторые вкладки требуют внимания")
+                                : t("No external changes found", "Внешних изменений не обнаружено"),
+                                pending ? Color.rgb(164, 92, 19) : Color.rgb(37, 110, 72));
+                    }
+                }
             });
         });
     }
