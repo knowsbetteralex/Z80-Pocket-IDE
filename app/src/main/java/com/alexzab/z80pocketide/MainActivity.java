@@ -79,6 +79,8 @@ import com.alexzab.z80pocketide.source.ExternalSourceIntent;
 import com.alexzab.z80pocketide.source.AndroidIncludeFiles;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
+import com.alexzab.z80pocketide.update.ReleaseNotes;
+import com.alexzab.z80pocketide.update.ReleaseUpdates;
 import com.alexzab.z80pocketide.zx.TapWriter;
 import com.alexzab.z80pocketide.zx.SnaWriter;
 import com.alexzab.z80pocketide.project.ProjectConfiguration;
@@ -255,6 +257,8 @@ public class MainActivity extends Activity {
     private final Runnable delayedSearch = this::refreshSearchMatches;
     private LinearLayout tabRow;
     private AppLanguage language;
+    private ReleaseUpdates releaseUpdates;
+    private View releaseDot;
 
     private int activeIndex = -1;
     private int pendingSaveIndex = -1;
@@ -270,6 +274,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         language = LanguageSettings.get(this);
+        releaseUpdates = new ReleaseUpdates(this, this::refreshReleaseBadge);
         workspaceFile = new AtomicFile(new File(getNoBackupFilesDir(), WORKSPACE_FILE));
 
         getWindow().setStatusBarColor(Color.rgb(250, 250, 250));
@@ -379,6 +384,29 @@ public class MainActivity extends Activity {
         quickActions.addView(findButton);
         quickActions.addView(converterButton);
         quickActions.addView(referenceButton);
+        // Pinned bell: red dot indicates an unread release.
+        FrameLayout bellHolder = new FrameLayout(this);
+        ImageButton bell = new ImageButton(this);
+        bell.setImageResource(R.drawable.ic_header_bell);
+        bell.setContentDescription(t("GitHub releases", "Релизы GitHub"));
+        bell.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        bell.setPadding(dp(7), dp(7), dp(7), dp(7));
+        bell.setBackground(UiStyle.ripple(this, 0xFFE3F1E8, 14, 0xFFB8D7C5));
+        bellHolder.addView(bell, new FrameLayout.LayoutParams(-1, -1));
+        releaseDot = new View(this);
+        GradientDrawable dotShape = new GradientDrawable();
+        dotShape.setShape(GradientDrawable.OVAL);
+        dotShape.setColor(0xFFE95E57);
+        dotShape.setStroke(dp(1), Color.WHITE);
+        releaseDot.setBackground(dotShape);
+        FrameLayout.LayoutParams dotParams = new FrameLayout.LayoutParams(
+                dp(10), dp(10), Gravity.TOP | Gravity.RIGHT);
+        dotParams.setMargins(0, dp(3), dp(2), 0);
+        bellHolder.addView(releaseDot, dotParams);
+        bellHolder.setLayoutParams(new LinearLayout.LayoutParams(dp(34), dp(42)));
+        bell.setOnClickListener(v -> showReleaseDialog());
+        refreshReleaseBadge();
+        topBar.addView(bellHolder);
         topBar.addView(mainMenuButton);
         root.addView(topBar);
 
@@ -746,6 +774,7 @@ public class MainActivity extends Activity {
         workspaceWriter.shutdown();
         buildRevision++;
         buildExecutor.shutdownNow();
+        releaseUpdates.close();
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
         // Finishing the IDE ends the in-memory sprite editing session;
@@ -760,6 +789,7 @@ public class MainActivity extends Activity {
         externalForeground = true;
         externalHandler.removeCallbacks(periodicExternalScan);
         externalHandler.postDelayed(periodicExternalScan, 850L);
+        releaseUpdates.checkForUpdates();
     }
 
     @Override
@@ -1585,6 +1615,48 @@ public class MainActivity extends Activity {
         refreshSearchMatches();
         setStatus((language == AppLanguage.RU ? "Заменено: " : "Replaced: ") + count,
                 Color.rgb(37, 110, 72));
+    }
+
+    private void refreshReleaseBadge() {
+        if (releaseDot != null)
+            releaseDot.setVisibility(releaseUpdates.hasUnreadRelease() ? View.VISIBLE : View.GONE);
+    }
+
+    private void showReleaseDialog() {
+        ReleaseUpdates.ReleaseInfo release = releaseUpdates.getLatestRelease();
+        if (release == null) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("GitHub releases", "Релизы на GitHub"))
+                    .setMessage(t("Release information is not available yet. Check your connection or open GitHub.",
+                            "Информация о релизах пока недоступна. Проверьте интернет или откройте GitHub."))
+                    .setPositiveButton(t("Open GitHub", "Открыть GitHub"),
+                            (dialog, which) -> openReleasePage(ReleaseUpdates.RELEASES_URL))
+                    .setNegativeButton(t("Close", "Закрыть"), null).show();
+            return;
+        }
+        releaseUpdates.markRead();
+        String notes = ReleaseNotes.features(release.body, language == AppLanguage.RU);
+        String details = release.name + "\n\n"
+                + (notes.isEmpty()
+                    ? t("See the release page for details.", "Подробности на странице релиза.")
+                    : notes)
+                + "\n\n" + t("Download the APK from the GitHub release page.",
+                            "APK можно скачать на странице релиза GitHub.");
+        new AlertDialog.Builder(this)
+                .setTitle(t("Latest GitHub release", "Последний релиз GitHub"))
+                .setMessage(details)
+                .setPositiveButton(t("Open on GitHub", "Открыть на GitHub"),
+                        (dialog, which) -> openReleasePage(release.safeUrl()))
+                .setNegativeButton(t("Close", "Закрыть"), null).show();
+    }
+
+    private void openReleasePage(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, t("No browser found", "Браузер не найден"),
+                    Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void showMainMenu() {

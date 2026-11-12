@@ -4,6 +4,14 @@
 
 Detailed Z80 Pocket IDE release history. Earlier release notes are preserved in their original English.
 
+## v0.48.0 — GitHub release notifications / Уведомления о релизах
+
+- RU: Колокольчик слева от меню показывает красную точку для нового непросмотренного GitHub-релиза. Проверки выполняются в фоне.
+- EN: A bell next to the menu displays a red dot for an unread GitHub release; checks run in the background.
+- RU: Нажатие открывает локализованный список изменений и ссылку на релиз, просмотренные теги запоминаются.
+- EN: Tap for localized feature notes and a release link; already viewed tags are remembered.
+- CI: short RU/EN release highlights come from docs/RELEASE_FEATURES.md; full details stay in this changelog.
+
 ## v0.47.0 — Asynchronous build and 48K SNA export / Сборка и SNA
 
 - The floating Run button displays a spinning progress indicator during compilation. INCLUDE expansion, assembler and TAP/SNA generation run in a background worker; stale results after edits/tab changes are ignored.

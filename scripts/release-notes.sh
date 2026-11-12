@@ -7,12 +7,22 @@ commit="${2:?Missing commit SHA}"
 run="${3:?Missing workflow run number}"
 repo="${4:?Missing owner/repository}"
 
+# Bilingual concise features are maintained separately from CHANGELOG.
+features_file="$(dirname "$0")/../docs/RELEASE_FEATURES.md"
+ru_features="$(awk '/^## Русский$/{section="ru";next} /^## English$/{section="en";next} section=="ru" && /^- /{print}' "$features_file")"
+en_features="$(awk '/^## Русский$/{section="ru";next} /^## English$/{section="en";next} section=="en" && /^- /{print}' "$features_file")"
+test -n "$ru_features" && test -n "$en_features"
+
 cat <<NOTES
 ## Русский
 
 **Z80 Pocket IDE v${version}** · **Сборка #${run}**
 
 Это автоматически собранная и проверенная версия Android-приложения из ветки **main**.
+
+### Что нового
+
+${ru_features}
 
 - **APK:** скачайте файл **Z80-Pocket-IDE.apk** ниже, в разделе **Assets**.
 - **Проверка файла:** **Z80-Pocket-IDE.apk.sha256** содержит контрольную сумму SHA-256.
@@ -28,6 +38,10 @@ cat <<NOTES
 **Z80 Pocket IDE v${version}** · **Build #${run}**
 
 This is an automatically built and tested Android APK from the **main** branch.
+
+### What's new
+
+${en_features}
 
 - **APK:** download **Z80-Pocket-IDE.apk** from **Assets** below.
 - **File verification:** **Z80-Pocket-IDE.apk.sha256** contains the SHA-256 checksum.
