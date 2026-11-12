@@ -42,6 +42,9 @@ import android.widget.Button;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
+import android.content.res.ColorStateList;
+import android.os.SystemClock;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -77,6 +80,7 @@ import com.alexzab.z80pocketide.source.AndroidIncludeFiles;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
 import com.alexzab.z80pocketide.zx.TapWriter;
+import com.alexzab.z80pocketide.zx.SnaWriter;
 import com.alexzab.z80pocketide.project.ProjectConfiguration;
 import com.alexzab.z80pocketide.project.ProjectSettingsDialog;
 import com.alexzab.z80pocketide.screen.ScreenEditorActivity;
@@ -111,6 +115,7 @@ import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
+    private static final int REQUEST_SAVE_SNA = 1010;
     private static final int REQUEST_EXAMPLE = 1002;
     private static final int REQUEST_OPEN_SOURCE = 1003;
     private static final int REQUEST_SAVE_SOURCE_AS = 1004;
@@ -211,6 +216,24 @@ public class MainActivity extends Activity {
     private int resultRevision = -1;
     private final Runnable delayedAnalyze = this::performLiveAnalysis;
     private ImageButton runTap;
+    private ProgressBar buildSpinner;
+    private boolean buildInProgress;
+    private int buildRevision;
+    private static final long MIN_BUILD_INDICATOR_MS = 320;
+    private final ExecutorService buildExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "z80-project-builder");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private enum BuildAction { BUILD, RUN, EXPORT_TAP, EXPORT_SNA }
+    private static final class BuildOutput {
+        ProjectSource project;
+        AssemblyResult result;
+        ProjectConfiguration settings;
+        byte[] tap, sna;
+        Exception error;
+    }
+
     private Button undoButton;
     private Button redoButton;
     private Button saveTap;
@@ -240,6 +263,7 @@ public class MainActivity extends Activity {
     private boolean pendingGrantCloseAfterSave;
     private boolean loadingDocument;
     private byte[] pendingTapToSave;
+    private byte[] pendingSnaToSave;
     private int untitledCounter = 1;
 
     @Override
@@ -486,6 +510,15 @@ public class MainActivity extends Activity {
         runParams.setMargins(0, 0, dp(13), dp(13));
         editorHost.addView(runTap, runParams);
         runTap.setOnClickListener(v -> runTapInEmulator());
+        buildSpinner = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+        buildSpinner.setIndeterminate(true);
+        buildSpinner.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
+        buildSpinner.setVisibility(View.GONE);
+        buildSpinner.setClickable(false);
+        FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(
+                dp(30), dp(30), Gravity.BOTTOM | Gravity.RIGHT);
+        spinnerParams.setMargins(0, 0, dp(27), dp(27));
+        editorHost.addView(buildSpinner, spinnerParams);
 
         // No hidden scratch document: the blank canvas offers an explicit new-file action.
         LinearLayout empty=new LinearLayout(this);
@@ -711,6 +744,8 @@ public class MainActivity extends Activity {
         externalHandler.removeCallbacks(periodicExternalScan);
         externalReader.shutdownNow();
         workspaceWriter.shutdown();
+        buildRevision++;
+        buildExecutor.shutdownNow();
         if (runningAnalysis != null) runningAnalysis.cancel(true);
         analysisExecutor.shutdownNow();
         // Finishing the IDE ends the in-memory sprite editing session;
@@ -1599,6 +1634,7 @@ public class MainActivity extends Activity {
             case IdeMenu.BUILD: buildSource(); break;
             case IdeMenu.BUILD_RUN: runTapInEmulator(); break;
             case IdeMenu.EXPORT_TAP: saveTapFile(); break;
+            case IdeMenu.EXPORT_SNA: exportSnaFile(); break;
             case IdeMenu.SCREEN_EDITOR: openScreenEditor(null); break;
             case IdeMenu.TOOLS: openTools(); break;
             case IdeMenu.EXAMPLES: showExamples(); break;
