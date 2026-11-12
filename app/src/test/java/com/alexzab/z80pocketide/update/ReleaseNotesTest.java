@@ -33,8 +33,8 @@ public class ReleaseNotesTest {
         assertFalse(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0 (build #644)",
                 "build-644-1", "abc", "0.48.0", 646, "ghi"));
         assertFalse(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0",
-                "build-644-1", "abc", "0.48.0", 0, "abc"));
+                "build-644-1", "abcdef1234567890", "0.48.0", 0, "abcdef1234567890"));
         assertTrue(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0",
-                "build-644-1", "def", "0.48.0", 0, "abc"));
+                "build-644-1", "abcdef1234567890", "0.48.0", 0, "1234567890abcdef"));
     }
 }
