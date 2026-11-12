@@ -648,7 +648,7 @@ public class MainActivity extends Activity {
                     // Undo returned to the saved file state: it is now safe to
                     // refresh automatically on the next external scan.
                     doc.externalChanged = false;
-                    externalHandler.post(this::scanExternalSources);
+                    externalHandler.post(MainActivity.this::scanExternalSources);
                 }
                 doc.invalidateBuild();
                 saveTap.setEnabled(false);
