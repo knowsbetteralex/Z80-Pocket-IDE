@@ -1554,6 +1554,10 @@ public class MainActivity extends Activity {
         switch(item.getItemId()) {
             case IdeMenu.NEW_TAB: newTab(); break;
             case IdeMenu.OPEN_FILE: openSourceFilePicker(); break;
+            case IdeMenu.CHECK_EXTERNAL:
+                setStatus(t("Checking opened files…", "Проверка открытых файлов…"), Color.rgb(75, 100, 80));
+                scanExternalSources();
+                break;
             case IdeMenu.OPEN_INCLUDE: showIncludeFiles(); break;
             case IdeMenu.SAVE: saveDocument(activeIndex,false); break;
             case IdeMenu.SAVE_AS: requestSaveAs(activeIndex,false); break;
@@ -2085,6 +2089,28 @@ public class MainActivity extends Activity {
             return;
         }
 
+        if (doc.externalChanged) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("File changed externally", "Файл изменён извне"))
+                    .setMessage(t("The original file was modified by another app. "
+                                    + "Overwriting it will discard those external changes.",
+                            "Исходный файл изменён другим приложением. "
+                                    + "Перезапись уничтожит внешние изменения."))
+                    .setPositiveButton(t("Overwrite external file", "Перезаписать внешний файл"),
+                            (dialog, which) -> writeSourceWithoutConflictCheck(index, closeAfterSave))
+                    .setNeutralButton(t("Save as…", "Сохранить как…"),
+                            (dialog, which) -> requestSaveAs(index, closeAfterSave))
+                    .setNegativeButton(t("Cancel", "Отмена"), null)
+                    .show();
+            return;
+        }
+        writeSourceWithoutConflictCheck(index, closeAfterSave);
+    }
+
+    private void writeSourceWithoutConflictCheck(int index, boolean closeAfterSave) {
+        if (index < 0 || index >= documents.size()) return;
+        if (index == activeIndex) captureCurrentDocument();
+        EditorDocument doc = documents.get(index);
         try {
             writeSource(Uri.parse(doc.uriString), doc.text);
             markSourceSaved(index, closeAfterSave);
