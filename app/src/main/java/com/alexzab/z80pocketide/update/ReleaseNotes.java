@@ -26,6 +26,10 @@ public final class ReleaseNotes {
                 inFeatures = line.equals(russian ? "### Что нового" : "### What's new");
                 continue;
             }
+            // The following release metadata (APK, checksum) is not a new feature.
+            if (inFeatures && line.isEmpty() && result.length() > 0) {
+                inFeatures = false;
+            }
             if (!inFeatures || !line.startsWith("- ")) continue;
             String item = line.substring(2).replace("**", "")
                     .replaceAll("\\[([^\\]]+)\\]\\([^)]*\\)", "$1");
