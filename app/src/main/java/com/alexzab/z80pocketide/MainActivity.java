@@ -643,6 +643,12 @@ public class MainActivity extends Activity {
                 // tab changes, saving, building and Activity state persistence.
                 boolean wasDirty = doc.dirty;
                 doc.dirty = !doc.history.isAtSavePoint();
+                if (!doc.dirty && doc.externalChanged) {
+                    // Undo returned to the saved file state: it is now safe to
+                    // refresh automatically on the next external scan.
+                    doc.externalChanged = false;
+                    externalHandler.post(this::scanExternalSources);
+                }
                 doc.invalidateBuild();
                 saveTap.setEnabled(false);
                 scheduleAnalysis();
@@ -1248,6 +1254,10 @@ public class MainActivity extends Activity {
         boolean changed = undo ? editor.undoSourceEdit() : editor.redoSourceEdit();
         if (!changed) return;
         doc.dirty = !doc.history.isAtSavePoint();
+        if (!doc.dirty && doc.externalChanged) {
+            doc.externalChanged = false;
+            externalHandler.post(this::scanExternalSources);
+        }
         doc.invalidateBuild();
         saveTap.setEnabled(false);
         if (wasDirty != doc.dirty) renderTabs();
