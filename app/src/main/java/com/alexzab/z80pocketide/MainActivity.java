@@ -39,6 +39,7 @@ import android.widget.PopupMenu;
 import android.widget.ScrollView;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -422,9 +423,11 @@ public class MainActivity extends Activity {
             PopupMenu choices = new PopupMenu(this, openSourceButton);
             choices.getMenu().add(0, 1, 0, t("Open file…", "Открыть файл…"));
             choices.getMenu().add(0, 2, 1, t("Open project…", "Открыть проект…"));
+            choices.getMenu().add(0, 3, 2, t("Open Git project…", "Открыть Git-проект…"));
             choices.setOnMenuItemClickListener(item -> {
                 if(item.getItemId()==1)openSourceFilePicker();
                 else if(item.getItemId()==2)chooseProjectFolder();
+                else if(item.getItemId()==3)openGitProject(false);
                 return true;
             });
             choices.show();
@@ -1668,6 +1671,8 @@ public class MainActivity extends Activity {
         String root = AndroidIncludeFiles.selectedRoot(this);
         IdeMenu.populate(popup.getMenu(),language==AppLanguage.RU,
                 hasActiveDocument(),root,language==AppLanguage.RU);
+        popup.getMenu().findItem(IdeMenu.SYNC_GIT).setEnabled(GitProjectState.active(this));
+        popup.getMenu().findItem(IdeMenu.NEW_GIT_FILE).setEnabled(GitProjectState.active(this));
         popup.setOnMenuItemClickListener(this::handleMainMenuAction);
         popup.show();
     }
@@ -1921,7 +1926,7 @@ public class MainActivity extends Activity {
 
     private void openGitProject(boolean syncOnly) {
         if (syncOnly && !GitProjectState.active(this)) syncOnly = false;
-        if (syncOnly) {
+        if (GitProjectState.active(this)) {
             captureCurrentDocument();
             // Persist all edited Git buffers before comparing to the remote branch.
             // This is a working-copy save, NOT a local Git commit.
@@ -2073,7 +2078,8 @@ public class MainActivity extends Activity {
                 projectConfiguration=ProjectSettingsStore.load(this);
             if(!relativePath.equalsIgnoreCase(projectConfiguration.root)) {
                 projectConfiguration=projectConfiguration.withRoot(relativePath);
-                ProjectSettingsStore.save(this,projectConfiguration);
+                if (!GitProjectState.active(this))
+                    ProjectSettingsStore.save(this,projectConfiguration);
             }
             invalidateProjectBuilds();
             openSourceUri(uri,null,relativePath);
@@ -3201,6 +3207,7 @@ public class MainActivity extends Activity {
                             if (!GitProjectState.contains(this, doc.uriString)) doc.projectPath = null;
                         Uri file = Uri.fromFile(GitProjectState.file(GitProjectState.root(this), root));
                         openSourceUri(file, null, root);
+                        refreshGitProjectTabs();
                         invalidateProjectBuilds();
                         setStatus(t("Git project opened: ", "Открыт Git-проект: ") + repo,
                                 Color.rgb(30, 110, 70));

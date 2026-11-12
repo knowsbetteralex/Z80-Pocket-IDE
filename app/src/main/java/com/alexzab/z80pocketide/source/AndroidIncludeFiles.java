@@ -92,6 +92,12 @@ public final class AndroidIncludeFiles {
     public static java.util.List<String> sourceFiles(Context context) throws Exception {
         Uri tree=projectTree(context);
         java.util.List<String> files=new java.util.ArrayList<>();
+        if (GitProjectState.active(context)) {
+            collectGitFiles(GitProjectState.root(context), GitProjectState.root(context),
+                    files, false, 0);
+            files.sort(String.CASE_INSENSITIVE_ORDER);
+            return files;
+        }
         if(tree==null)return files;
         String id=DocumentsContract.getTreeDocumentId(tree);
         java.util.Set<String> visited=new java.util.HashSet<>();
@@ -104,11 +110,39 @@ public final class AndroidIncludeFiles {
     public static java.util.List<String> screenFiles(Context context) throws Exception {
         Uri tree=projectTree(context);
         java.util.List<String> files=new java.util.ArrayList<>();
+        if (GitProjectState.active(context)) {
+            collectGitFiles(GitProjectState.root(context), GitProjectState.root(context),
+                    files, true, 0);
+            files.sort(String.CASE_INSENSITIVE_ORDER);
+            return files;
+        }
         if(tree==null)return files;
         String id=DocumentsContract.getTreeDocumentId(tree);
         collectSources(context,tree,id,"",0,new java.util.HashSet<>(),files,true);
         files.sort(String.CASE_INSENSITIVE_ORDER);
         return files;
+    }
+
+    private static void collectGitFiles(File root, File folder,
+                                        java.util.List<String> files, boolean screens, int depth)
+            throws IOException {
+        if (root == null || !root.isDirectory() || depth > 10 || files.size() >= 256) return;
+        File[] children = folder.listFiles();
+        if (children == null) throw new IOException("Cannot read Git project folder");
+        for (File child : children) {
+            if (child.isDirectory()) {
+                collectGitFiles(root, child, files, screens, depth + 1);
+            } else if (child.isFile()) {
+                String path = child.getCanonicalPath()
+                        .substring(root.getCanonicalPath().length() + 1)
+                        .replace(File.separatorChar, '/');
+                String lower = path.toLowerCase(java.util.Locale.ROOT);
+                if (GitProjectState.safePath(path) && lower.matches(
+                        screens ? ".*\\\\.(scr|bin)$" : ".*\\\\.(asm|z80|s)$"))
+                    files.add(path);
+            }
+            if (files.size() >= 256) break;
+        }
     }
 
     private static void collectSources(Context context,Uri tree,String folderId,

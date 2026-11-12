@@ -4,6 +4,15 @@
 
 Detailed Z80 Pocket IDE release history. Earlier release notes are preserved in their original English.
 
+## v0.50.0 — GitHub sync MVP / Базовый GitHub Pull + Push
+
+- RU: Пункт «Открыть Git-проект» показывает репозитории, доступные через fine-grained GitHub Token; секрет зашифрован через Android Keystore.
+- EN: Open Git project lists repositories accessible with a fine-grained GitHub token secured by Android Keystore.
+- RU: Синхронизация Pull + Push сравнивает исходники с удалённой веткой; неконфликтующие изменения публикуются одним Git-коммитом без локального .git.
+- EN: One-tap Pull + Push compares working files to the remote branch and uploads non-conflicting changes in one atomic commit, without local .git history.
+- RU/EN: При совпадающих правках нет ложного конфликта. При расхождении предлагается локальная/удалённая версия или ручное объединение текста. Принудительное изменение истории запрещено.
+- RU/EN: Начальная поддержка ветки по умолчанию, ограниченного набора ASM/бинарных ресурсов и проекта до 20 МиБ; обычный SAF-режим сохранён.
+
 ## v0.49.0 — Update bell visibility / Видимость уведомлений об обновлениях
 
 - RU: Колокольчик показывается только при наличии релиза новее установленной сборки, а не просто непрочитанного сообщения.
