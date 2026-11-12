@@ -9,6 +9,7 @@ import android.provider.DocumentsContract;
 import android.provider.DocumentsContract.Document;
 import android.content.SharedPreferences;
 import com.alexzab.z80pocketide.editor.EditorDocument;
+import com.alexzab.z80pocketide.git.GitProjectState;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -29,6 +30,7 @@ public final class AndroidIncludeFiles {
                 .putString(ROOT,relativePath).apply();
     }
     public static Uri projectTree(Context context){
+        if (GitProjectState.active(context)) return null;
         String uri=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE)
                 .getString(TREE,null);
         return uri==null?null:Uri.parse(uri);
@@ -52,6 +54,13 @@ public final class AndroidIncludeFiles {
     public static String relativePath(Context context,EditorDocument doc){
         if(doc.projectPath!=null&&!doc.projectPath.isEmpty())return doc.projectPath;
         Uri tree=projectTree(context);
+        if (GitProjectState.contains(context, doc.uriString)) {
+            try {
+                String file = new File(Uri.parse(doc.uriString).getPath()).getCanonicalPath();
+                String base = GitProjectState.root(context).getCanonicalPath() + File.separator;
+                return file.substring(base.length()).replace(File.separatorChar, '/');
+            } catch (Exception ignored) { }
+        }
         if(tree!=null&&doc.uriString!=null){
             try{
                 String root=DocumentsContract.getTreeDocumentId(tree);
@@ -83,6 +92,12 @@ public final class AndroidIncludeFiles {
     public static java.util.List<String> sourceFiles(Context context) throws Exception {
         Uri tree=projectTree(context);
         java.util.List<String> files=new java.util.ArrayList<>();
+        if (GitProjectState.active(context)) {
+            collectGitFiles(GitProjectState.root(context), GitProjectState.root(context),
+                    files, false, 0);
+            files.sort(String.CASE_INSENSITIVE_ORDER);
+            return files;
+        }
         if(tree==null)return files;
         String id=DocumentsContract.getTreeDocumentId(tree);
         java.util.Set<String> visited=new java.util.HashSet<>();
@@ -95,11 +110,39 @@ public final class AndroidIncludeFiles {
     public static java.util.List<String> screenFiles(Context context) throws Exception {
         Uri tree=projectTree(context);
         java.util.List<String> files=new java.util.ArrayList<>();
+        if (GitProjectState.active(context)) {
+            collectGitFiles(GitProjectState.root(context), GitProjectState.root(context),
+                    files, true, 0);
+            files.sort(String.CASE_INSENSITIVE_ORDER);
+            return files;
+        }
         if(tree==null)return files;
         String id=DocumentsContract.getTreeDocumentId(tree);
         collectSources(context,tree,id,"",0,new java.util.HashSet<>(),files,true);
         files.sort(String.CASE_INSENSITIVE_ORDER);
         return files;
+    }
+
+    private static void collectGitFiles(File root, File folder,
+                                        java.util.List<String> files, boolean screens, int depth)
+            throws IOException {
+        if (root == null || !root.isDirectory() || depth > 10 || files.size() >= 256) return;
+        File[] children = folder.listFiles();
+        if (children == null) throw new IOException("Cannot read Git project folder");
+        for (File child : children) {
+            if (child.isDirectory()) {
+                collectGitFiles(root, child, files, screens, depth + 1);
+            } else if (child.isFile()) {
+                String path = child.getCanonicalPath()
+                        .substring(root.getCanonicalPath().length() + 1)
+                        .replace(File.separatorChar, '/');
+                String lower = path.toLowerCase(java.util.Locale.ROOT);
+                if (GitProjectState.safePath(path) && lower.matches(
+                        screens ? ".*\\.(scr|bin)$" : ".*\\.(asm|z80|s)$"))
+                    files.add(path);
+            }
+            if (files.size() >= 256) break;
+        }
     }
 
     private static void collectSources(Context context,Uri tree,String folderId,
@@ -133,6 +176,11 @@ public final class AndroidIncludeFiles {
 
     /** Safely enumerates each folder segment rather than guessing document IDs. */
     public static Uri locate(Context context,EditorDocument root,String relative) throws Exception{
+        if (GitProjectState.active(context)) {
+            File base = GitProjectState.root(context);
+            File gitFile = GitProjectState.file(base, relative);
+            return gitFile.isFile() ? Uri.fromFile(gitFile) : null;
+        }
         Uri tree=projectTree(context);
         if(tree!=null){
             String id=DocumentsContract.getTreeDocumentId(tree);

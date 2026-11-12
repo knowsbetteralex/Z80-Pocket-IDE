@@ -24,6 +24,7 @@ APK собирается автоматически после успешных 
 
 - **Редактор ASM:** подсветка синтаксиса, поиск/замена, форматирование, автодополнение меток, отмена/повтор изменений, вкладки и восстановление черновиков. Контроль внешних изменений файлов: автоматическое обновление чистых вкладок и защита несохранённых правок.
 - **Проекты:** несколько ASM-файлов, `INCLUDE`, выбор главного ASM, ресурсы `INCBIN` и настройки проекта.
+- **GitHub (MVP):** открытие репозитория из списка, токен с ограниченным доступом (зашифрован Android Keystore), одна команда Pull + Push, выбор версии при конфликте и ручное объединение текста. Без локальной истории Git.
 - **Ассемблер Z80:** инструкции Z80, метки, выражения, `ORG`, `EQU`, `DB`, `DW`, `DS`, `MACRO`, условная сборка `IF`/`IFN` и `ASSERT`. Анализ размера кода и T-состояний.
 - **ZX Spectrum:** сборка и экспорт `.tap`, экспорт снимка `.sna` (48K), запуск TAP через установленный эмулятор, загрузочная заставка SCREEN$. Кнопка запуска показывает индикатор сборки.
 - **Редактор экранов:** 256×192, цвета INK/PAPER, BRIGHT/FLASH, рисование и выделение, импорт/экспорт SCR и ASM.
@@ -67,6 +68,7 @@ An APK is automatically published after a successful `main` build and test run, 
 
 - **ASM editor:** syntax highlighting, find/replace, formatting, label completion, undo/redo, source tabs, and draft recovery. External file checks automatically refresh clean tabs while protecting unsaved edits.
 - **Projects:** multiple ASM files, `INCLUDE`, selectable entry-point ASM, `INCBIN` assets, and project settings.
+- **GitHub (MVP):** repository picker, secure limited-access token, one-tap Pull + Push, conflict resolution and manual text merge. No local Git history.
 - **Z80 assembler:** Z80 instructions, labels, expressions, `ORG`, `EQU`, `DB`, `DW`, `DS`, `MACRO`, `IF`/`IFN` conditional assembly, and `ASSERT`. Byte-size and T-state analysis.
 - **ZX Spectrum:** `.tap` build/export, 48K `.sna` snapshot export, emulator launch for TAP files, and optional SCREEN$ loading screen. The Run button shows compilation progress.
 - **Screen editor:** 256×192 pixels, INK/PAPER colors, BRIGHT/FLASH, drawing and selection, SCR and ASM import/export.

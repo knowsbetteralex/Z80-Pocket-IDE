@@ -48,6 +48,10 @@ Assembler diagnostics appear in the lower panel and on the source line when appl
 
 For multi-file work, choose **☰ → Project → Open project**, then authorize a directory through Android's system folder picker. The IDE can read project files from this selected folder.
 
+**GitHub projects (experimental):** choose **☰ → Project → Open Git project**. First, create a fine-grained GitHub token with **Contents: Read and write** on the selected repositories, then paste it into the sign-in screen. The token is encrypted with Android Keystore. Choose a repository; Pocket IDE downloads a small working copy and opens the main ASM. **Project → Git · Sync (Pull + Push)** checks for changes and sends them with one tap when there are no conflicts. On a conflict, keep your file, use GitHub's version, or manually merge text. To add a source under the working folder, choose **Project → New file in Git project**.
+
+This initial implementation supports the default branch and selected ASM/source resources only (up to 2 MiB/file, 400 files / 20 MiB/project). Unrelated repository assets are untouched. There is no local commit history or undo for remote pushes. Working files and unsent edits live in private app storage until synchronized; do not clear app data before pushing.
+
 **Project → Main ASM: filename** opens a list of possible entry-point source files. **Project settings** controls the project name, main ASM and optional loading screen.
 
 INCLUDE inserts another source file:
