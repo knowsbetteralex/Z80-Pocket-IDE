@@ -30,8 +30,8 @@ jobs:
           grep -q '^## English$' /tmp/z80-release-notes.md
           grep -q '^### Что нового$' /tmp/z80-release-notes.md
           grep -q "^### What's new$" /tmp/z80-release-notes.md
-          grep -q 'Pull + Push' /tmp/z80-release-notes.md
-          grep -q 'GitHub' /tmp/z80-release-notes.md
+          awk '/^### Что нового$/{section=1;next} /^## English$/{section=0} section && /^- /{found=1} END{exit !found}' /tmp/z80-release-notes.md
+          awk '/^### What.s new$/{section=1;next} section && /^- /{found=1} END{exit !found}' /tmp/z80-release-notes.md
           grep -q 'v0.0.0' /tmp/z80-release-notes.md
       - name: Unit tests
         run: gradle testDebugUnitTest --stacktrace

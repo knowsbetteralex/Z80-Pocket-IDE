@@ -138,6 +138,10 @@ public final class GitSyncEngine {
         if (!conflicts.isEmpty())
             return new Result(conflicts, 0, 0, remote.commit);
 
+        // Even read-only Pull must not apply an outdated branch snapshot.
+        if (upload.isEmpty() && !api.remote(repo, branch).commit.equals(remote.commit))
+            throw new IOException("GitHub changed during Pull. Run Sync again.");
+
         String head = remote.commit;
         if (!upload.isEmpty()) {
             // Recheck before committing, then use a non-force ref update.
