@@ -16,12 +16,25 @@ public class ReleaseNotesTest {
         assertEquals("• Update bell in header.\n• GitHub release link.",
                 ReleaseNotes.features(BODY, false));
     }
+
     @Test public void noFeatureHeaderDoesNotShowGenericApkText() {
         assertEquals("", ReleaseNotes.features("## Русский\n- APK: download.\n## English", true));
     }
-    @Test public void unreadRequiresNewCommitAndNewTag() {
-        assertFalse(ReleaseNotes.isUnread("build-7", "abc", "abc", ""));
-        assertFalse(ReleaseNotes.isUnread("build-7", "def", "abc", "build-7"));
-        assertTrue(ReleaseNotes.isUnread("build-8", "def", "abc", "build-7"));
+
+    @Test public void onlyNewerReleaseShowsBellUntilInstalled() {
+        assertFalse(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0 (build #644)",
+                "build-644-1", "abc", "0.48.0", 644, "abc"));
+        assertTrue(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0 (build #645)",
+                "build-645-1", "def", "0.48.0", 644, "abc"));
+        assertTrue(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.49.0 (build #646)",
+                "build-646-1", "ghi", "0.48.0", 644, "abc"));
+        assertFalse(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0 (build #644)",
+                "build-644-1", "abc", "0.49.0", 645, "def"));
+        assertFalse(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0 (build #644)",
+                "build-644-1", "abc", "0.48.0", 646, "ghi"));
+        assertFalse(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0",
+                "build-644-1", "abc", "0.48.0", 0, "abc"));
+        assertTrue(ReleaseNotes.isNewerRelease("Z80 Pocket IDE v0.48.0",
+                "build-644-1", "def", "0.48.0", 0, "abc"));
     }
 }

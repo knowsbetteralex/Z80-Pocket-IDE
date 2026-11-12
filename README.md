@@ -28,7 +28,7 @@ APK собирается автоматически после успешных 
 - **ZX Spectrum:** сборка и экспорт `.tap`, экспорт снимка `.sna` (48K), запуск TAP через установленный эмулятор, загрузочная заставка SCREEN$. Кнопка запуска показывает индикатор сборки.
 - **Редактор экранов:** 256×192, цвета INK/PAPER, BRIGHT/FLASH, рисование и выделение, импорт/экспорт SCR и ASM.
 - **Инструменты:** системы счисления, адреса экрана, спрайты, клавиатура Spectrum, библиотека примеров и справочник Z80/ZX.
-- **Обновления:** колокольчик слева от меню сообщает о новых релизах GitHub; в окне уведомления — краткие изменения и ссылка на APK.
+- **Обновления:** колокольчик слева от меню показывается, если доступен релиз новее установленного APK, и исчезает после установки; окно содержит краткие изменения и ссылку на GitHub.
 
 **Язык интерфейса:** `Настройки → Язык интерфейса: RU/EN` — переключение без перезапуска вручную.
 
@@ -71,7 +71,7 @@ An APK is automatically published after a successful `main` build and test run, 
 - **ZX Spectrum:** `.tap` build/export, 48K `.sna` snapshot export, emulator launch for TAP files, and optional SCREEN$ loading screen. The Run button shows compilation progress.
 - **Screen editor:** 256×192 pixels, INK/PAPER colors, BRIGHT/FLASH, drawing and selection, SCR and ASM import/export.
 - **Tools:** number-base converter, screen addresses, sprite tools, Spectrum keyboard, examples, and Z80/ZX reference.
-- **Updates:** the bell beside the menu indicates new GitHub releases, with concise release notes and an APK link.
+- **Updates:** a bell beside the menu appears only when a GitHub release newer than the installed APK is available and disappears once installed; the dialog shows brief notes and a GitHub link.
 
 **Interface language:** use `Settings → Interface language: RU/EN` to switch immediately.
 

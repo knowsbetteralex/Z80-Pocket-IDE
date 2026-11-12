@@ -4,6 +4,15 @@
 
 Detailed Z80 Pocket IDE release history. Earlier release notes are preserved in their original English.
 
+## v0.49.0 — Update bell visibility / Видимость уведомлений об обновлениях
+
+- RU: Колокольчик показывается только при наличии релиза новее установленной сборки, а не просто непрочитанного сообщения.
+- EN: The bell is only visible when a release newer than the installed APK is available, not merely an unread announcement.
+- RU: Просмотр описания не скрывает значок; после установки актуального APK колокольчик исчезает.
+- EN: Viewing the dialog never hides the bell; installing the current APK removes it.
+- RU/EN: Новый заголовок окна: «Доступен новый релиз» / “New release available”.
+- CI: сравнение версии и номера сборки GitHub Actions, тесты обновления, отката и совпадающих версий.
+
 ## v0.48.0 — GitHub release notifications / Уведомления о релизах
 
 - RU: Колокольчик слева от меню показывает красную точку для нового непросмотренного GitHub-релиза. Проверки выполняются в фоне.

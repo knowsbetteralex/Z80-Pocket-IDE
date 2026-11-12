@@ -258,7 +258,7 @@ public class MainActivity extends Activity {
     private LinearLayout tabRow;
     private AppLanguage language;
     private ReleaseUpdates releaseUpdates;
-    private View releaseDot;
+    private View releaseBellHolder;
 
     private int activeIndex = -1;
     private int pendingSaveIndex = -1;
@@ -386,6 +386,7 @@ public class MainActivity extends Activity {
         quickActions.addView(referenceButton);
         // Pinned bell: red dot indicates an unread release.
         FrameLayout bellHolder = new FrameLayout(this);
+        releaseBellHolder = bellHolder;
         ImageButton bell = new ImageButton(this);
         bell.setImageResource(R.drawable.ic_header_bell);
         bell.setContentDescription(t("GitHub releases", "Релизы GitHub"));
@@ -393,7 +394,7 @@ public class MainActivity extends Activity {
         bell.setPadding(dp(7), dp(7), dp(7), dp(7));
         bell.setBackground(UiStyle.ripple(this, 0xFFE3F1E8, 14, 0xFFB8D7C5));
         bellHolder.addView(bell, new FrameLayout.LayoutParams(-1, -1));
-        releaseDot = new View(this);
+        View releaseDot = new View(this);
         GradientDrawable dotShape = new GradientDrawable();
         dotShape.setShape(GradientDrawable.OVAL);
         dotShape.setColor(0xFFE95E57);
@@ -1618,8 +1619,9 @@ public class MainActivity extends Activity {
     }
 
     private void refreshReleaseBadge() {
-        if (releaseDot != null)
-            releaseDot.setVisibility(releaseUpdates.hasUnreadRelease() ? View.VISIBLE : View.GONE);
+        if (releaseBellHolder != null)
+            releaseBellHolder.setVisibility(
+                    releaseUpdates.hasAvailableUpdate() ? View.VISIBLE : View.GONE);
     }
 
     private void showReleaseDialog() {
@@ -1634,7 +1636,6 @@ public class MainActivity extends Activity {
                     .setNegativeButton(t("Close", "Закрыть"), null).show();
             return;
         }
-        releaseUpdates.markRead();
         String notes = ReleaseNotes.features(release.body, language == AppLanguage.RU);
         String details = release.name + "\n\n"
                 + (notes.isEmpty()
@@ -1643,7 +1644,7 @@ public class MainActivity extends Activity {
                 + "\n\n" + t("Download the APK from the GitHub release page.",
                             "APK можно скачать на странице релиза GitHub.");
         new AlertDialog.Builder(this)
-                .setTitle(t("Latest GitHub release", "Последний релиз GitHub"))
+                .setTitle(t("New release available", "Доступен новый релиз"))
                 .setMessage(details)
                 .setPositiveButton(t("Open on GitHub", "Открыть на GitHub"),
                         (dialog, which) -> openReleasePage(release.safeUrl()))

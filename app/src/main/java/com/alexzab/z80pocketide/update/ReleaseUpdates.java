@@ -1,7 +1,6 @@
 package com.alexzab.z80pocketide.update;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -21,8 +20,6 @@ public final class ReleaseUpdates {
             "https://api.github.com/repos/knowsbetteralex/Z80-Pocket-IDE/releases/latest";
     public static final String RELEASES_URL =
             "https://github.com/knowsbetteralex/Z80-Pocket-IDE/releases/latest";
-    private static final String PREFS = "github_release_updates";
-    private static final String LAST_READ_TAG = "last_read_tag";
     private static final long CHECK_INTERVAL_MS = 15 * 60 * 1000L;
 
     public static final class ReleaseInfo {
@@ -40,7 +37,6 @@ public final class ReleaseUpdates {
         }
     }
 
-    private final SharedPreferences preferences;
     private final Runnable onChange;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService reader = Executors.newSingleThreadExecutor(r -> {
@@ -54,21 +50,16 @@ public final class ReleaseUpdates {
     private volatile boolean closed;
 
     public ReleaseUpdates(Context context, Runnable onChange) {
-        preferences = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         this.onChange = onChange;
     }
 
     public ReleaseInfo getLatestRelease() { return latest; }
 
-    public boolean hasUnreadRelease() {
-        return latest != null && ReleaseNotes.isUnread(latest.tag, latest.commit,
-                BuildConfig.BUILD_COMMIT, preferences.getString(LAST_READ_TAG, ""));
-    }
-
-    public void markRead() {
-        if (latest == null || latest.tag.isEmpty()) return;
-        preferences.edit().putString(LAST_READ_TAG, latest.tag).apply();
-        onChange.run();
+    /** Visibility depends only on the installed APK and the latest GitHub release. */
+    public boolean hasAvailableUpdate() {
+        return latest != null && ReleaseNotes.isNewerRelease(
+                latest.name, latest.tag, latest.commit,
+                BuildConfig.VERSION_NAME, BuildConfig.BUILD_NUMBER, BuildConfig.BUILD_COMMIT);
     }
 
     public void checkForUpdates() {
