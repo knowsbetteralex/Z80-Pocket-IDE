@@ -2244,6 +2244,188 @@ public class MainActivity extends Activity {
         }
     }
 
+
+    /**
+     * Check all open file-backed tabs, even when they are not selected.
+     * Work is performed off the UI thread and never modifies a dirty buffer.
+     * Comparing actual UTF-8 source contents handles SAF providers that do not
+     * expose a trustworthy last-modified timestamp or ContentObserver events.
+     */
+    private void scanExternalSources() {
+        if (!externalForeground || externalScanRunning || externalReader.isShutdown()) return;
+        captureCurrentDocument();
+        final List<SourceCheck> checks = new ArrayList<>();
+        for (EditorDocument doc : documents)
+            if (doc.hasFile() && !doc.externalChanged) checks.add(new SourceCheck(doc));
+        if (checks.isEmpty()) return;
+        externalScanRunning = true;
+        final int generation = externalGeneration;
+        externalReader.execute(() -> {
+            for (SourceCheck check : checks) {
+                try {
+                    check.disk = readSourceForMonitor(Uri.parse(check.uri));
+                } catch (Exception ex) {
+                    check.error = safeMessage(ex);
+                }
+            }
+            externalHandler.post(() -> {
+                externalScanRunning = false;
+                if (!externalForeground || generation != externalGeneration || isFinishing())
+                    return;
+                boolean updateTabs = false;
+                boolean saveSession = false;
+                captureCurrentDocument();
+                for (SourceCheck check : checks) {
+                    EditorDocument doc = check.doc;
+                    if (!documents.contains(doc) || !check.uri.equals(doc.uriString)
+                            || !java.util.Objects.equals(check.baseline, doc.syncedSourceHash)
+                            || doc.externalChanged)
+                        continue; // Tab switched/reopened/saved during the async scan.
+                    if (check.error != null) {
+                        if (!doc.externalUnavailable) {
+                            doc.externalUnavailable = true;
+                            updateTabs = true;
+                            if (hasActiveDocument() && doc == currentDocument())
+                                setStatus(t("Cannot check source file · ",
+                                        "Не удалось проверить файл · ") + doc.title,
+                                        Color.rgb(164, 92, 19));
+                        }
+                        continue;
+                    }
+                    if (doc.externalUnavailable) {
+                        doc.externalUnavailable = false;
+                        updateTabs = true;
+                    }
+                    String observedHash = ExternalSourceState.fingerprint(check.disk);
+                    if (doc.syncedSourceHash == null) {
+                        // Legacy dirty drafts have no known on-disk baseline.
+                        // Establish one without falsely treating local edits as a conflict.
+                        doc.syncedSourceHash = doc.dirty ? observedHash
+                                : ExternalSourceState.fingerprint(check.buffer);
+                        saveSession = true;
+                    }
+                    if (observedHash.equals(doc.syncedSourceHash)) continue;
+                    if (doc.dirty) {
+                        doc.externalChanged = true;
+                        updateTabs = true;
+                        if (hasActiveDocument() && doc == currentDocument())
+                            showExternalConflict(doc);
+                    } else {
+                        applyExternalSource(doc, check.disk, observedHash);
+                        updateTabs = true;
+                        saveSession = true;
+                        if (hasActiveDocument() && doc == currentDocument())
+                            setStatus(t("Reloaded externally modified file · ",
+                                    "Внешнее изменение: файл обновлён · ") + doc.title,
+                                    Color.rgb(37, 110, 72));
+                    }
+                }
+                if (updateTabs) renderTabs();
+                if (saveSession) scheduleWorkspaceSave();
+            });
+        });
+    }
+
+    private String readSourceForMonitor(Uri uri) throws Exception {
+        try (InputStream stream = getContentResolver().openInputStream(uri)) {
+            if (stream == null) throw new IOException("Cannot open source for monitoring");
+            try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                StringBuilder source = new StringBuilder();
+                char[] part = new char[8192];
+                int n;
+                while ((n = reader.read(part)) != -1) {
+                    if (source.length() + n > 8 * 1024 * 1024)
+                        throw new IOException("Source exceeds 8 MiB monitoring limit");
+                    source.append(part, 0, n);
+                }
+                return source.toString();
+            }
+        }
+    }
+
+    /** Called on the UI thread only, after a scan or an explicit reload. */
+    private void applyExternalSource(EditorDocument doc, String diskText, String diskHash) {
+        if (hasActiveDocument() && currentDocument() == doc)
+            captureCurrentDocument();
+        doc.text = diskText;
+        doc.cursor = Math.min(doc.cursor, diskText.length());
+        doc.history.clear();
+        doc.dirty = false;
+        doc.syncedSourceHash = diskHash;
+        doc.externalChanged = false;
+        doc.externalUnavailable = false;
+        doc.invalidateBuild(); // The old TAP, metrics and diagnostics are stale.
+        if (hasActiveDocument() && currentDocument() == doc)
+            loadActiveDocument();
+    }
+
+    /** External edits and local dirty buffers are never merged automatically. */
+    private void showExternalConflict(EditorDocument doc) {
+        if (externalDialogShowing || !doc.externalChanged
+                || !hasActiveDocument() || doc != currentDocument()) return;
+        externalDialogShowing = true;
+        new AlertDialog.Builder(this)
+                .setTitle(t("File changed outside the IDE", "Файл изменён вне IDE"))
+                .setMessage(t("Another app modified \"" + doc.title + "\". "
+                        + "This tab has unsaved changes. Reloading will DISCARD local edits. "
+                        + "You can keep editing, save a separate copy, or reopen this dialog "
+                        + "by tapping the marked tab. Saving to the original file will "
+                        + "ask for confirmation.",
+                        "Другое приложение изменило «" + doc.title + "». "
+                        + "В этой вкладке есть несохранённые правки. Перечитывание "
+                        + "УДАЛИТ локальные изменения. Можно продолжить работу или "
+                        + "сохранить отдельную копию. Чтобы вновь открыть диалог, "
+                        + "нажми на помеченную вкладку. При записи поверх внешних "
+                        + "изменений IDE запросит подтверждение."))
+                .setPositiveButton(t("Reload from disk", "Перечитать с диска"),
+                        (dialog, which) -> reloadExternalSource(doc))
+                .setNeutralButton(t("Save a copy…", "Сохранить копию…"),
+                        (dialog, which) -> {
+                            int index = documents.indexOf(doc);
+                            if (index >= 0) requestSaveAs(index, false);
+                        })
+                .setNegativeButton(t("Keep local edits", "Оставить мои правки"), null)
+                .setOnDismissListener(dialog -> externalDialogShowing = false)
+                .show();
+    }
+
+    private void reloadExternalSource(EditorDocument doc) {
+        int index = documents.indexOf(doc);
+        if (index < 0 || !doc.hasFile()) return;
+        if (index == activeIndex) captureCurrentDocument();
+        final String uri = doc.uriString;
+        final String originalText = doc.text;
+        externalReader.execute(() -> {
+            String disk = null, error = null;
+            try {
+                disk = readSourceForMonitor(Uri.parse(uri));
+            } catch (Exception ex) {
+                error = safeMessage(ex);
+            }
+            final String loaded = disk, failure = error;
+            externalHandler.post(() -> {
+                if (isFinishing() || !documents.contains(doc) || !uri.equals(doc.uriString)) return;
+                if (failure != null) {
+                    setStatus(t("Cannot reload file · ", "Не удалось перечитать файл · ")
+                            + failure, Color.rgb(180, 30, 30));
+                    return;
+                }
+                if (hasActiveDocument() && currentDocument() == doc) captureCurrentDocument();
+                if (!originalText.equals(doc.text)) {
+                    setStatus(t("Local text changed during reload; nothing overwritten",
+                                    "Текст изменился во время чтения; правки сохранены"),
+                            Color.rgb(164, 92, 19));
+                    return;
+                }
+                applyExternalSource(doc, loaded, ExternalSourceState.fingerprint(loaded));
+                renderTabs();
+                scheduleWorkspaceSave();
+                setStatus(t("Reloaded from disk · ", "Перечитано с диска · ")
+                        + doc.title, Color.rgb(37, 110, 72));
+            });
+        });
+    }
+
     private String readSource(Uri uri) throws Exception {
         InputStream in = getContentResolver().openInputStream(uri);
         if (in == null) throw new IllegalStateException(t("cannot open input file",
