@@ -138,7 +138,7 @@ public final class AndroidIncludeFiles {
                         .replace(File.separatorChar, '/');
                 String lower = path.toLowerCase(java.util.Locale.ROOT);
                 if (GitProjectState.safePath(path) && lower.matches(
-                        screens ? ".*\\\\.(scr|bin)$" : ".*\\\\.(asm|z80|s)$"))
+                        screens ? ".*\\.(scr|bin)$" : ".*\\.(asm|z80|s)$"))
                     files.add(path);
             }
             if (files.size() >= 256) break;
