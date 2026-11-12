@@ -4,6 +4,13 @@
 
 Detailed Z80 Pocket IDE release history. Earlier release notes are preserved in their original English.
 
+## v0.47.0 — Asynchronous build and 48K SNA export / Сборка и SNA
+
+- The floating Run button displays a spinning progress indicator during compilation. INCLUDE expansion, assembler and TAP/SNA generation run in a background worker; stale results after edits/tab changes are ignored.
+- Added **Build → Export 48K SNA** with Android's system file picker; exported snapshots have a standard 27-byte register header and 48K RAM image (49,179 bytes).
+- SNA begins execution at the assembled ORG address, uses a non-overlapping two-byte PC slot on the stack, and includes the configured SCREEN$ when enabled. It is a direct RAM snapshot, so the project SCREEN$ pause option does not apply and programs must initialize ROM/BASIC system variables they use.
+- SNA validates RAM addresses, code/SCREEN$ overlap and space for the synthetic PC stack word. TAP export and emulator launching remain available.
+
 ## v0.46.0 — External file changes / Внешние изменения файлов
 
 - Open ASM files are rechecked from disk when the IDE returns to the foreground and periodically (every 12 seconds) while running; a manual check is available through File.
