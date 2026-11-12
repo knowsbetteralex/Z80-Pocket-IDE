@@ -396,6 +396,11 @@ public final class GitHubProjectActivity extends Activity {
                         return;
                     }
                     if (asm.size() == 1) { finishOpen(asm.get(0)); return; }
+                    try {
+                        com.alexzab.z80pocketide.project.ProjectConfiguration settings =
+                                com.alexzab.z80pocketide.project.ProjectSettingsStore.load(this);
+                        if (asm.contains(settings.root)) { finishOpen(settings.root); return; }
+                    } catch (Exception ignored) { }
                     for (String filename : asm)
                         if (filename.equalsIgnoreCase("main.asm")) {
                             finishOpen(filename);

@@ -1734,7 +1734,7 @@ public class MainActivity extends Activity {
 
     /** List the available ASM entry points instead of exposing an auto-root toggle. */
     private void showMainAsmPicker() {
-        if(AndroidIncludeFiles.projectTree(this)!=null) {
+        if(AndroidIncludeFiles.projectTree(this)!=null || GitProjectState.active(this)) {
             try {
                 List<String> names=AndroidIncludeFiles.sourceFiles(this);
                 if(names.isEmpty()) {
@@ -1873,7 +1873,7 @@ public class MainActivity extends Activity {
     }
 
     private void showProjectSettings() {
-        if(AndroidIncludeFiles.projectTree(this)==null) {
+        if(AndroidIncludeFiles.projectTree(this)==null && !GitProjectState.active(this)) {
             new AlertDialog.Builder(this)
                     .setTitle(t("Project settings", "Настройки проекта"))
                     .setMessage(t("Open a project folder first.",
@@ -2949,7 +2949,7 @@ public class MainActivity extends Activity {
         try {
             // Refresh project settings; another app may have updated the JSON or SCR.
             settings = AndroidIncludeFiles.projectTree(this) == null
-                    ? null : ProjectSettingsStore.load(this);
+                    && !GitProjectState.active(this) ? null : ProjectSettingsStore.load(this);
             if (settings != null) {
                 projectConfiguration = settings;
                 AndroidIncludeFiles.setRoot(this, settings.root);

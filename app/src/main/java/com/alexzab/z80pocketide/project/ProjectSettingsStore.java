@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.provider.DocumentsContract;
 
 import com.alexzab.z80pocketide.source.AndroidIncludeFiles;
+import com.alexzab.z80pocketide.git.GitProjectState;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import org.json.JSONException;
@@ -19,6 +20,14 @@ public final class ProjectSettingsStore {
     public static ProjectConfiguration load(Context context) throws Exception {
         Uri tree=AndroidIncludeFiles.projectTree(context);
         String legacyRoot=AndroidIncludeFiles.selectedRoot(context);
+        if (GitProjectState.active(context)) {
+            File folder = GitProjectState.root(context);
+            String name = GitProjectState.repo(context).split("/")[1];
+            File local = GitProjectState.file(folder, ProjectConfiguration.FILE_NAME);
+            if (!local.isFile()) return ProjectConfiguration.defaults(name, legacyRoot);
+            String content = AndroidIncludeFiles.read(context, Uri.fromFile(local));
+            return parse(content, name, legacyRoot);
+        }
         if(tree==null)return ProjectConfiguration.defaults("PROJECT",legacyRoot);
         String defaultName=tree.getLastPathSegment();
         if(defaultName==null||defaultName.isEmpty())defaultName="PROJECT";
@@ -38,6 +47,11 @@ public final class ProjectSettingsStore {
         }
         if(json==null)json=prefs.getString(tree.toString(),null);
         if(json==null)return ProjectConfiguration.defaults(defaultName,legacyRoot);
+        return parse(json, defaultName, legacyRoot);
+    }
+
+    private static ProjectConfiguration parse(String json, String defaultName, String legacyRoot)
+            throws Exception {
         try {
             JSONObject root=new JSONObject(json);
             JSONObject screen=root.optJSONObject("loadingScreen");
@@ -60,6 +74,13 @@ public final class ProjectSettingsStore {
         String problem=settings.validationError();
         if(problem!=null)throw new IllegalArgumentException(problem);
         Uri tree=AndroidIncludeFiles.projectTree(context);
+        if (GitProjectState.active(context)) {
+            File file = GitProjectState.file(GitProjectState.root(context), ProjectConfiguration.FILE_NAME);
+            File parent = file.getParentFile();
+            if (!parent.exists() && !parent.mkdirs()) throw new IOException("Cannot create project directory");
+            writeGitSettings(file, settings);
+            return true;
+        }
         if(tree==null)throw new IOException("Open a project folder first");
         JSONObject json=new JSONObject();
         json.put("name",settings.name);
@@ -94,6 +115,26 @@ public final class ProjectSettingsStore {
             // file exists but the SAF provider no longer permits writes.
             prefs.edit().putBoolean("override:"+tree.toString(),true).apply();
             return false;
+        }
+    }
+
+    private static void writeGitSettings(File file, ProjectConfiguration settings) throws Exception {
+        JSONObject json = new JSONObject();
+        json.put("name", settings.name);
+        json.put("root", settings.root);
+        json.put("loadingScreen", new JSONObject()
+                .put("enabled", settings.screenEnabled)
+                .put("file", settings.screenPath)
+                .put("pauseFrames", settings.pauseFrames));
+        android.util.AtomicFile atomic = new android.util.AtomicFile(file);
+        FileOutputStream output = null;
+        try {
+            output = atomic.startWrite();
+            output.write((json.toString(2) + "\\n").getBytes(StandardCharsets.UTF_8));
+            atomic.finishWrite(output);
+        } catch (IOException e) {
+            if (output != null) atomic.failWrite(output);
+            throw e;
         }
     }
 
