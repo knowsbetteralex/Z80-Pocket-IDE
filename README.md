@@ -22,7 +22,7 @@ APK собирается автоматически после успешных 
 
 ### Возможности
 
-- **Редактор ASM:** подсветка синтаксиса, поиск/замена, форматирование, автодополнение меток, отмена/повтор изменений, вкладки и восстановление черновиков.
+- **Редактор ASM:** подсветка синтаксиса, поиск/замена, форматирование, автодополнение меток, отмена/повтор изменений, вкладки и восстановление черновиков. Контроль внешних изменений файлов: автоматическое обновление чистых вкладок и защита несохранённых правок.
 - **Проекты:** несколько ASM-файлов, `INCLUDE`, выбор главного ASM, ресурсы `INCBIN` и настройки проекта.
 - **Ассемблер Z80:** инструкции Z80, метки, выражения, `ORG`, `EQU`, `DB`, `DW`, `DS`, `MACRO`, условная сборка `IF`/`IFN` и `ASSERT`. Анализ размера кода и T-состояний.
 - **ZX Spectrum:** сборка и экспорт `.tap`, запуск через установленный эмулятор, загрузочная заставка SCREEN$.
@@ -64,7 +64,7 @@ An APK is automatically published after a successful `main` build and test run, 
 
 ### Features
 
-- **ASM editor:** syntax highlighting, find/replace, formatting, label completion, undo/redo, source tabs, and draft recovery.
+- **ASM editor:** syntax highlighting, find/replace, formatting, label completion, undo/redo, source tabs, and draft recovery. External file checks automatically refresh clean tabs while protecting unsaved edits.
 - **Projects:** multiple ASM files, `INCLUDE`, selectable entry-point ASM, `INCBIN` assets, and project settings.
 - **Z80 assembler:** Z80 instructions, labels, expressions, `ORG`, `EQU`, `DB`, `DW`, `DS`, `MACRO`, `IF`/`IFN` conditional assembly, and `ASSERT`. Byte-size and T-state analysis.
 - **ZX Spectrum:** `.tap` generation and export, emulator launch, and optional SCREEN$ loading screen.
