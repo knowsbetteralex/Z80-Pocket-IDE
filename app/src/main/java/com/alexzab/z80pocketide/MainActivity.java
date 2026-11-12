@@ -2925,17 +2925,10 @@ public class MainActivity extends Activity {
     }
 
     private void runTapInEmulator() {
-        captureCurrentDocument();
-        if (!hasActiveDocument()) return;
-        EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
-                || AndroidIncludeFiles.selectedRoot(this) != null
-                || SourceIncludes.containsInclude(doc.text)
-                || SourceBinaryIncludes.containsIncbin(doc.text)) {
-            if (!buildSource()) return;
-            doc = currentDocument();
-        }
+        startBuild(BuildAction.RUN);
+    }
 
+    private void openBuiltTapInEmulator(EditorDocument doc) {
         try {
             File dir = new File(getCacheDir(), "shared");
             if (!dir.exists() && !dir.mkdirs()) {
@@ -2989,27 +2982,45 @@ public class MainActivity extends Activity {
     }
 
     private void saveTapFile() {
-        captureCurrentDocument();
-        if (!hasActiveDocument()) return;
-        EditorDocument doc = currentDocument();
-        if (!doc.buildIsCurrent() || AndroidIncludeFiles.projectTree(this) != null
-                || AndroidIncludeFiles.selectedRoot(this) != null
-                || SourceIncludes.containsInclude(doc.text)
-                || SourceBinaryIncludes.containsIncbin(doc.text)) {
-            if (!buildSource()) return;
-            doc = currentDocument();
-        }
+        startBuild(BuildAction.EXPORT_TAP);
+    }
 
+    private void showTapSavePicker(EditorDocument doc, String displayName) {
+        if (!doc.buildIsCurrent()) return;
         pendingTapToSave = doc.lastTap;
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("application/octet-stream");
-        String fileName=doc.title;
+        intent.putExtra(Intent.EXTRA_TITLE,
+                tapProgramName(displayName).toLowerCase(Locale.ROOT) + ".tap");
         try {
-            if(AndroidIncludeFiles.projectTree(this)!=null)fileName=configuration().name;
-        }catch(Exception ignored) { }
-        intent.putExtra(Intent.EXTRA_TITLE, tapProgramName(fileName).toLowerCase(Locale.ROOT) + ".tap");
-        startActivityForResult(intent, REQUEST_SAVE_TAP);
+            startActivityForResult(intent, REQUEST_SAVE_TAP);
+        } catch (ActivityNotFoundException ex) {
+            pendingTapToSave = null;
+            setStatus(t("Android file picker unavailable", "Файловый пикер Android недоступен"),
+                    Color.rgb(180, 30, 30));
+        }
+    }
+
+    private void exportSnaFile() {
+        startBuild(BuildAction.EXPORT_SNA);
+    }
+
+    private void showSnaSavePicker(String displayName, byte[] sna) {
+        if (sna == null) return;
+        pendingSnaToSave = sna;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/octet-stream");
+        intent.putExtra(Intent.EXTRA_TITLE, tapProgramName(displayName)
+                .toLowerCase(Locale.ROOT) + ".sna");
+        try {
+            startActivityForResult(intent, REQUEST_SAVE_SNA);
+        } catch (ActivityNotFoundException ex) {
+            pendingSnaToSave = null;
+            setStatus(t("Android file picker unavailable", "Файловый пикер Android недоступен"),
+                    Color.rgb(180, 30, 30));
+        }
     }
 
     @Override
@@ -3178,24 +3189,26 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (requestCode != REQUEST_SAVE_TAP || resultCode != RESULT_OK
-                || data == null || pendingTapToSave == null) {
+        if (requestCode != REQUEST_SAVE_TAP && requestCode != REQUEST_SAVE_SNA)
             return;
-        }
+        boolean isSna = requestCode == REQUEST_SAVE_SNA;
+        byte[] bytes = isSna ? pendingSnaToSave : pendingTapToSave;
+        pendingSnaToSave = null;
+        pendingTapToSave = null; // Also release memory after cancelled picker.
+        if (resultCode != RESULT_OK || data == null || data.getData() == null
+                || bytes == null) return;
 
         Uri uri = data.getData();
-        if (uri == null) return;
-        byte[] bytes = pendingTapToSave;
-        pendingTapToSave = null;
-
         try (OutputStream stream = getContentResolver().openOutputStream(uri)) {
             if (stream == null) throw new IllegalStateException(t("cannot open output file",
                     "не удалось открыть выходной файл"));
             stream.write(bytes);
             stream.flush();
-            setStatus(t("TAP saved · ", "TAP сохранён · ") + uri.getLastPathSegment(),
+            String format = isSna ? "SNA" : "TAP";
+            setStatus(format + t(" saved · ", " сохранён · ") + uri.getLastPathSegment(),
                     Color.rgb(0, 110, 45));
-            Toast.makeText(this, t("TAP saved", "TAP сохранён"), Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, format + t(" saved", " сохранён"),
+                    Toast.LENGTH_SHORT).show();
         } catch (Exception ex) {
             String message = t("Save error · ", "Ошибка сохранения · ") + safeMessage(ex);
             setStatus(message, Color.rgb(180, 30, 30));
