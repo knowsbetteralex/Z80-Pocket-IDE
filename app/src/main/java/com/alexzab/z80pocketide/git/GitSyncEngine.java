@@ -236,7 +236,9 @@ public final class GitSyncEngine {
         for (File file : files) {
             if (file.isDirectory()) { scan(root, file, found, depth + 1); continue; }
             if (!file.isFile()) continue;
-            String relative = root.toURI().relativize(file.toURI()).getPath();
+            String relative = file.getCanonicalPath()
+                    .substring(root.getCanonicalPath().length() + 1)
+                    .replace(File.separatorChar, '/');
             if (!GitProjectState.accepted(relative)) continue;
             if (found.size() >= 400)
                 throw new IOException("Git workspace exceeds 400 files");
@@ -245,7 +247,7 @@ public final class GitSyncEngine {
     }
 
     static byte[] read(File file) throws IOException {
-        if (file.length() > MAX_FILE_BYTES && !file.getName().endsWith(".json"))
+        if (file.length() > MAX_FILE_BYTES)
             throw new IOException("File exceeds 2 MiB: " + file.getName());
         if (file.length() > MAX_PROJECT_BYTES) throw new IOException("File is too large");
         try (FileInputStream stream = new FileInputStream(file);

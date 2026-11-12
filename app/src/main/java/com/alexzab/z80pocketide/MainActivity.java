@@ -79,6 +79,8 @@ import com.alexzab.z80pocketide.source.ExternalSourceIntent;
 import com.alexzab.z80pocketide.source.AndroidIncludeFiles;
 import com.alexzab.z80pocketide.ui.SpectrumStripeView;
 import com.alexzab.z80pocketide.ui.UiStyle;
+import com.alexzab.z80pocketide.git.GitProjectState;
+import com.alexzab.z80pocketide.git.GitHubProjectActivity;
 import com.alexzab.z80pocketide.update.ReleaseNotes;
 import com.alexzab.z80pocketide.update.ReleaseUpdates;
 import com.alexzab.z80pocketide.zx.TapWriter;
@@ -118,6 +120,7 @@ import java.util.regex.Pattern;
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE_TAP = 1001;
     private static final int REQUEST_SAVE_SNA = 1010;
+    private static final int REQUEST_GIT_PROJECT = 1011;
     private static final int REQUEST_EXAMPLE = 1002;
     private static final int REQUEST_OPEN_SOURCE = 1003;
     private static final int REQUEST_SAVE_SOURCE_AS = 1004;
@@ -1684,6 +1687,9 @@ public class MainActivity extends Activity {
             case IdeMenu.SAVE_AS: requestSaveAs(activeIndex,false); break;
             case IdeMenu.CLOSE_TAB: requestCloseTab(activeIndex); break;
             case IdeMenu.OPEN_PROJECT: chooseProjectFolder(); break;
+            case IdeMenu.OPEN_GIT_PROJECT: openGitProject(false); break;
+            case IdeMenu.SYNC_GIT: openGitProject(true); break;
+            case IdeMenu.NEW_GIT_FILE: createGitFile(); break;
             case IdeMenu.PROJECT_SETTINGS: showProjectSettings(); break;
             case IdeMenu.MAIN_ASM: showMainAsmPicker(); break;
             case IdeMenu.FIND: showSearchPanel(); break;
@@ -1913,6 +1919,85 @@ public class MainActivity extends Activity {
         requestProjectFolder(REQUEST_OPEN_PROJECT);
     }
 
+    private void openGitProject(boolean syncOnly) {
+        if (syncOnly && !GitProjectState.active(this)) syncOnly = false;
+        if (syncOnly) {
+            captureCurrentDocument();
+            // Persist all edited Git buffers before comparing to the remote branch.
+            // This is a working-copy save, NOT a local Git commit.
+            for (int i = 0; i < documents.size(); i++) {
+                EditorDocument doc = documents.get(i);
+                if (!GitProjectState.contains(this, doc.uriString) || !doc.dirty) continue;
+                if (doc.externalChanged) {
+                    setStatus(t("Resolve external source changes before Git sync.",
+                            "Сначала разрешите внешние изменения файлов."), Color.rgb(180, 30, 30));
+                    return;
+                }
+                try {
+                    writeSource(Uri.parse(doc.uriString), doc.text);
+                    markSourceSaved(i, false);
+                } catch (Exception error) {
+                    setStatus(t("Cannot save Git file: ", "Не удалось сохранить Git-файл: ")
+                            + safeMessage(error), Color.rgb(180,30,30));
+                    return;
+                }
+            }
+        }
+        Intent intent = new Intent(this, GitHubProjectActivity.class);
+        intent.putExtra(GitHubProjectActivity.EXTRA_SYNC_ONLY, syncOnly);
+        startActivityForResult(intent, REQUEST_GIT_PROJECT);
+    }
+
+    private void refreshGitProjectTabs() {
+        captureCurrentDocument();
+        boolean changed = false;
+        for (EditorDocument doc : documents) {
+            if (!GitProjectState.contains(this, doc.uriString) || doc.dirty) continue;
+            try {
+                String text = readSource(Uri.parse(doc.uriString));
+                String hash = ExternalSourceState.fingerprint(text);
+                if (!hash.equals(doc.syncedSourceHash)) {
+                    applyExternalSource(doc, text, hash);
+                    changed = true;
+                }
+            } catch (Exception error) {
+                doc.externalUnavailable = true;
+            }
+        }
+        if (changed) { renderTabs(); invalidateProjectBuilds(); }
+        setStatus(t("GitHub synchronized", "GitHub синхронизирован"), Color.rgb(30,110,70));
+    }
+
+    private void createGitFile() {
+        if (!GitProjectState.active(this)) {
+            openGitProject(false);
+            return;
+        }
+        EditText filename = new EditText(this);
+        filename.setSingleLine(true);
+        filename.setHint("src/new_file.asm");
+        new AlertDialog.Builder(this)
+                .setTitle(t("New file in Git project", "Новый файл в Git-проекте"))
+                .setView(filename)
+                .setPositiveButton(t("Create", "Создать"), (dialog, which) -> {
+                    String path = filename.getText().toString().trim();
+                    try {
+                        if (!GitProjectState.accepted(path))
+                            throw new IOException("Unsupported or unsafe file name");
+                        File target = GitProjectState.file(GitProjectState.root(this), path);
+                        if (target.exists()) throw new IOException("File already exists");
+                        if (!target.getParentFile().exists() && !target.getParentFile().mkdirs())
+                            throw new IOException("Cannot create directory");
+                        if (!target.createNewFile()) throw new IOException("Cannot create file");
+                        openSourceUri(Uri.fromFile(target), null, path);
+                    } catch (Exception error) {
+                        setStatus(t("Cannot create Git file: ", "Ошибка нового Git-файла: ")
+                                + safeMessage(error), Color.rgb(180,30,30));
+                    }
+                })
+                .setNegativeButton(t("Cancel", "Отмена"), null).show();
+    }
+
     private void chooseIncludeFolder() {
         requestProjectFolder(REQUEST_INCLUDE_FOLDER);
     }
@@ -2069,7 +2154,9 @@ public class MainActivity extends Activity {
         captureCurrentDocument();
         Map<String, String> sources = new LinkedHashMap<>();
         boolean project = AndroidIncludeFiles.projectTree(this) != null;
+        boolean gitProject = GitProjectState.active(this);
         for (EditorDocument tab : documents) {
+            if (gitProject && !GitProjectState.contains(this, tab.uriString)) continue;
             if(project && (tab.projectPath == null || tab.projectPath.isEmpty())
                     && !AndroidIncludeFiles.isProjectDocument(this, tab.uriString))
                 continue;
@@ -3100,10 +3187,38 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
+        if (requestCode == REQUEST_GIT_PROJECT) {
+            if (resultCode == RESULT_OK) {
+                if (data != null && data.hasExtra(GitHubProjectActivity.EXTRA_REPO)) {
+                    String repo = data.getStringExtra(GitHubProjectActivity.EXTRA_REPO);
+                    String branch = data.getStringExtra(GitHubProjectActivity.EXTRA_BRANCH);
+                    String root = data.getStringExtra(GitHubProjectActivity.EXTRA_ROOT);
+                    try {
+                        GitProjectState.select(this, repo, branch);
+                        AndroidIncludeFiles.setRoot(this, root);
+                        projectConfiguration = null;
+                        for (EditorDocument doc : documents)
+                            if (!GitProjectState.contains(this, doc.uriString)) doc.projectPath = null;
+                        Uri file = Uri.fromFile(GitProjectState.file(GitProjectState.root(this), root));
+                        openSourceUri(file, null, root);
+                        invalidateProjectBuilds();
+                        setStatus(t("Git project opened: ", "Открыт Git-проект: ") + repo,
+                                Color.rgb(30, 110, 70));
+                    } catch (Exception error) {
+                        setStatus(t("Cannot open Git project: ", "Ошибка Git-проекта: ")
+                                + safeMessage(error), Color.rgb(180,30,30));
+                    }
+                } else {
+                    refreshGitProjectTabs();
+                }
+            }
+            return;
+        }
         if (requestCode == REQUEST_INCLUDE_FOLDER || requestCode == REQUEST_OPEN_PROJECT) {
             if (resultCode == RESULT_OK && data != null && data.getData() != null) {
                 try {
                     Uri previous = AndroidIncludeFiles.projectTree(this);
+                    GitProjectState.deactivate(this);
                     AndroidIncludeFiles.rememberTree(this, data);
                     if (previous == null || !previous.equals(data.getData())) {
                         projectConfiguration=null;

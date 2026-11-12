@@ -16,6 +16,7 @@ public final class IdeMenu {
     public static final int OPEN_INCLUDE=25, OPEN_PROJECT=28, PROJECT_SETTINGS=29;
     public static final int SCREEN_EDITOR=31, MAIN_ASM=32, LANGUAGE=33, USER_GUIDE=34;
     public static final int CHECK_EXTERNAL=35;
+    public static final int OPEN_GIT_PROJECT=36, SYNC_GIT=37, NEW_GIT_FILE=38;
 
     private IdeMenu() {}
 
@@ -43,6 +44,9 @@ public final class IdeMenu {
 
         SubMenu project=menu.addSubMenu(t(ru,"Project","Проект"));
         item(project,OPEN_PROJECT,0,ru,"Open project…","Открыть проект…");
+        item(project,OPEN_GIT_PROJECT,1,ru,"Open Git project…","Открыть Git-проект…");
+        item(project,SYNC_GIT,2,ru,"Git · Sync (Pull + Push)","Git · Синхронизировать (Pull + Push)");
+        item(project,NEW_GIT_FILE,3,ru,"New file in Git project…","Новый файл в Git-проекте…");
         item(project,PROJECT_SETTINGS,1,ru,"Project settings…","Настройки проекта…");
         String root=mainAsm==null||mainAsm.isEmpty()?"main.asm":mainAsm;
         project.add(0,MAIN_ASM,2,t(ru,"Main ASM: ","Главный ASM: ")+root);

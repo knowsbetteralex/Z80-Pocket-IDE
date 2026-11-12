@@ -142,7 +142,7 @@ public final class GitHubProjectActivity extends Activity {
         page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(page);
         if (token == null) showLogin();
-        else if (syncOnly && repo != null) sync(repo, branch, true);
+        else if (syncOnly && repo != null) sync(repo, branch, false);
         else showRepositories();
     }
 
