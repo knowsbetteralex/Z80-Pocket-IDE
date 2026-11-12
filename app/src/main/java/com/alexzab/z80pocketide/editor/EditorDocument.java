@@ -8,6 +8,12 @@ public final class EditorDocument {
     /** Stable relative path within the SAF project, even for opaque document IDs. */
     public String projectPath;
     public boolean dirty;
+    /** SHA-256 of the last file contents loaded from or saved to the provider. */
+    public String syncedSourceHash;
+    /** Disk changed while local edits must be preserved. */
+    public boolean externalChanged;
+    /** Provider is temporarily inaccessible; never delete a local draft. */
+    public boolean externalUnavailable;
     public int cursor;
     public int scrollX;
     public int scrollY;
