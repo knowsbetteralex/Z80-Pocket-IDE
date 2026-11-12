@@ -396,10 +396,24 @@ public final class GitHubProjectActivity extends Activity {
                         return;
                     }
                     if (asm.size() == 1) { finishOpen(asm.get(0)); return; }
+                    // Read the selected repository's config, not a previously open project.
                     try {
-                        com.alexzab.z80pocketide.project.ProjectConfiguration settings =
-                                com.alexzab.z80pocketide.project.ProjectSettingsStore.load(this);
-                        if (asm.contains(settings.root)) { finishOpen(settings.root); return; }
+                        File configuration = GitProjectState.file(
+                                GitProjectState.folder(this, repo, branch), ".z80pocketide.json");
+                        if (configuration.isFile()) {
+                            java.io.ByteArrayOutputStream stream = new java.io.ByteArrayOutputStream();
+                            try (java.io.FileInputStream input = new java.io.FileInputStream(configuration)) {
+                                byte[] buffer = new byte[1024];
+                                int count;
+                                while ((count = input.read(buffer)) != -1) {
+                                    if (stream.size() + count > 8192) throw new java.io.IOException("Config too large");
+                                    stream.write(buffer, 0, count);
+                                }
+                            }
+                            String entry = new org.json.JSONObject(new String(
+                                    stream.toByteArray(), StandardCharsets.UTF_8)).optString("root");
+                            if (asm.contains(entry)) { finishOpen(entry); return; }
+                        }
                     } catch (Exception ignored) { }
                     for (String filename : asm)
                         if (filename.equalsIgnoreCase("main.asm")) {

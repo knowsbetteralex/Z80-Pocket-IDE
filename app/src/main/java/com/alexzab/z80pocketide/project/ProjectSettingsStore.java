@@ -130,7 +130,7 @@ public final class ProjectSettingsStore {
         FileOutputStream output = null;
         try {
             output = atomic.startWrite();
-            output.write((json.toString(2) + "\\n").getBytes(StandardCharsets.UTF_8));
+            output.write((json.toString(2) + "\n").getBytes(StandardCharsets.UTF_8));
             atomic.finishWrite(output);
         } catch (IOException e) {
             if (output != null) atomic.failWrite(output);
