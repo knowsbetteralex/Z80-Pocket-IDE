@@ -7,7 +7,7 @@ public class QuoteTypingTest {
     @Test public void pairsOnlyOpeningDoubleQuotes() {
         assertTrue(QuoteTyping.shouldPair("LD A,\"", 5));
         assertFalse(QuoteTyping.shouldPair("DB \"hello\"", 9));
-        assertFalse(QuoteTyping.shouldPair("DB \"x\"\"", 6));
+        assertFalse(QuoteTyping.shouldPair("DB \"x\"", 5));
         assertFalse(QuoteTyping.shouldPair("; comment \"", 10));
         assertTrue(QuoteTyping.shouldSkipClosing("DB \"text\"\"", 8));
     }
@@ -25,7 +25,7 @@ public class QuoteTypingTest {
 
     @Test public void typedOneCharacterAtCursorUsesExistingQuotes() {
         String text = "LD A,\"abC\"";
-        assertEquals("d", QuoteTyping.uppercaseOutsideLiterals("LD A,\"abdC\"", 7, 8));
+        assertEquals("d", QuoteTyping.uppercaseOutsideLiterals("LD A,\"abdC\"", 8, 9));
         assertEquals("B", QuoteTyping.uppercaseOutsideLiterals("LD B,\"abdC\"", 3, 4));
         assertTrue(QuoteTyping.isInsideDoubleQuotes(text, 6));
         assertFalse(QuoteTyping.isInsideDoubleQuotes(text, 10));
