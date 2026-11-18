@@ -184,6 +184,11 @@ public class CodeEditorView extends EditText {
                 if (!editorPreferences.allUppercase && editorPreferences.autoUppercase) {
                     uppercaseCurrentLine(s, getSelectionStart());
                 }
+                if (changeBefore == 0 && changeCount == 1
+                        && changeStart >= 0 && changeStart < s.length()
+                        && s.charAt(changeStart) == '"') {
+                    completeDoubleQuote(s, changeStart);
+                }
             }
         });
 
@@ -535,7 +540,7 @@ public class CodeEditorView extends EditText {
         int end = Math.max(start, Math.min(start + changeCount, text.length()));
         if (end <= start) return;
         String original = text.subSequence(start, end).toString();
-        String upper = original.toUpperCase(Locale.ROOT);
+        String upper = QuoteTyping.uppercaseOutsideLiterals(text, start, end);
         if (original.equals(upper)) return;
         int caret = getSelectionStart();
         autoFormatting = true;
@@ -546,6 +551,38 @@ public class CodeEditorView extends EditText {
                     caret <= start ? caret : caret >= end ? caret + delta : start + upper.length())));
         }
         autoFormatting = false;
+    }
+
+    /** Insert a matching quote and keep the cursor inside, including from the symbol bar. */
+    private void completeDoubleQuote(Editable text, int position) {
+        if (QuoteTyping.shouldSkipClosing(text, position)) {
+            autoFormatting = true;
+            try {
+                text.delete(position, position + 1);
+                setSelection(Math.min(position + 1, text.length()));
+            } finally { autoFormatting = false; }
+        } else if (QuoteTyping.shouldPair(text, position)) {
+            autoFormatting = true;
+            try {
+                text.insert(position + 1, "\"");
+                setSelection(position + 1);
+            } finally { autoFormatting = false; }
+        }
+    }
+
+    /** Hardware/software keyboards and the on-screen quotation key share the same pairing. */
+    public void insertDoubleQuote() {
+        int start = Math.max(0, getSelectionStart());
+        int end = Math.max(start, getSelectionEnd());
+        if (undoHistory != null) undoHistory.separateNext();
+        if (start != end) {
+            String selected = getText().subSequence(start, end).toString();
+            replaceInline(start, end, "\"" + selected + "\"");
+            setSelection(start + 1, start + selected.length() + 1);
+        } else {
+            getText().insert(start, "\"");
+        }
+        if (undoHistory != null) undoHistory.separateNext();
     }
 
     /** The keyboard changes the actual visible editor viewport, not the source. */

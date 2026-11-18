@@ -550,6 +550,8 @@ public class MainActivity extends Activity {
         buildSpinner.setIndeterminateTintList(ColorStateList.valueOf(Color.WHITE));
         buildSpinner.setVisibility(View.GONE);
         buildSpinner.setClickable(false);
+        // The Run button has a 5dp elevation: keep the animation ABOVE it.
+        buildSpinner.setElevation(dp(9));
         FrameLayout.LayoutParams spinnerParams = new FrameLayout.LayoutParams(
                 dp(30), dp(30), Gravity.BOTTOM | Gravity.RIGHT);
         spinnerParams.setMargins(0, 0, dp(27), dp(27));
@@ -1671,7 +1673,8 @@ public class MainActivity extends Activity {
         String root = AndroidIncludeFiles.selectedRoot(this);
         IdeMenu.populate(popup.getMenu(),language==AppLanguage.RU,
                 hasActiveDocument(),root,language==AppLanguage.RU);
-        popup.getMenu().findItem(IdeMenu.SYNC_GIT).setEnabled(GitProjectState.active(this));
+        // Sync is also an entry point for unconnected users (opens GitHub sign-in).
+        popup.getMenu().findItem(IdeMenu.SYNC_GIT).setEnabled(true);
         popup.getMenu().findItem(IdeMenu.NEW_GIT_FILE).setEnabled(GitProjectState.active(this));
         popup.setOnMenuItemClickListener(this::handleMainMenuAction);
         popup.show();
@@ -1950,7 +1953,14 @@ public class MainActivity extends Activity {
         }
         Intent intent = new Intent(this, GitHubProjectActivity.class);
         intent.putExtra(GitHubProjectActivity.EXTRA_SYNC_ONLY, syncOnly);
-        startActivityForResult(intent, REQUEST_GIT_PROJECT);
+        try {
+            startActivityForResult(intent, REQUEST_GIT_PROJECT);
+        } catch (RuntimeException failure) {
+            new AlertDialog.Builder(this)
+                    .setTitle(t("Cannot open GitHub", "Не удалось открыть GitHub"))
+                    .setMessage(safeMessage(failure))
+                    .setPositiveButton("OK", null).show();
+        }
     }
 
     private void refreshGitProjectTabs() {
@@ -2924,7 +2934,13 @@ public class MainActivity extends Activity {
 
     private void setBuildProgress(boolean busy) {
         buildInProgress = busy;
-        if (buildSpinner != null) buildSpinner.setVisibility(busy ? View.VISIBLE : View.GONE);
+        if (buildSpinner != null) {
+            buildSpinner.setVisibility(busy ? View.VISIBLE : View.GONE);
+            if (busy) {
+                buildSpinner.setIndeterminate(true);
+                buildSpinner.bringToFront();
+            }
+        }
         if (runTap != null) {
             runTap.setImageAlpha(busy ? 0 : 255);
             runTap.setEnabled(!busy && hasActiveDocument());

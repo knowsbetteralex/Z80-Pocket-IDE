@@ -4,6 +4,15 @@
 
 Detailed Z80 Pocket IDE release history. Earlier release notes are preserved in their original English.
 
+## v0.51.0 — Build spinner, Git access and quoted text / Сборка, Git и строки
+
+- RU: Индикатор ожидания сборки поднят поверх кнопки запуска, а не перекрывается ею.
+- EN: The build spinner now renders above the floating Run button and remains animated while assembling.
+- RU: Git Sync больше не является неактивным пунктом до открытия проекта: он ведёт к входу/выбору репозитория; ошибки открытия показываются явно.
+- EN: Git Sync is available before a project is selected and opens account/repository selection; launch errors are shown.
+- RU/EN: В режиме автоматического UPPERCASE регистр текста внутри кавычек сохраняется, двойные кавычки вставляются парой с курсором внутри; работает и при вводе с клавиатуры, и через панель символов.
+- EN: Added pure-Java tests for quoted text and insertion rules.
+
 ## v0.50.0 — GitHub sync MVP / Базовый GitHub Pull + Push
 
 - RU: Пункт «Открыть Git-проект» показывает репозитории, доступные через fine-grained GitHub Token; секрет зашифрован через Android Keystore.

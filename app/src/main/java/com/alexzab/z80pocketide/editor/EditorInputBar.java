@@ -114,7 +114,8 @@ public final class EditorInputBar extends LinearLayout {
             symbols.addView(key, new LayoutParams(dp(40), dp(32)));
             key.setOnClickListener(v -> {
                 // Explicit edits go through the normal Undo/save/analysis path.
-                editor.replaceInline(editor.getSelectionStart(),
+                if ("\"".equals(symbol)) editor.insertDoubleQuote();
+                else editor.replaceInline(editor.getSelectionStart(),
                         editor.getSelectionEnd(), symbol);
                 editor.requestFocus();
                 requestSuggestions();
