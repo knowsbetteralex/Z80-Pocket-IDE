@@ -47,9 +47,9 @@ public final class IdeMenu {
         item(project,OPEN_GIT_PROJECT,1,ru,"Open Git project…","Открыть Git-проект…");
         item(project,SYNC_GIT,2,ru,"Git · Sync (Pull + Push)","Git · Синхронизировать (Pull + Push)");
         item(project,NEW_GIT_FILE,3,ru,"New file in Git project…","Новый файл в Git-проекте…");
-        item(project,PROJECT_SETTINGS,1,ru,"Project settings…","Настройки проекта…");
+        item(project,PROJECT_SETTINGS,4,ru,"Project settings…","Настройки проекта…");
         String root=mainAsm==null||mainAsm.isEmpty()?"main.asm":mainAsm;
-        project.add(0,MAIN_ASM,2,t(ru,"Main ASM: ","Главный ASM: ")+root);
+        project.add(0,MAIN_ASM,5,t(ru,"Main ASM: ","Главный ASM: ")+root);
 
         SubMenu edit=menu.addSubMenu(t(ru,"Edit","Правка"));
         item(edit,FIND,0,ru,"Find / Replace…","Найти / Заменить…")
